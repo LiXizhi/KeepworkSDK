@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sherpa-ONNX WASM KWS Test (CDN)</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-300 font-mono p-5">
+  <h1 class="text-blue-400 text-2xl font-bold mb-4">Sherpa-ONNX WASM KWS Test (CDN)</h1>
+  <div id="status" class="text-lg mt-4 px-3 py-2 rounded bg-yellow-900/50 text-yellow-300">Loading WASM module...</div>
+  <div id="keywords-section" style="display:none;">
+    <h3 class="text-lg font-bold mt-4 mb-2">Custom Keywords:</h3>
+    <pre id="keywords-display" class="bg-gray-800 p-3 rounded text-sm"></pre>
+  </div>
+  <div id="controls" class="my-4" style="display:none;">
+    <button id="startBtn" class="px-4 py-2 mr-2 bg-blue-600 hover:bg-blue-700 text-white rounded cursor-pointer disabled:opacity-50" disabled>Start</button>
+    <button id="stopBtn" class="px-4 py-2 mr-2 bg-blue-600 hover:bg-blue-700 text-white rounded cursor-pointer disabled:opacity-50" disabled>Stop</button>
+    <button id="clearBtn" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded cursor-pointer">Clear</button>
+  </div>
+  <textarea id="results" rows="10" cols="80" readonly class="block w-full max-w-3xl my-4 bg-gray-800 text-gray-300 border border-gray-600 font-mono text-sm rounded p-2"></textarea>
+  <div id="log" class="whitespace-pre-wrap leading-relaxed"></div>
+
+  <script>
+    var sherpaonnxBase = "https://cdn.keepwork.com/npm/sherpaonnx-js/";
+    var _t = Date.now();
+    document.write('<script src="' + sherpaonnxBase + 'sherpa-onnx-cache.js?_t=' + _t + '"><\/script>');
+    document.write('<script src="' + sherpaonnxBase + 'sherpa-onnx-kws.js?_t=' + _t + '"><\/script>');
+  </script>
+  <script>
+    // main.js sets up Module asynchronously (cache probe + version fetch).
+    // The Emscripten loader must run AFTER Module is configured.
+    // main.js calls window._loadEmscriptenLoader() when Module is ready.
+    window._loadEmscriptenLoader = function () {
+      var s = document.createElement("script");
+      s.src = sherpaonnxBase + "sherpa-onnx-wasm-kws-main.js?_t=" + _t;
+      document.body.appendChild(s);
+    };
+  </script>
+  <script src="testWakeupWord.js"></script>
+</body>
+</html>

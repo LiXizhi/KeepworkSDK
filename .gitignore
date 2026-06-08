@@ -1,0 +1,14 @@
+dist/
+dist-npm/
+models/
+ai-skill-accesskey/
+__pycache__/
+node_modules/
+
+# 含明文七牛密钥的旧 CDN 上传工具目录，不得提交（密钥由 ai-skill-accesskey 仓库托管）
+deploy_tools/
+
+# 本地构建/测试密钥（含 MAISI_API_KEY、VOLC_ACCESS_TOKEN 等），不得提交
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YMLParser Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h3 {
+            color: #666;
+            margin-top: 25px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group.inline {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        .form-group.inline label {
+            margin-bottom: 0;
+            min-width: 120px;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .form-group.inline input, .form-group.inline textarea {
+            flex: 1;
+            min-width: 200px;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: 'Courier New', monospace;
+        }
+        .large-textarea {
+            min-height: 200px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover {
+            background-color: #545b62;
+        }
+        button.success {
+            background-color: #28a745;
+        }
+        button.success:hover {
+            background-color: #1e7e34;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .preset-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .preset-buttons button {
+            font-size: 12px;
+            padding: 5px 10px;
+        }
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+            .form-group.inline {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .form-group.inline label {
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>YMLParser Test Page</h1>
+
+    <!-- Object to YAML Conversion -->
+    <div class="container">
+        <h2>Object to YAML Conversion</h2>
+        <div class="form-group">
+            <label for="objectInput">JavaScript Object (JSON format):</label>
+            <div class="preset-buttons">
+                <button class="secondary" onclick="loadSimpleObject()">Simple Object</button>
+                <button class="secondary" onclick="loadNestedObject()">Nested Object</button>
+                <button class="secondary" onclick="loadArrayObject()">Arrays</button>
+                <button class="secondary" onclick="loadComplexObject()">Complex Data</button>
+                <button class="secondary" onclick="loadUserProfile()">User Profile</button>
+            </div>
+            <textarea id="objectInput" class="large-textarea" placeholder="Enter JavaScript object in JSON format">{
+  "name": "John Doe",
+  "age": 30,
+  "active": true,
+  "address": {
+    "street": "123 Main St",
+    "city": "Anytown",
+    "country": "USA"
+  }
+}</textarea>
+        </div>
+        <button onclick="convertObjectToYaml()">Convert to YAML</button>
+        <button class="secondary" onclick="clearObjectInput()">Clear</button>
+        
+        <div id="yamlOutput" class="result info" style="display: none;"></div>
+    </div>
+
+    <!-- YAML to Object Conversion -->
+    <div class="container">
+        <h2>YAML to Object Conversion</h2>
+        <div class="form-group">
+            <label for="yamlInput">YAML String:</label>
+            <div class="preset-buttons">
+                <button class="secondary" onclick="loadSimpleYaml()">Simple YAML</button>
+                <button class="secondary" onclick="loadNestedYaml()">Nested YAML</button>
+                <button class="secondary" onclick="loadArrayYaml()">Array YAML</button>
+                <button class="secondary" onclick="loadComplexYaml()">Complex YAML</button>
+                <button class="secondary" onclick="loadConfigYaml()">Config Example</button>
+            </div>
+            <textarea id="yamlInput" class="large-textarea" placeholder="Enter YAML string">name: "John Doe"
+age: 30
+active: true
+address:
+  street: "123 Main St"
+  city: "Anytown"
+  country: "USA"</textarea>
+        </div>
+        <button onclick="convertYamlToObject()">Convert to Object</button>
+        <button class="secondary" onclick="clearYamlInput()">Clear</button>
+        
+        <div id="objectOutput" class="result info" style="display: none;"></div>
+    </div>
+
+    <!-- Round-trip Testing -->
+    <div class="container">
+        <h2>Round-trip Testing</h2>
+        <p>Test conversion from Object → YAML → Object to verify data integrity.</p>
+        <div class="form-group">
+            <label for="roundtripInput">Original Object:</label>
+            <textarea id="roundtripInput" placeholder="Enter JavaScript object for round-trip testing">{
+  "user": {
+    "name": "Alice",
+    "preferences": {
+      "theme": "dark",
+      "language": "en"
+    },
+    "scores": [100, 250, 175],
+    "metadata": {
+      "created": "2024-01-01",
+      "version": 1.2
+    }
+  }
+}</textarea>
+        </div>
+        <button onclick="testRoundtrip()">Test Round-trip</button>
+        
+        <div id="roundtripResult" class="result" style="display: none;"></div>
+    </div>
+
+    <!-- Batch Testing -->
+    <div class="container">
+        <h2>Batch Testing</h2>
+        <p>Run comprehensive tests with various data types and edge cases.</p>
+        <button onclick="runBatchTests()">Run All Tests</button>
+        <button class="secondary" onclick="clearBatchResults()">Clear Results</button>
+        
+        <div id="batchTestResults" class="result" style="display: none;"></div>
+    </div>
+
+    <!-- Performance Testing -->
+    <div class="container">
+        <h2>Performance Testing</h2>
+        <div class="form-group inline">
+            <label for="perfIterations">Iterations:</label>
+            <input type="number" id="perfIterations" value="1000" min="1" max="10000">
+        </div>
+        <button onclick="runPerformanceTest()">Run Performance Test</button>
+        
+        <div id="performanceResult" class="result" style="display: none;"></div>
+    </div>
+
+    <!-- Include YMLParser -->
+    <script src="../src/store/YMLParser.ts" type="module"></script>
+    <script>
+        // Import YMLParser (for module support)
+        let YMLParser;
+        if (typeof window.YMLParser !== 'undefined') {
+            YMLParser = window.YMLParser;
+        } else {
+            // Fallback for module import
+            import('../src/store/YMLParser.ts').then(module => {
+                YMLParser = module.default;
+                console.log('YMLParser loaded successfully');
+            }).catch(error => {
+                console.error('Failed to load YMLParser:', error);
+            });
+        }
+
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            element.textContent = content;
+            element.className = `result ${isError ? 'error' : 'success'}`;
+            element.style.display = 'block';
+        }
+
+        function showStatus(message, type = 'info') {
+            // Create or update status element
+            let statusElement = document.getElementById('globalStatus');
+            if (!statusElement) {
+                statusElement = document.createElement('div');
+                statusElement.id = 'globalStatus';
+                statusElement.className = 'status';
+                document.body.insertBefore(statusElement, document.body.firstChild);
+            }
+            
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 3000);
+        }
+
+        // Object to YAML conversion
+        function convertObjectToYaml() {
+            try {
+                const objectInput = document.getElementById('objectInput').value;
+                if (!objectInput.trim()) {
+                    showStatus('Please enter a JavaScript object', 'error');
+                    return;
+                }
+
+                const obj = JSON.parse(objectInput);
+                const yamlString = YMLParser.objectToYaml(obj);
+                
+                showResult('yamlOutput', yamlString);
+                showStatus('Object converted to YAML successfully', 'success');
+            } catch (error) {
+                showResult('yamlOutput', `Error: ${error.message}`, true);
+                showStatus('Failed to convert object to YAML', 'error');
+            }
+        }
+
+        // YAML to Object conversion
+        function convertYamlToObject() {
+            try {
+                const yamlInput = document.getElementById('yamlInput').value;
+                if (!yamlInput.trim()) {
+                    showStatus('Please enter a YAML string', 'error');
+                    return;
+                }
+
+                const obj = YMLParser.yamlToObject(yamlInput);
+                const jsonString = JSON.stringify(obj, null, 2);
+                
+                showResult('objectOutput', jsonString);
+                showStatus('YAML converted to object successfully', 'success');
+            } catch (error) {
+                showResult('objectOutput', `Error: ${error.message}`, true);
+                showStatus('Failed to convert YAML to object', 'error');
+            }
+        }
+
+        // Round-trip testing
+        function testRoundtrip() {
+            try {
+                const originalInput = document.getElementById('roundtripInput').value;
+                if (!originalInput.trim()) {
+                    showStatus('Please enter an original object', 'error');
+                    return;
+                }
+
+                // Step 1: Parse original object
+                const originalObj = JSON.parse(originalInput);
+                
+                // Step 2: Convert to YAML
+                const yamlString = YMLParser.objectToYaml(originalObj);
+                
+                // Step 3: Convert back to object
+                const finalObj = YMLParser.yamlToObject(yamlString);
+                
+                // Step 4: Compare results
+                const originalJson = JSON.stringify(originalObj, null, 2);
+                const finalJson = JSON.stringify(finalObj, null, 2);
+                const isIdentical = originalJson === finalJson;
+                
+                const result = `Round-trip Test Results:
+${isIdentical ? '✅ SUCCESS' : '❌ FAILURE'} - Data integrity ${isIdentical ? 'preserved' : 'lost'}
+
+Original Object:
+${originalJson}
+
+Converted YAML:
+${yamlString}
+
+Final Object:
+${finalJson}
+
+${isIdentical ? '' : '\nDifferences detected! The conversion is not lossless.'}`;
+                
+                showResult('roundtripResult', result, !isIdentical);
+                showStatus(`Round-trip test ${isIdentical ? 'passed' : 'failed'}`, isIdentical ? 'success' : 'error');
+            } catch (error) {
+                showResult('roundtripResult', `Round-trip test error: ${error.message}`, true);
+                showStatus('Round-trip test failed', 'error');
+            }
+        }
+
+        // Batch testing
+        function runBatchTests() {
+            const testCases = [
+                {
+                    name: 'Simple String',
+                    input: { message: "Hello World" }
+                },
+                {
+                    name: 'Numbers',
+                    input: { integer: 42, float: 3.14, negative: -10 }
+                },
+                {
+                    name: 'Booleans',
+                    input: { enabled: true, disabled: false }
+                },
+                {
+                    name: 'Null Values',
+                    input: { empty: null, undefined: undefined }
+                },
+                {
+                    name: 'Arrays',
+                    input: { numbers: [1, 2, 3], strings: ["a", "b", "c"], mixed: [1, "two", true] }
+                },
+                {
+                    name: 'Nested Objects',
+                    input: {
+                        user: {
+                            profile: {
+                                name: "John",
+                                age: 30
+                            }
+                        }
+                    }
+                },
+                {
+                    name: 'Empty Structures',
+                    input: { emptyObj: {}, emptyArray: [] }
+                },
+                {
+                    name: 'Special Characters',
+                    input: { text: "Line 1\nLine 2\tTabbed", quoted: '"Hello"', apostrophe: "Don't" }
+                }
+            ];
+
+            let results = 'Batch Test Results:\n' + '='.repeat(50) + '\n\n';
+            let passCount = 0;
+            let totalCount = testCases.length;
+
+            testCases.forEach((testCase, index) => {
+                try {
+                    const yaml = YMLParser.objectToYaml(testCase.input);
+                    const parsed = YMLParser.yamlToObject(yaml);
+                    const isMatch = JSON.stringify(testCase.input) === JSON.stringify(parsed);
+                    
+                    results += `${index + 1}. ${testCase.name}: ${isMatch ? '✅ PASS' : '❌ FAIL'}\n`;
+                    if (!isMatch) {
+                        results += `   Expected: ${JSON.stringify(testCase.input)}\n`;
+                        results += `   Got: ${JSON.stringify(parsed)}\n`;
+                    }
+                    results += '\n';
+                    
+                    if (isMatch) passCount++;
+                } catch (error) {
+                    results += `${index + 1}. ${testCase.name}: ❌ ERROR - ${error.message}\n\n`;
+                }
+            });
+
+            results += `Summary: ${passCount}/${totalCount} tests passed (${Math.round(passCount/totalCount*100)}%)`;
+            
+            showResult('batchTestResults', results, passCount < totalCount);
+            showStatus(`Batch tests completed: ${passCount}/${totalCount} passed`, passCount === totalCount ? 'success' : 'error');
+        }
+
+        // Performance testing
+        function runPerformanceTest() {
+            const iterations = parseInt(document.getElementById('perfIterations').value) || 1000;
+            
+            const testObj = {
+                user: {
+                    name: "Performance Test User",
+                    profile: {
+                        age: 25,
+                        preferences: {
+                            theme: "dark",
+                            language: "en",
+                            notifications: true
+                        }
+                    },
+                    activities: [
+                        { type: "login", timestamp: "2024-01-01T10:00:00Z" },
+                        { type: "page_view", timestamp: "2024-01-01T10:05:00Z" },
+                        { type: "logout", timestamp: "2024-01-01T11:00:00Z" }
+                    ]
+                }
+            };
+
+            try {
+                // Test Object to YAML performance
+                const startToYaml = performance.now();
+                for (let i = 0; i < iterations; i++) {
+                    YMLParser.objectToYaml(testObj);
+                }
+                const endToYaml = performance.now();
+                const toYamlTime = endToYaml - startToYaml;
+
+                // Test YAML to Object performance
+                const yamlString = YMLParser.objectToYaml(testObj);
+                const startToObject = performance.now();
+                for (let i = 0; i < iterations; i++) {
+                    YMLParser.yamlToObject(yamlString);
+                }
+                const endToObject = performance.now();
+                const toObjectTime = endToObject - startToObject;
+
+                const results = `Performance Test Results (${iterations} iterations):
+${'='.repeat(50)}
+
+Object to YAML:
+  Total time: ${toYamlTime.toFixed(2)} ms
+  Average per operation: ${(toYamlTime / iterations).toFixed(4)} ms
+  Operations per second: ${Math.round(iterations / (toYamlTime / 1000))}
+
+YAML to Object:
+  Total time: ${toObjectTime.toFixed(2)} ms
+  Average per operation: ${(toObjectTime / iterations).toFixed(4)} ms
+  Operations per second: ${Math.round(iterations / (toObjectTime / 1000))}
+
+Test Object Size: ${JSON.stringify(testObj).length} characters
+YAML Output Size: ${yamlString.length} characters`;
+
+                showResult('performanceResult', results);
+                showStatus('Performance test completed successfully', 'success');
+            } catch (error) {
+                showResult('performanceResult', `Performance test error: ${error.message}`, true);
+                showStatus('Performance test failed', 'error');
+            }
+        }
+
+        // Preset data loaders
+        function loadSimpleObject() {
+            document.getElementById('objectInput').value = JSON.stringify({
+                "name": "John Doe",
+                "age": 30,
+                "active": true
+            }, null, 2);
+        }
+
+        function loadNestedObject() {
+            document.getElementById('objectInput').value = JSON.stringify({
+                "user": {
+                    "profile": {
+                        "name": "Alice Smith",
+                        "contact": {
+                            "email": "alice@example.com",
+                            "phone": "+1-555-0123"
+                        }
+                    },
+                    "settings": {
+                        "theme": "dark",
+                        "notifications": true
+                    }
+                }
+            }, null, 2);
+        }
+
+        function loadArrayObject() {
+            document.getElementById('objectInput').value = JSON.stringify({
+                "numbers": [1, 2, 3, 4, 5],
+                "strings": ["apple", "banana", "cherry"],
+                "mixed": [1, "two", true, null],
+                "objects": [
+                    { "name": "Item 1", "value": 100 },
+                    { "name": "Item 2", "value": 200 }
+                ]
+            }, null, 2);
+        }
+
+        function loadComplexObject() {
+            document.getElementById('objectInput').value = JSON.stringify({
+                "metadata": {
+                    "version": "1.0.0",
+                    "created": "2024-01-01T00:00:00Z",
+                    "tags": ["production", "api", "v1"]
+                },
+                "config": {
+                    "database": {
+                        "host": "localhost",
+                        "port": 5432,
+                        "ssl": true
+                    },
+                    "features": {
+                        "auth": true,
+                        "logging": false,
+                        "cache_ttl": 3600
+                    }
+                },
+                "users": [
+                    {
+                        "id": 1,
+                        "name": "Admin",
+                        "permissions": ["read", "write", "delete"]
+                    }
+                ]
+            }, null, 2);
+        }
+
+        function loadUserProfile() {
+            document.getElementById('objectInput').value = JSON.stringify({
+                "id": "user_12345",
+                "username": "johndoe",
+                "profile": {
+                    "displayName": "John Doe",
+                    "email": "john@example.com",
+                    "avatar": "https://example.com/avatar.jpg",
+                    "bio": "Software developer from California"
+                },
+                "preferences": {
+                    "language": "en",
+                    "timezone": "America/Los_Angeles",
+                    "theme": "dark",
+                    "emailNotifications": true
+                },
+                "stats": {
+                    "loginCount": 142,
+                    "lastLogin": "2024-01-15T14:30:00Z",
+                    "accountCreated": "2023-06-01T10:00:00Z"
+                }
+            }, null, 2);
+        }
+
+        // YAML presets
+        function loadSimpleYaml() {
+            document.getElementById('yamlInput').value = `name: "Simple Example"
+version: 1.0
+active: true`;
+        }
+
+        function loadNestedYaml() {
+            document.getElementById('yamlInput').value = `server:
+  host: "localhost"
+  port: 8080
+  ssl:
+    enabled: true
+    certificate: "/path/to/cert.pem"
+    key: "/path/to/key.pem"`;
+        }
+
+        function loadArrayYaml() {
+            document.getElementById('yamlInput').value = `fruits:
+  - "apple"
+  - "banana"
+  - "cherry"
+numbers: [1,2,3]
+mixed:
+  - "text"
+  - 42
+  - true`;
+        }
+
+        function loadComplexYaml() {
+            document.getElementById('yamlInput').value = `application:
+  name: "My App"
+  version: "2.1.0"
+  
+database:
+  connections:
+    - name: "primary"
+      host: "db1.example.com"
+      port: 5432
+    - name: "replica"
+      host: "db2.example.com"
+      port: 5432
+      
+features:
+  authentication: true
+  logging: false
+  cache_ttl: 3600`;
+        }
+
+        function loadConfigYaml() {
+            document.getElementById('yamlInput').value = `# Application Configuration
+app:
+  name: "KeepworkSDK"
+  version: "1.0.0"
+  debug: false
+
+api:
+  base_url: "https://api.keepwork.com"
+  timeout: 30000
+  retry_count: 3
+
+logging:
+  level: "info"
+  file: "/var/log/app.log"
+  format: "json"
+
+features:
+  - "authentication"
+  - "page_management"
+  - "remote_logging"`;
+        }
+
+        // Clear functions
+        function clearObjectInput() {
+            document.getElementById('objectInput').value = '';
+            document.getElementById('yamlOutput').style.display = 'none';
+        }
+
+        function clearYamlInput() {
+            document.getElementById('yamlInput').value = '';
+            document.getElementById('objectOutput').style.display = 'none';
+        }
+
+        function clearBatchResults() {
+            document.getElementById('batchTestResults').style.display = 'none';
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            showStatus('YMLParser test page loaded successfully', 'success');
+        });
+    </script>
+</body>
+</html>

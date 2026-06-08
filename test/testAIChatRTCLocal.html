@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIChatRTCLocal — Local Voice Chat Test</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    @keyframes pulse-ring {
+      0% { transform: scale(1); opacity: 0.6; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+    .mic-pulse::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 3px solid #ef4444;
+      animation: pulse-ring 1.2s ease-out infinite;
+    }
+    @keyframes wave {
+      0%, 100% { height: 6px; }
+      50% { height: 24px; }
+    }
+    .wave-bar {
+      width: 4px; background: #3b82f6; border-radius: 2px;
+      animation: wave 0.8s ease-in-out infinite;
+    }
+    .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+    .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+    .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+    .wave-bar:nth-child(5) { animation-delay: 0.15s; }
+    #log-panel::-webkit-scrollbar { width: 6px; }
+    #log-panel::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    #chat-messages::-webkit-scrollbar { width: 6px; }
+    #chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    @keyframes state-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .state-pulse { animation: state-pulse 1.5s ease-in-out infinite; }
+  .sys-tip { position: relative; cursor: pointer; border-bottom: 1px dashed #6b7280; }
+    .sys-tip .tip-content {
+      display: none; position: absolute; bottom: 100%; left: 50%;
+      transform: translateX(-50%); margin-bottom: 6px; padding: 8px 12px;
+      background: #1e293b; border: 1px solid #475569; border-radius: 8px;
+      color: #e2e8f0; font-size: 12px; white-space: pre-wrap;
+      max-width: 420px; min-width: 160px; z-index: 50;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: left; word-break: break-all;
+    }
+    .sys-tip:hover .tip-content { display: block; }
+  </style>
+</head>
+<body class="bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
+
+  <!-- Header -->
+  <header class="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center text-xl">🎙️</div>
+      <div>
+        <h1 class="text-base font-bold leading-tight">AIChatRTCLocal Test</h1>
+        <p class="text-xs text-gray-400">Local Voice Chat — Silero VAD + local/browser ASR + local/browser TTS</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="connection-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-700 text-gray-300">Disconnected</span>
+      <span id="state-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-700 text-gray-300">—</span>
+      <span id="vad-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-700 text-gray-300">VAD: —</span>
+      <span id="asr-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-700 text-gray-300">ASR: —</span>
+      <span id="tts-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-700 text-gray-300">TTS: —</span>
+      <span id="usernameDisplay" class="text-sm text-gray-300 cursor-pointer hover:text-blue-400 hidden"></span>
+      <button id="signInBtn" class="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors hidden">登录</button>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Left: Config -->
+    <aside class="w-80 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0 overflow-y-auto">
+      <div class="p-4 space-y-4">
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">LLM Config</h3>
+          <label class="block">
+            <span class="text-xs text-gray-400">Model</span>
+            <select id="cfg-model" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="keepwork-flash" selected>keepwork-flash</option>
+              <option value="keepwork-pro">keepwork-pro</option>
+              <option value="keepwork-deepseek-r1">keepwork-deepseek-r1</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">System Prompt</span>
+            <textarea id="cfg-prompt" rows="4" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">你是一个全能的超级助手。回答准确但不冗长。</textarea>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Welcome Message</span>
+            <input id="cfg-welcome" type="text" value="你好，我是AI助手，有什么需要帮忙的吗？"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+        </div>
+
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">ASR Config</h3>
+          <label class="block">
+            <span class="text-xs text-gray-400">Neural Preset</span>
+            <select id="cfg-asr-preset" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="zipformer_small_bilingual_zh_en" selected>zipformer_small_bilingual_zh_en</option>
+              <option value="paraformer_bilingual_zh_en">paraformer_bilingual_zh_en</option>
+              <option value="whisper_tiny_multilingual">whisper_tiny_multilingual</option>
+              <option value="">(none)</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Provider</span>
+            <select id="cfg-asr-provider" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="local_neural" selected>local_neural (Sherpa worker)</option>
+              <option value="whisper">whisper (Sherpa offline Whisper)</option>
+              <option value="web_speech">web_speech (Chrome SpeechRecognition)</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Fallback Provider</span>
+            <select id="cfg-asr-fallback" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="web_speech" selected>web_speech</option>
+              <option value="local_neural">local_neural</option>
+              <option value="whisper">whisper</option>
+              <option value="">(none)</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Language</span>
+            <select id="cfg-language" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="zh-CN" selected>zh-CN (中文)</option>
+              <option value="en-US">en-US (English)</option>
+              <option value="zh-CN,en-US">zh-CN,en-US (中文 + English mixed)</option>
+              <option value="ja-JP">ja-JP (日本語)</option>
+              <option value="ko-KR">ko-KR (한국어)</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Local Asset Base</span>
+            <input id="cfg-asr-asset-base" type="text"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Neural Runtime Base URL</span>
+            <input id="cfg-asr-runtime-base" type="text"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Neural Model Base URL</span>
+            <input id="cfg-asr-model-base" type="text"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <p id="asr-cdn-hint" class="text-xs text-gray-500 leading-relaxed"></p>
+        </div>
+
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">TTS Config</h3>
+          <label class="block">
+            <span class="text-xs text-gray-400">Provider</span>
+            <select id="cfg-tts-provider" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="local_neural" selected>local_neural (Sherpa offline TTS)</option>
+              <option value="browser_speech">browser_speech (speechSynthesis)</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Fallback Provider</span>
+            <select id="cfg-tts-fallback" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="browser_speech" selected>browser_speech</option>
+              <option value="local_neural">local_neural</option>
+              <option value="">(none)</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Neural Preset</span>
+            <select id="cfg-tts-preset" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="auto_mobile_zh_en">auto_mobile_zh_en</option>
+              <option value="vits_melo_zh_en">vits_melo_zh_en</option>
+              <option value="vits_icefall_zh_aishell3_mobile" selected>vits_icefall_zh_aishell3_mobile</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Local Asset Base</span>
+            <input id="cfg-tts-asset-base" type="text"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Neural Runtime Base URL</span>
+            <input id="cfg-tts-runtime-base" type="text"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Neural Model Base URL</span>
+            <input id="cfg-tts-model-base" type="text"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Speaker ID (local neural)</span>
+            <input id="cfg-tts-speaker-id" type="number" value="66" placeholder="auto (preset default)" min="0" step="1"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Voice (browser voices)</span>
+            <select id="cfg-voice" class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="">(default)</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Speed (0.5 ~ 2.0)</span>
+            <input id="cfg-speed" type="number" value="1.15" min="0.5" max="2.0" step="0.1"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Volume (0.5 ~ 3.0)</span>
+            <input id="cfg-volume" type="number" value="1.35" min="0.5" max="3.0" step="0.05"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <p id="tts-cdn-hint" class="text-xs text-gray-500 leading-relaxed"></p>
+        </div>
+
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">Tool Config</h3>
+          <div class="space-y-1">
+            <span class="text-xs text-gray-400">Copilot Tools</span>
+            <div class="flex flex-wrap gap-x-4 gap-y-1">
+              <label class="flex items-center gap-1.5">
+                <input type="checkbox" class="cfg-tool-cat accent-blue-500" value="fileOps" checked>
+                <span class="text-xs text-gray-300">fileOps</span>
+              </label>
+              <label class="flex items-center gap-1.5">
+                <input type="checkbox" class="cfg-tool-cat accent-blue-500" value="execute">
+                <span class="text-xs text-gray-300">execute</span>
+              </label>
+              <label class="flex items-center gap-1.5">
+                <input type="checkbox" class="cfg-tool-cat accent-blue-500" value="agent">
+                <span class="text-xs text-gray-300">agent</span>
+              </label>
+              <label class="flex items-center gap-1.5">
+                <input type="checkbox" class="cfg-tool-cat accent-blue-500" value="web">
+                <span class="text-xs text-gray-300">web</span>
+              </label>
+            </div>
+          </div>
+          <label class="block">
+            <span class="text-xs text-gray-400">Workspace</span>
+            <input id="cfg-workspace" type="text" value="testRTCLocal"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+        </div>
+
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">VAD Config</h3>
+          <label class="flex items-center gap-2">
+            <input id="cfg-cache-binary-assets" type="checkbox" class="accent-blue-500" checked>
+            <span class="text-sm text-gray-300">Cache WASM + ONNX in IndexedDB</span>
+          </label>
+          <label class="flex items-center gap-2">
+            <input id="cfg-force-energy-vad" type="checkbox" class="accent-blue-500">
+            <span class="text-sm text-gray-300">Force energy-based VAD (skip Silero)</span>
+          </label>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center: Chat + Controls -->
+    <main class="flex-1 flex flex-col">
+      <!-- Chat Messages -->
+      <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
+        <div id="chat-placeholder" class="text-center text-gray-500 text-sm mt-20">
+          Configure settings and click Start to begin a local voice chat session.<br>
+          <span class="text-xs text-gray-600">Requires Chrome/Edge for SpeechRecognition. Microphone access needed.</span>
+        </div>
+      </div>
+
+      <!-- Text Input -->
+      <div id="text-input-bar" class="hidden border-t border-gray-700 bg-gray-800 px-4 py-3">
+        <div class="flex gap-2">
+          <input id="text-input" type="text" placeholder="Type a message (sends directly to LLM)..."
+            class="flex-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          <button id="btn-send-text" class="px-4 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Send</button>
+        </div>
+      </div>
+
+      <!-- Voice Controls -->
+      <div class="border-t border-gray-700 bg-gray-800 px-6 py-4 flex items-center justify-center gap-6 shrink-0">
+        <div id="mic-indicator" class="relative w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-xl transition-all" style="opacity: 0.5">🎤</div>
+        <div id="waveform" class="flex items-center gap-1 h-8" style="opacity: 0">
+          <div class="wave-bar" style="height: 6px"></div>
+          <div class="wave-bar" style="height: 6px"></div>
+          <div class="wave-bar" style="height: 6px"></div>
+          <div class="wave-bar" style="height: 6px"></div>
+          <div class="wave-bar" style="height: 6px"></div>
+        </div>
+        <button id="btn-start" class="px-6 py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors">▶ Start</button>
+        <button id="btn-stop" class="hidden px-6 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">⏹ Stop</button>
+        <button id="btn-mute" class="hidden px-4 py-2 bg-gray-700 text-white rounded-lg text-sm hover:bg-gray-600">🔊 Mute</button>
+        <button id="btn-interrupt" class="hidden px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700">⏹ Interrupt</button>
+      </div>
+    </main>
+
+    <!-- Right: Log Panel -->
+    <aside class="w-72 bg-gray-800 border-l border-gray-700 flex flex-col shrink-0">
+      <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+        <span class="text-sm font-semibold text-gray-300">Logs</span>
+        <button id="btn-clear-log" class="text-xs text-gray-500 hover:text-gray-300">Clear</button>
+      </div>
+      <div id="log-panel" class="flex-1 overflow-y-auto p-3 space-y-1 text-xs font-mono"></div>
+    </aside>
+  </div>
+
+<script type="module">
+try { await import('../index.ts'); } catch(e) { await import('../dist/keepworkSDK.iife.js'); }
+
+// ============================================================================
+// SDK & State
+// ============================================================================
+
+const hashParams = new URLSearchParams(window.location.hash.slice(1));
+const queryParams = new URLSearchParams(window.location.search);
+const urlToken = hashParams.get('token') || queryParams.get('token');
+const sdk = new KeepworkSDK({ timeout: 30000, token: urlToken });
+
+// Single source of truth for the default model base — keeps HTML free of hardcoded URLs.
+// Uses the resolved base (CDN on production, ./models on localhost).
+const MODEL_BASE = AIChatRTCLocal.DEFAULT_MODEL_BASE || AIChatRTCLocal.DEFAULT_MODEL_CDN || 'https://cdn.keepwork.com/keepwork/cdn/models';
+const MODEL_CDN = AIChatRTCLocal.DEFAULT_MODEL_CDN || 'https://cdn.keepwork.com/keepwork/cdn/models';
+
+// Populate all input defaults / placeholders from the resolved base.
+(function initDefaults() {
+  const base = MODEL_BASE.replace(/\/+$/, '') + '/';
+  const fields = [
+    { id: 'cfg-asr-asset-base',   value: base, placeholder: base },
+    { id: 'cfg-asr-runtime-base', placeholder: base + 'sherpa-onnx/wasm/1.12.32' },
+    { id: 'cfg-asr-model-base',   value: base + 'asr/whisper-tiny', placeholder: base + 'asr/whisper-tiny' },
+    { id: 'cfg-tts-asset-base',   value: base, placeholder: base },
+    { id: 'cfg-tts-runtime-base', placeholder: base + 'sherpa-onnx/wasm/1.12.32' },
+    { id: 'cfg-tts-model-base',   placeholder: base + 'tts/vits-melo-tts-zh_en' },
+  ];
+  for (const f of fields) {
+    const el = document.getElementById(f.id);
+    if (!el) continue;
+    if (f.value !== undefined) el.value = f.value;
+    if (f.placeholder) el.placeholder = f.placeholder;
+  }
+  const asrHint = document.getElementById('asr-cdn-hint');
+  if (asrHint) asrHint.innerHTML = `Presets resolve against <span class="text-gray-300">Local Asset Base</span> first, so the default test setup points at <span class="text-gray-300">${base}</span>. Whisper mixed zh/en uses <span class="text-gray-300">${base}asr/whisper-tiny</span> by default. On production it uses the CDN at <span class="text-gray-300">${MODEL_CDN}/</span>.`;
+  const ttsHint = document.getElementById('tts-cdn-hint');
+  if (ttsHint) ttsHint.innerHTML = `The local neural TTS path expects sherpa-onnx TTS assets under <span class="text-gray-300">${base}tts/...</span>. Browser speech remains the fallback when those assets are missing.`;
+})();
+
+function syncASRDefaults() {
+  const base = (document.getElementById('cfg-asr-asset-base').value.trim() || MODEL_BASE).replace(/\/+$/, '');
+  const provider = document.getElementById('cfg-asr-provider').value;
+  const preset = document.getElementById('cfg-asr-preset').value;
+  const runtimeBase = document.getElementById('cfg-asr-runtime-base');
+  const modelBase = document.getElementById('cfg-asr-model-base');
+
+  runtimeBase.placeholder = base + '/sherpa-onnx/wasm/1.12.32';
+
+  let suggestedModelBase = base + '/asr/zipformer-small-bilingual-zh-en-2023-02-16';
+  if (provider === 'whisper' || preset === 'whisper_tiny_multilingual') {
+    suggestedModelBase = base + '/asr/whisper-tiny';
+  } else if (preset === 'paraformer_bilingual_zh_en') {
+    suggestedModelBase = base + '/asr/paraformer-bilingual-zh-en';
+  }
+
+  modelBase.placeholder = suggestedModelBase;
+  if (!modelBase.value.trim()) {
+    modelBase.value = suggestedModelBase;
+  }
+}
+
+syncASRDefaults();
+
+let rtcLocal = new AIChatRTCLocal(sdk);
+let session = null;
+
+// ============================================================================
+// Utility: Logging & Chat UI
+// ============================================================================
+
+function log(msg, level = 'info') {
+  const panel = document.getElementById('log-panel');
+  const colors = { info: 'text-gray-300', warn: 'text-yellow-400', error: 'text-red-400', success: 'text-green-400' };
+  const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const div = document.createElement('div');
+  div.className = colors[level] || colors.info;
+  div.textContent = `[${ts}] ${msg}`;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+  console.log(`[RTCLocal-Test][${level}] ${msg}`);
+}
+
+const subtitleElements = {};
+
+function replayAIBubble(text) {
+  const content = String(text || '').trim();
+  if (!content) return;
+  if (!session || !session.isActive) {
+    log('Replay ignored: session is not active', 'warn');
+    return;
+  }
+
+  session.interrupt();
+  setTimeout(() => {
+    if (!session || !session.isActive) return;
+    session._speak(content);
+    log(`[Replay] ${content}`);
+  }, 40);
+}
+
+function addChatMessage(text, isUser, id) {
+  const container = document.getElementById('chat-messages');
+  const placeholder = document.getElementById('chat-placeholder');
+  if (placeholder) placeholder.remove();
+
+  const wrapper = document.createElement('div');
+  wrapper.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+  if (id) wrapper.dataset.msgId = id;
+  wrapper.dataset.isUser = isUser ? '1' : '0';
+  wrapper.dataset.ttsText = text || '';
+
+  const bubble = document.createElement('div');
+  bubble.className = isUser
+    ? 'max-w-md px-4 py-2.5 rounded-2xl rounded-br-sm bg-blue-600 text-white text-sm leading-relaxed'
+    : 'max-w-md px-4 py-2.5 rounded-2xl rounded-bl-sm bg-gray-700 text-gray-100 text-sm leading-relaxed';
+  bubble.dataset.role = 'bubble';
+  bubble.textContent = text;
+
+  if (!isUser) {
+    const bubbleWrap = document.createElement('div');
+    bubbleWrap.className = 'flex items-end gap-2';
+    bubbleWrap.appendChild(bubble);
+
+    const replayBtn = document.createElement('button');
+    replayBtn.type = 'button';
+    replayBtn.className = 'shrink-0 px-2.5 py-1.5 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-emerald-200 text-xs hover:bg-emerald-500/20 transition-colors';
+    replayBtn.textContent = 'Replay';
+    replayBtn.title = 'Replay this AI message through TTS';
+    replayBtn.addEventListener('click', () => replayAIBubble(wrapper.dataset.ttsText || bubble.textContent || ''));
+
+    wrapper.appendChild(bubbleWrap);
+    wrapper.appendChild(replayBtn);
+  } else {
+    wrapper.appendChild(bubble);
+  }
+
+  container.appendChild(wrapper);
+  container.scrollTop = container.scrollHeight;
+  return wrapper;
+}
+
+function updateOrCreateBubble(key, text, isUser) {
+  const container = document.getElementById('chat-messages');
+  if (subtitleElements[key]) {
+    const bubble = subtitleElements[key].querySelector('[data-role="bubble"]');
+    if (bubble) bubble.textContent = text;
+    subtitleElements[key].dataset.ttsText = text || '';
+    container.scrollTop = container.scrollHeight;
+  } else {
+    subtitleElements[key] = addChatMessage(text, isUser, key);
+  }
+}
+
+function addSystemMessage(text, tooltip) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'text-center text-xs text-gray-500 py-1';
+  if (tooltip) {
+    div.classList.add('sys-tip');
+    const span = document.createElement('span');
+    span.textContent = text;
+    div.appendChild(span);
+    const tip = document.createElement('span');
+    tip.className = 'tip-content';
+    tip.textContent = tooltip;
+    div.appendChild(tip);
+  } else {
+    div.textContent = text;
+  }
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function setBadge(id, text, color) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = `px-3 py-1 rounded-full text-xs font-medium ${color}`;
+}
+
+// ============================================================================
+// Populate TTS Voices
+// ============================================================================
+
+function populateVoices() {
+  const select = document.getElementById('cfg-voice');
+  const voices = speechSynthesis.getVoices();
+  // Keep the default option
+  while (select.options.length > 1) select.remove(1);
+  for (const v of voices) {
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = `${v.name} (${v.lang})`;
+    select.appendChild(opt);
+  }
+}
+
+if ('speechSynthesis' in window) {
+  populateVoices();
+  speechSynthesis.onvoiceschanged = populateVoices;
+}
+
+// ============================================================================
+// Sign-in
+// ============================================================================
+
+async function updateSignInUI() {
+  const signInBtn = document.getElementById('signInBtn');
+  const usernameDisplay = document.getElementById('usernameDisplay');
+  if (sdk.token) {
+    signInBtn.classList.add('hidden');
+    let username = sdk.user?.username;
+    if (!username) {
+      try {
+        const profile = await sdk.getUserProfile();
+        username = profile?.username;
+      } catch (_) {}
+    }
+    if (username) {
+      usernameDisplay.textContent = username;
+      usernameDisplay.classList.remove('hidden');
+    }
+  } else {
+    signInBtn.classList.remove('hidden');
+    usernameDisplay.classList.add('hidden');
+  }
+}
+
+async function handleSignIn() {
+  try {
+    await sdk.showLoginWindow({ title: '请先登录' });
+    updateSignInUI();
+  } catch (_) {}
+}
+
+document.getElementById('signInBtn').addEventListener('click', handleSignIn);
+document.getElementById('usernameDisplay').addEventListener('click', handleSignIn);
+
+// ============================================================================
+// Build Session Config from UI
+// ============================================================================
+
+function getSessionConfig() {
+  return {
+    agentConfig: {
+      WelcomeMessage: document.getElementById('cfg-welcome').value.trim(),
+    },
+    config: {
+      LLMConfig: {
+        Model: document.getElementById('cfg-model').value,
+        SystemMessages: [document.getElementById('cfg-prompt').value.trim()],
+      },
+      ASRConfig: getASRConfigFromUI(),
+      TTSConfig: getTTSConfigFromUI(),
+    },
+    enabledToolCategories: [...document.querySelectorAll('.cfg-tool-cat:checked')].map(el => el.value),
+    workspace: document.getElementById('cfg-workspace').value.trim() || 'testRTCLocal',
+  };
+}
+
+function getASRConfigFromUI() {
+  const provider = document.getElementById('cfg-asr-provider').value;
+  const preset = document.getElementById('cfg-asr-preset').value || undefined;
+  const assetBaseURL = document.getElementById('cfg-asr-asset-base').value.trim() || undefined;
+  const runtimeBaseURL = document.getElementById('cfg-asr-runtime-base').value.trim() || undefined;
+  const modelBaseURL = document.getElementById('cfg-asr-model-base').value.trim() || undefined;
+
+  const config = {
+    Language: document.getElementById('cfg-language').value,
+    Provider: provider,
+    FallbackProvider: document.getElementById('cfg-asr-fallback').value || undefined,
+  };
+
+  const providerConfig = {
+    Preset: preset,
+    AssetBaseURL: assetBaseURL,
+    RuntimeBaseURL: runtimeBaseURL,
+    ModelBaseURL: modelBaseURL,
+  };
+
+  if (provider === 'whisper' || preset === 'whisper_tiny_multilingual') {
+    config.Whisper = providerConfig;
+  } else {
+    config.LocalNeural = providerConfig;
+  }
+
+  return config;
+}
+
+function getTTSConfigFromUI() {
+  const speakerValue = document.getElementById('cfg-tts-speaker-id').value.trim();
+  return {
+    Provider: document.getElementById('cfg-tts-provider').value,
+    FallbackProvider: document.getElementById('cfg-tts-fallback').value || undefined,
+    SpeakerId: /^-?\d+$/.test(speakerValue) ? parseInt(speakerValue, 10) : undefined,
+    VoiceType: document.getElementById('cfg-voice').value || undefined,
+    Speed: parseFloat(document.getElementById('cfg-speed').value) || 1.0,
+    Volume: parseFloat(document.getElementById('cfg-volume').value) || 1.0,
+    LocalNeural: {
+      Preset: document.getElementById('cfg-tts-preset').value || undefined,
+      AssetBaseURL: document.getElementById('cfg-tts-asset-base').value.trim() || undefined,
+      RuntimeBaseURL: document.getElementById('cfg-tts-runtime-base').value.trim() || undefined,
+      ModelBaseURL: document.getElementById('cfg-tts-model-base').value.trim() || undefined,
+    },
+  };
+}
+
+let liveTTSApplyTimer = null;
+
+async function applyLiveTTSConfig(reason = 'updated') {
+  if (!session || !session.isActive) return;
+  try {
+    const result = await session.updateTTSConfig(getTTSConfigFromUI());
+    log(`[TTS Config] Applied ${reason}${result?.reinitialized ? ' (backend reloaded)' : ''}`, 'success');
+  } catch (error) {
+    log(`[TTS Config] Apply failed: ${error.message || error}`, 'error');
+  }
+}
+
+function scheduleLiveTTSConfigApply(reason = 'updated', delayMs = 180) {
+  if (liveTTSApplyTimer) {
+    clearTimeout(liveTTSApplyTimer);
+  }
+  liveTTSApplyTimer = setTimeout(() => {
+    liveTTSApplyTimer = null;
+    applyLiveTTSConfig(reason);
+  }, delayMs);
+}
+
+// ============================================================================
+// Start / Stop
+// ============================================================================
+
+async function startSession() {
+  if (!sdk.token) {
+    log('Not signed in — opening login...', 'warn');
+    await handleSignIn();
+    if (!sdk.token) { log('Sign-in cancelled', 'error'); return; }
+  }
+
+  const config = getSessionConfig();
+  const cacheBinaryAssetsToIndexedDB = document.getElementById('cfg-cache-binary-assets').checked;
+  rtcLocal = new AIChatRTCLocal(sdk, { cacheBinaryAssetsToIndexedDB });
+  log('Starting local voice chat session...');
+  log(`Config: ${JSON.stringify(config, null, 2)}`);
+  if (cacheBinaryAssetsToIndexedDB) {
+    log('IndexedDB binary cache enabled for ONNX/WASM assets');
+  }
+
+  // Force energy VAD if checkbox is checked
+  if (document.getElementById('cfg-force-energy-vad').checked) {
+    rtcLocal._vadAvailable = false;
+    log('Forcing energy-based VAD (Silero disabled)', 'warn');
+  }
+
+  session = rtcLocal.createSession(config);
+
+  // Wire events
+  session.on('subtitle', ({ text, isUser, roundId, definite, paragraph }) => {
+    const key = `${roundId}_${isUser ? 'user' : 'ai'}`;
+    updateOrCreateBubble(key, text, isUser);
+    if (definite && paragraph) {
+      log(`[${isUser ? 'You' : 'AI'}] ${text}`);
+      delete subtitleElements[key];
+    }
+  });
+
+  session.on('state', ({ code, label }) => {
+    log(`[State] ${label}`);
+    const stateColors = {
+      [AIChatRTCLocal.AGENT_STATE.UNKNOWN]: 'bg-gray-700 text-gray-300',
+      [AIChatRTCLocal.AGENT_STATE.LISTENING]: 'bg-yellow-700 text-yellow-200',
+      [AIChatRTCLocal.AGENT_STATE.THINKING]: 'bg-purple-700 text-purple-200',
+      [AIChatRTCLocal.AGENT_STATE.SPEAKING]: 'bg-green-700 text-green-200',
+      [AIChatRTCLocal.AGENT_STATE.INTERRUPTED]: 'bg-orange-700 text-orange-200',
+      [AIChatRTCLocal.AGENT_STATE.FINISHED]: 'bg-blue-700 text-blue-200',
+    };
+    setBadge('state-badge', label, stateColors[code] || 'bg-gray-700 text-gray-300');
+
+    if (code === AIChatRTCLocal.AGENT_STATE.SPEAKING) {
+      document.getElementById('btn-interrupt').classList.remove('hidden');
+    } else {
+      document.getElementById('btn-interrupt').classList.add('hidden');
+    }
+  });
+
+  session.on('welcome', ({ message }) => {
+    addChatMessage(message, false, 'welcome');
+    log(`[Welcome] ${message}`, 'success');
+  });
+
+  session.on('connected', () => {
+    setBadge('connection-badge', 'Connected', 'bg-green-700 text-green-200');
+  });
+
+  session.on('asr', ({ phase, provider, message, sampleRate }) => {
+    const label = provider || 'unknown';
+    const color = label === 'local_neural'
+      ? 'bg-sky-700 text-sky-200'
+      : label === 'whisper'
+        ? 'bg-fuchsia-700 text-fuchsia-200'
+      : label === 'web_speech'
+        ? 'bg-indigo-700 text-indigo-200'
+        : 'bg-gray-700 text-gray-300';
+
+    if (phase === 'loading') {
+      setBadge('asr-badge', `ASR: loading ${label}`, 'bg-amber-700 text-amber-200');
+      log(`[ASR] Loading ${label} backend...`);
+      return;
+    }
+
+    if (phase === 'ready') {
+      setBadge('asr-badge', `ASR: ${label}`, color);
+      log(`[ASR] ${label} ready${sampleRate ? ` @ ${sampleRate}Hz` : ''}`, 'success');
+      return;
+    }
+
+    if (phase === 'fallback') {
+      log(`[ASR] ${label} unavailable: ${message || 'unknown reason'}`, 'warn');
+      return;
+    }
+
+    if (phase === 'active') {
+      setBadge('asr-badge', `ASR: ${label}`, color);
+      log(`[ASR] Active backend: ${label}`, 'success');
+      return;
+    }
+  });
+
+  session.on('tts', ({ phase, provider, message, sampleRate, preset }) => {
+    const label = provider || 'unknown';
+    const color = label === 'local_neural'
+      ? 'bg-emerald-700 text-emerald-200'
+      : label === 'browser_speech'
+        ? 'bg-indigo-700 text-indigo-200'
+        : 'bg-gray-700 text-gray-300';
+
+    if (phase === 'loading') {
+      setBadge('tts-badge', `TTS: loading ${label}`, 'bg-amber-700 text-amber-200');
+      log(`[TTS] Loading ${label} backend...`);
+      return;
+    }
+
+    if (phase === 'fallback') {
+      log(`[TTS] ${label} unavailable: ${message || 'unknown reason'}`, 'warn');
+      return;
+    }
+
+    if (phase === 'active') {
+      setBadge('tts-badge', `TTS: ${label}`, color);
+      log(`[TTS] Active backend: ${label}${preset ? ` (${preset})` : ''}${sampleRate ? ` @ ${sampleRate}Hz` : ''}`, 'success');
+      return;
+    }
+
+    if (phase === 'error') {
+      log(`[TTS] ${label} error: ${message || 'unknown error'}`, 'error');
+      return;
+    }
+
+    if (phase === 'unavailable') {
+      setBadge('tts-badge', 'TTS: unavailable', 'bg-red-700 text-red-200');
+      log(`[TTS] No backend available: ${message || 'unknown reason'}`, 'warn');
+    }
+  });
+
+  session.on('functionCallInfo', ({ name, toolCallId }) => {
+    addSystemMessage(`🔧 AI calling: ${name}`);
+    log(`[FC Info] ${name} (${toolCallId})`);
+  });
+
+  session.on('functionCall', ({ toolCalls }) => {
+    log(`[FC] ${toolCalls.length} tool call(s): ${toolCalls.map(tc => tc.function?.name).join(', ')}`);
+  });
+
+  session.on('functionCallResult', ({ name, toolCallId, args, result }) => {
+    const argsText = typeof args === 'string' ? args : JSON.stringify(args, null, 2);
+    const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+    const inputTip = `Input:\n${argsText}`;
+    addSystemMessage(`🔧 ${name}(...)`, inputTip);
+    const outputTip = `ToolCallID: ${toolCallId}\nOutput:\n${resultText}`;
+    addSystemMessage(`✅ ${name} → done`, outputTip);
+    log(`[FC] ${name} → done`, 'success');
+  });
+
+  session.on('audioLevel', ({ speaking }) => {
+    document.getElementById('waveform').style.opacity = speaking ? '1' : '0';
+  });
+
+  session.on('remoteAudioLevel', ({ speaking }) => {
+    // Could drive a separate waveform for AI voice output
+  });
+
+  session.on('error', ({ error }) => {
+    log(`Error: ${error}`, 'error');
+  });
+
+  try {
+    await session.start();
+
+    // Show VAD type
+    const vadType = rtcLocal._vadAvailable ? 'Silero (Neural)' : 'Energy (Fallback)';
+    setBadge('vad-badge', `VAD: ${vadType}`, rtcLocal._vadAvailable ? 'bg-emerald-700 text-emerald-200' : 'bg-amber-700 text-amber-200');
+
+    // Update UI
+    document.getElementById('btn-start').classList.add('hidden');
+    document.getElementById('btn-stop').classList.remove('hidden');
+    document.getElementById('btn-mute').classList.remove('hidden');
+    document.getElementById('text-input-bar').classList.remove('hidden');
+
+    const mic = document.getElementById('mic-indicator');
+    mic.classList.add('mic-pulse', 'bg-red-600');
+    mic.classList.remove('bg-gray-700');
+    mic.style.opacity = '1';
+
+    log(`Session started (VAD: ${vadType})`, 'success');
+    addSystemMessage(`Session started — VAD: ${vadType}`);
+  } catch (err) {
+    log(`Start failed: ${err.message}`, 'error');
+    session = null;
+  }
+}
+
+async function stopSession() {
+  if (!session) return;
+  log('Stopping session...');
+  await session.stop();
+  session = null;
+
+  // Reset UI
+  document.getElementById('btn-start').classList.remove('hidden');
+  document.getElementById('btn-stop').classList.add('hidden');
+  document.getElementById('btn-mute').classList.add('hidden');
+  document.getElementById('btn-interrupt').classList.add('hidden');
+  document.getElementById('text-input-bar').classList.add('hidden');
+
+  setBadge('connection-badge', 'Disconnected', 'bg-gray-700 text-gray-300');
+  setBadge('state-badge', '—', 'bg-gray-700 text-gray-300');
+  setBadge('vad-badge', 'VAD: —', 'bg-gray-700 text-gray-300');
+  setBadge('asr-badge', 'ASR: —', 'bg-gray-700 text-gray-300');
+  setBadge('tts-badge', 'TTS: —', 'bg-gray-700 text-gray-300');
+
+  const mic = document.getElementById('mic-indicator');
+  mic.classList.remove('mic-pulse', 'bg-red-600');
+  mic.classList.add('bg-gray-700');
+  mic.style.opacity = '0.5';
+  document.getElementById('waveform').style.opacity = '0';
+
+  addSystemMessage('Session ended');
+  log('Session stopped', 'success');
+}
+
+// ============================================================================
+// UI Event Binding
+// ============================================================================
+
+document.getElementById('btn-start').addEventListener('click', startSession);
+document.getElementById('btn-stop').addEventListener('click', stopSession);
+
+document.getElementById('btn-mute').addEventListener('click', () => {
+  if (!session) return;
+  const btn = document.getElementById('btn-mute');
+  const mic = document.getElementById('mic-indicator');
+  if (session.isMuted) {
+    session.unmute();
+    btn.textContent = '🔊 Mute';
+    mic.classList.add('mic-pulse', 'bg-red-600');
+    mic.classList.remove('bg-gray-700');
+    mic.style.opacity = '1';
+  } else {
+    session.mute();
+    btn.textContent = '🔇 Unmute';
+    mic.classList.remove('mic-pulse', 'bg-red-600');
+    mic.classList.add('bg-gray-700');
+    mic.style.opacity = '0.5';
+    document.getElementById('waveform').style.opacity = '0';
+  }
+});
+
+document.getElementById('btn-interrupt').addEventListener('click', () => {
+  session?.interrupt();
+  addSystemMessage('⏹ Interrupt sent');
+});
+
+document.getElementById('btn-send-text').addEventListener('click', sendTextMessage);
+document.getElementById('text-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMessage(); }
+});
+
+document.getElementById('btn-clear-log').addEventListener('click', () => {
+  document.getElementById('log-panel').innerHTML = '';
+});
+
+[
+  'cfg-asr-provider',
+  'cfg-asr-preset',
+  'cfg-asr-asset-base',
+].forEach((id) => {
+  document.getElementById(id).addEventListener('change', syncASRDefaults);
+});
+
+[
+  'cfg-tts-provider',
+  'cfg-tts-fallback',
+  'cfg-tts-preset',
+  'cfg-voice',
+].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => scheduleLiveTTSConfigApply('selection change', 0));
+});
+
+[
+  'cfg-speed',
+  'cfg-volume',
+  'cfg-tts-speaker-id',
+].forEach((id) => {
+  document.getElementById(id).addEventListener('input', () => scheduleLiveTTSConfigApply('value change'));
+  document.getElementById(id).addEventListener('change', () => scheduleLiveTTSConfigApply('value change', 0));
+});
+
+[
+  'cfg-tts-asset-base',
+  'cfg-tts-runtime-base',
+  'cfg-tts-model-base',
+].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => scheduleLiveTTSConfigApply('runtime change', 0));
+});
+
+function sendTextMessage() {
+  const input = document.getElementById('text-input');
+  const text = input.value.trim();
+  if (!text || !session) return;
+  input.value = '';
+
+  addChatMessage(text, true);
+  log(`[You → LLM] ${text}`);
+  session.sendText(text);
+}
+
+// ============================================================================
+// Bootstrap
+// ============================================================================
+
+updateSignInUI();
+log('AIChatRTCLocal test page ready. Configure and click Start.', 'success');
+
+// Check browser compatibility
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) {
+  log('⚠️ SpeechRecognition not available — use Chrome or Edge for voice input.', 'warn');
+  addSystemMessage('⚠️ SpeechRecognition not available in this browser. Voice input requires Chrome or Edge.');
+}
+
+addSystemMessage(`Local neural ASR, Whisper mixed zh/en, and TTS presets resolve from ${MODEL_BASE}/ (${MODEL_BASE === MODEL_CDN ? 'CDN' : 'local'}). Override the asset base URLs to switch.`);
+</script>
+</body>
+</html>

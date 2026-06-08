@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Test</title>
+    <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #chatArea::-webkit-scrollbar { width: 6px; }
+        #chatArea::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .auth-inline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .auth-inline-avatar { width: 28px; height: 28px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; overflow: hidden; box-shadow: 0 2px 6px rgba(37,99,235,0.2); }
+        .auth-inline-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .auth-inline-info { display: flex; flex-direction: column; min-width: 0; }
+        .auth-inline-label { font-size: 10px; line-height: 1.1; color: #94a3b8; }
+        .auth-inline-name { font-size: 11px; line-height: 1.2; color: #2563eb; font-weight: 600; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+
+<!-- Header / Toolbar -->
+<header class="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 flex-wrap shrink-0">
+    <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-base">💬</div>
+        <span class="text-sm font-bold text-gray-700">AI Chat Test</span>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-gray-500">Model</span>
+        <div class="flex items-center">
+            <input type="text" id="modelInput" value="keepwork-pro" list="modelPresets"
+                class="px-2 py-1 bg-gray-50 border border-gray-300 rounded-l text-sm focus:outline-none focus:border-blue-500 w-[150px]">
+            <datalist id="modelPresets">
+                <option value="keepwork-flash">
+                <option value="keepwork-pro">
+                <option value="keepwork-r1">
+                <option value="keepwork-r1-mini">
+                <option value="gemini-3.1-flash-lite-preview">
+                <option value="gemini-3-flash-preview">
+                <option value="gemini-3.1-pro-preview">
+                <option value="claude-opus-4-6">
+                <option value="claude-sonnet-4-6">
+            </datalist>
+            <button id="modelBrowseBtn" class="px-2 py-1 bg-gray-200 border border-l-0 border-gray-300 rounded-r text-sm hover:bg-gray-300 transition-colors" title="Browse models">📋</button>
+        </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-gray-500">Stream</span>
+        <button id="streamToggle" class="px-2.5 py-0.5 text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 transition-colors">ON</button>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-gray-500">Tools</span>
+        <button id="toolsToggle" class="px-2.5 py-0.5 text-xs font-medium rounded text-white bg-gray-500 hover:bg-gray-600 transition-colors">OFF</button>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-gray-500">Reasoning</span>
+        <button id="reasoningToggle" class="px-2.5 py-0.5 text-xs font-medium rounded text-white bg-gray-500 hover:bg-gray-600 transition-colors">OFF</button>
+    </div>
+
+    <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+        <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">System</span>
+        <input type="text" id="systemPrompt" placeholder="Optional system prompt..." value="回答尽量不超过100字"
+            class="flex-1 px-2 py-1 bg-gray-50 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+    </div>
+
+    <div class="flex items-center gap-3 ml-auto">
+        <button id="apiKeysBtn" class="px-2.5 py-1 text-xs font-medium rounded text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 transition-colors" title="Local API Keys & Model Settings">🔑 API Keys</button>
+        <div class="auth-inline cursor-pointer hover:opacity-80 transition-opacity" id="authChip" title="Click to sign in or view profile">
+            <div id="auth-avatar" class="auth-inline-avatar">?</div>
+            <div class="auth-inline-info">
+                <span class="auth-inline-label">Keepwork</span>
+                <span id="usernameDisplay" class="auth-inline-name">checking...</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Tool Categories (shown when Tools is ON) -->
+<div id="toolCategoriesBar" class="hidden bg-white border-b border-gray-200 px-4 py-2 shrink-0">
+    <div class="flex gap-3 flex-wrap text-sm items-center">
+        <span class="text-xs font-semibold text-gray-500">Categories:</span>
+        <label class="flex items-center gap-1 cursor-pointer" title="read_file, list_dir"><input type="checkbox" class="tool-cat-cb accent-blue-500" value="read" checked><span class="text-gray-700 text-xs">read</span></label>
+        <label class="flex items-center gap-1 cursor-pointer" title="replace_string_in_file, create_file"><input type="checkbox" class="tool-cat-cb accent-blue-500" value="edit" checked><span class="text-gray-700 text-xs">edit</span></label>
+        <label class="flex items-center gap-1 cursor-pointer" title="grep_search"><input type="checkbox" class="tool-cat-cb accent-blue-500" value="search" checked><span class="text-gray-700 text-xs">search</span></label>
+        <label class="flex items-center gap-1 cursor-pointer" title="execute"><input type="checkbox" class="tool-cat-cb accent-blue-500" value="execute" checked><span class="text-gray-700 text-xs">execute</span></label>
+        <label class="flex items-center gap-1 cursor-pointer" title="fetch_webpage"><input type="checkbox" class="tool-cat-cb accent-blue-500" value="web"><span class="text-gray-700 text-xs">web</span></label>
+        <label class="flex items-center gap-1 cursor-pointer" title="mqtt_publish, mqtt_get"><input type="checkbox" class="tool-cat-cb accent-blue-500" value="mqtt"><span class="text-gray-700 text-xs">mqtt</span></label>
+        <label class="flex items-center gap-1 cursor-pointer" title="personal_page_load, personal_page_save"><input type="checkbox" class="tool-cat-cb accent-blue-500" value="personalPage"><span class="text-gray-700 text-xs">personalPage</span></label>
+        <label class="flex items-center gap-1 cursor-pointer" title="runAsyncAgentTask, getParentAgentContext"><input type="checkbox" class="tool-cat-cb accent-blue-500" value="agent"><span class="text-gray-700 text-xs">agent</span></label>
+        <label class="flex items-center gap-1 cursor-pointer" title="read_app, screenshot_app, click_element, type_in_app"><input type="checkbox" class="tool-cat-cb accent-blue-500" value="app"><span class="text-gray-700 text-xs">app</span></label>
+    </div>
+</div>
+
+<!-- Chat Area -->
+<div id="chatArea" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3"></div>
+
+<!-- Model Selector Modal -->
+<div id="modelSelectorModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl w-[700px] max-h-[80vh] flex flex-col">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+            <h2 class="text-base font-bold text-gray-800">Select Model</h2>
+            <button id="modelModalClose" class="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
+        </div>
+        <div id="modelSelectorLoading" class="hidden flex items-center justify-center py-12 text-gray-400 text-sm">Loading models...</div>
+        <div id="modelSelectorContent" class="hidden flex-1 overflow-y-auto p-4">
+            <div id="modelList" class="grid grid-cols-2 gap-3"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Input Bar -->
+<div class="bg-white border-t border-gray-200 px-4 py-3 flex gap-2 shrink-0">
+    <textarea id="userInput" rows="1" placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+        class="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 font-[inherit]" style="min-height:42px;max-height:120px;"></textarea>
+    <button id="sendBtn" class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors whitespace-nowrap">Send</button>
+    <button id="clearBtn" class="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition-colors whitespace-nowrap" title="Clear chat">Clear</button>
+</div>
+
+<script type="module">
+try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+
+const sdk = window.keepwork;
+if (sdk.localAPIKeySettings) {
+    sdk.localAPIKeySettings.storageMode = 'localStorage';
+    sdk.localAPIKeySettings._loaded = false;
+    await sdk.localAPIKeySettings.load();
+}
+let session = null;
+let abortController = null;
+let useStream = true;
+let useTools = false;
+let useReasoning = false;
+let _systemPromptTimer = null;
+
+// --- UI refs ---
+const chatArea = document.getElementById('chatArea');
+const userInput = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const modelInput = document.getElementById('modelInput');
+const modelBrowseBtn = document.getElementById('modelBrowseBtn');
+const streamToggle = document.getElementById('streamToggle');
+const toolsToggle = document.getElementById('toolsToggle');
+const reasoningToggle = document.getElementById('reasoningToggle');
+const systemPrompt = document.getElementById('systemPrompt');
+const authAvatar = document.getElementById('auth-avatar');
+const usernameDisplay = document.getElementById('usernameDisplay');
+const authChip = document.getElementById('authChip');
+
+// --- Auth helpers ---
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function renderSignedOut() {
+    authAvatar.innerHTML = '?';
+    usernameDisplay.textContent = 'Sign In';
+}
+
+function renderSignedIn(profile) {
+    const displayName = profile?.nickname || profile?.username || `User #${profile?.id || ''}`;
+    const portrait = profile?.portrait;
+    if (portrait) {
+        authAvatar.innerHTML = `<img src="${escapeHtml(portrait)}" alt="avatar">`;
+    } else {
+        authAvatar.textContent = (displayName || '?').trim().charAt(0).toUpperCase() || '?';
+    }
+    usernameDisplay.textContent = displayName;
+}
+
+async function refreshAuthUi(options = {}) {
+    const { silent = false, forceRefresh = false } = options;
+    try {
+        const profile = await sdk.getUserProfile({ useCache: !forceRefresh, forceRefresh });
+        if (profile?.id || profile?.username) {
+            renderSignedIn(profile);
+            return profile;
+        }
+    } catch (e) {
+        if (!silent) console.warn('Refresh auth failed:', e.message);
+    }
+    renderSignedOut();
+    return null;
+}
+
+async function handleSignIn() {
+    try {
+        const response = await sdk.showLoginWindow({ title: 'Keepwork Login' });
+        if (response?.token) {
+            await refreshAuthUi({ forceRefresh: true, silent: true });
+            resetSession();
+        } else {
+            await refreshAuthUi({ silent: true });
+        }
+    } catch (e) {
+        if (e?.message) appendMsg('system', 'Login failed: ' + e.message);
+        await refreshAuthUi({ silent: true });
+    }
+}
+
+async function handleProfile() {
+    try {
+        const result = await sdk.showProfileWindow();
+        if (result && result.action === 'logout') {
+            renderSignedOut();
+        } else {
+            if (sdk.token) await refreshAuthUi({ forceRefresh: true, silent: true });
+        }
+    } catch (e) {
+        console.warn('ProfileWindow error:', e.message);
+    }
+}
+
+authChip.addEventListener('click', () => {
+    if (sdk.token) {
+        handleProfile();
+    } else {
+        handleSignIn();
+    }
+});
+refreshAuthUi({ silent: true });
+
+// --- Local API Keys settings ---
+const apiKeysBtn = document.getElementById('apiKeysBtn');
+apiKeysBtn.addEventListener('click', async () => {
+    const settings = sdk.localAPIKeySettings;
+    if (!settings) {
+        appendMsg('system', '⚠ LocalAPIKeySettings not available in this SDK build');
+        return;
+    }
+    settings.storageMode = 'localStorage';
+    settings._loaded = false;
+    await settings.load();
+    settings.show({
+        onClose: () => {
+            // Re-create session so any changed model/key takes effect
+            resetSession();
+        },
+    });
+});
+
+// --- Tool category helpers ---
+const toolCategoriesBar = document.getElementById('toolCategoriesBar');
+
+function getSelectedToolCategories() {
+    return [...document.querySelectorAll('.tool-cat-cb:checked')].map(cb => cb.value);
+}
+
+// Re-create session when tool categories change
+document.querySelectorAll('.tool-cat-cb').forEach(cb => {
+    cb.addEventListener('change', () => { if (useTools) resetSession(); });
+});
+
+// --- Session management ---
+function resetSession() {
+    const model = modelInput.value.trim() || 'keepwork-pro';
+    const sys = systemPrompt.value.trim();
+    const opts = { model, skipHistory: true };
+    if (sys) opts.systemPrompt = sys;
+    if (useTools) {
+        const selectedCategories = getSelectedToolCategories();
+        opts.enabledCategories = selectedCategories;
+        opts.enableTools = selectedCategories;
+    }
+    if (useReasoning !== undefined) opts.reasoning = useReasoning;
+    session = sdk.aiChat.createSession(opts);
+    console.log('[testAIChat] Session created, model=' + model + (useTools ? ', tools=' + opts.enabledCategories.join(',') : ''));
+}
+
+// --- Toggle helpers ---
+streamToggle.addEventListener('click', () => {
+    useStream = !useStream;
+    streamToggle.textContent = useStream ? 'ON' : 'OFF';
+    streamToggle.className = useStream
+        ? 'px-2.5 py-0.5 text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 transition-colors'
+        : 'px-2.5 py-0.5 text-xs font-medium rounded text-white bg-gray-500 hover:bg-gray-600 transition-colors';
+    resetSession();
+});
+
+toolsToggle.addEventListener('click', () => {
+    useTools = !useTools;
+    toolsToggle.textContent = useTools ? 'ON' : 'OFF';
+    toolsToggle.className = useTools
+        ? 'px-2.5 py-0.5 text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 transition-colors'
+        : 'px-2.5 py-0.5 text-xs font-medium rounded text-white bg-gray-500 hover:bg-gray-600 transition-colors';
+    toolCategoriesBar.classList.toggle('hidden', !useTools);
+    resetSession();
+});
+
+reasoningToggle.addEventListener('click', () => {
+    useReasoning = !useReasoning;
+    reasoningToggle.textContent = useReasoning ? 'ON' : 'OFF';
+    reasoningToggle.className = useReasoning
+        ? 'px-2.5 py-0.5 text-xs font-medium rounded text-white bg-purple-600 hover:bg-purple-700 transition-colors'
+        : 'px-2.5 py-0.5 text-xs font-medium rounded text-white bg-gray-500 hover:bg-gray-600 transition-colors';
+    resetSession();
+});
+
+systemPrompt.addEventListener('input', () => {
+    clearTimeout(_systemPromptTimer);
+    _systemPromptTimer = setTimeout(() => {
+        resetSession();
+    }, 400);
+});
+
+systemPrompt.addEventListener('change', () => {
+    clearTimeout(_systemPromptTimer);
+    resetSession();
+});
+
+// --- Chat UI helpers ---
+const MSG_CLASSES = {
+    user: 'self-end max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-blue-600 text-white text-sm leading-relaxed whitespace-pre-wrap break-words',
+    assistant: 'self-start max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-sm bg-white text-gray-800 border border-gray-200 text-sm leading-relaxed whitespace-pre-wrap break-words',
+    system: 'self-center px-3 py-1.5 rounded-md bg-yellow-50 text-yellow-700 text-xs',
+    reasoning: 'self-start max-w-[80%] px-3 py-2 rounded-md bg-gray-50 text-gray-500 text-xs border border-dashed border-gray-300 whitespace-pre-wrap break-words',
+    tool: 'self-start max-w-[80%] px-3 py-2 rounded-md bg-green-50 text-green-800 text-xs font-mono whitespace-pre-wrap break-words',
+};
+
+function appendMsg(role, text) {
+    const el = document.createElement('div');
+    el.className = MSG_CLASSES[role] || MSG_CLASSES.system;
+    el.textContent = text || '';
+    chatArea.appendChild(el);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return el;
+}
+
+function clearChat() {
+    chatArea.innerHTML = '';
+    resetSession();
+    appendMsg('system', 'Chat cleared. Model: ' + modelInput.value);
+}
+document.getElementById('clearBtn').addEventListener('click', clearChat);
+
+// --- Send message ---
+window.sendMessage = async function() {
+    const text = userInput.value.trim();
+    if (!text) return;
+    userInput.value = '';
+    autoResize();
+
+    if (!session) resetSession();
+
+    appendMsg('user', text);
+
+    // Streaming assistant bubble
+    let assistantEl = null;
+    let reasoningEl = null;
+
+    abortController = new AbortController();
+    sendBtn.textContent = 'Stop';
+    sendBtn.className = 'px-5 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors whitespace-nowrap';
+    sendBtn.onclick = stopGeneration;
+
+    try {
+        const model = modelInput.value.trim() || 'keepwork-pro';
+        if (session.model !== model) {
+            session.model = model;
+        }
+
+        await session.send(text, {
+            model,
+            stream: useStream,
+            enableTools: useTools ? getSelectedToolCategories() : [],
+            enabledCategories: useTools ? getSelectedToolCategories() : [],
+            abortController,
+            onMessage: (result, fullResponse) => {
+                if (!assistantEl) {
+                    assistantEl = appendMsg('assistant', '');
+                }
+                assistantEl.textContent = result;
+
+                // Show reasoning if present
+                if (fullResponse && fullResponse.reasoning_content) {
+                    if (!reasoningEl) {
+                        reasoningEl = appendMsg('reasoning', '');
+                        // Insert reasoning before assistant
+                        chatArea.insertBefore(reasoningEl, assistantEl);
+                    }
+                    reasoningEl.textContent = '💭 ' + fullResponse.reasoning_content;
+                }
+
+                chatArea.scrollTop = chatArea.scrollHeight;
+            },
+            onToolCall: (toolCall) => {
+                const name = toolCall.function?.name || 'unknown';
+                let args = '';
+                try { args = toolCall.function?.arguments || ''; } catch(e) {}
+                appendMsg('tool', `🔧 Tool: ${name}\n${args}`);
+            },
+            onToolResult: ({ name, result }) => {
+                const display = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+                appendMsg('tool', `✅ ${name} result:\n${display.substring(0, 500)}`);
+            },
+            onComplete: (result, fullResponse) => {
+                // For non-stream mode, show the final result
+                if (!useStream && result) {
+                    if (!assistantEl) {
+                        assistantEl = appendMsg('assistant', '');
+                    }
+                    assistantEl.textContent = result;
+                }
+            },
+            onError: (err) => {
+                if (err.name !== 'AbortError') {
+                    appendMsg('system', '⚠ Error: ' + err.message);
+                }
+            }
+        });
+
+        // If no streaming output was shown (non-stream), ensure we have the message
+        if (!assistantEl) {
+            const lastMsg = session.messages.filter(m => m.role === 'assistant').pop();
+            if (lastMsg) {
+                appendMsg('assistant', lastMsg.content || '(empty response)');
+            }
+        }
+
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            appendMsg('system', '⚠ Error: ' + err.message);
+        } else {
+            appendMsg('system', '⏹ Generation stopped');
+        }
+    } finally {
+        abortController = null;
+        sendBtn.textContent = 'Send';
+        sendBtn.className = 'px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors whitespace-nowrap';
+        sendBtn.onclick = sendMessage;
+    }
+};
+
+sendBtn.onclick = sendMessage;
+
+function stopGeneration() {
+    if (abortController) {
+        abortController.abort();
+    }
+}
+
+// --- Input handling ---
+userInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+userInput.addEventListener('input', autoResize);
+function autoResize() {
+    userInput.style.height = 'auto';
+    userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
+}
+
+// Model change resets session
+let _modelChangeTimer = null;
+
+// Fix datalist not showing all options when already having a value
+modelInput.addEventListener('focus', function() {
+    this.dataset.oldValue = this.value;
+    this.value = '';
+});
+modelInput.addEventListener('blur', function() {
+    if (!this.value.trim()) {
+        this.value = this.dataset.oldValue || 'keepwork-pro';
+    }
+});
+
+modelInput.addEventListener('change', () => {
+    if (!modelInput.value.trim()) return;
+    resetSession();
+    appendMsg('system', 'Model changed to: ' + modelInput.value);
+});
+modelInput.addEventListener('input', () => {
+    clearTimeout(_modelChangeTimer);
+    _modelChangeTimer = setTimeout(() => {
+        if (!modelInput.value.trim()) return;
+        resetSession();
+        appendMsg('system', 'Model changed to: ' + modelInput.value);
+    }, 600);
+});
+
+// --- Model Selector Modal ---
+let availableModels = [];
+
+modelBrowseBtn.addEventListener('click', openModelSelector);
+document.getElementById('modelModalClose').addEventListener('click', closeModelSelector);
+document.getElementById('modelSelectorModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeModelSelector();
+});
+
+async function openModelSelector() {
+    const modal = document.getElementById('modelSelectorModal');
+    const loading = document.getElementById('modelSelectorLoading');
+    const content = document.getElementById('modelSelectorContent');
+    modal.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    content.classList.add('hidden');
+    try {
+        await loadAvailableModels();
+        renderModelList();
+        loading.classList.add('hidden');
+        content.classList.remove('hidden');
+    } catch (err) {
+        loading.textContent = 'Failed to load models: ' + err.message;
+    }
+}
+
+function closeModelSelector() {
+    document.getElementById('modelSelectorModal').classList.add('hidden');
+}
+
+async function loadAvailableModels() {
+    if (!sdk.token) throw new Error('Not logged in');
+    const data = await sdk.get('/paracraftConfigs/gptModelForFrontend');
+    availableModels = data.data?.config || [];
+    return availableModels;
+}
+
+function renderModelList() {
+    const list = document.getElementById('modelList');
+    list.innerHTML = '';
+    if (availableModels.length === 0) {
+        list.innerHTML = '<div class="col-span-2 text-center py-8 text-gray-400 text-sm">No models available</div>';
+        return;
+    }
+    availableModels.forEach(model => {
+        const div = document.createElement('div');
+        const isSelected = model.name === modelInput.value;
+        div.className = 'p-3 border rounded-lg cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50 ' + (isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200');
+        div.onclick = () => selectModel(model.name);
+        const badges = [];
+        if (model.isFree) badges.push('<span class="px-1.5 py-0.5 text-[10px] bg-green-100 text-green-700 rounded">Free</span>');
+        if (model.canVision) badges.push('<span class="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-700 rounded">Vision</span>');
+        if (model.canToolUse) badges.push('<span class="px-1.5 py-0.5 text-[10px] bg-orange-100 text-orange-700 rounded">Tools</span>');
+        if (model.canSearch) badges.push('<span class="px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 rounded">Search</span>');
+        div.innerHTML = `
+            <div class="font-semibold text-sm text-gray-800">${escapeHtml(model.displayName || model.name)}</div>
+            <div class="text-[11px] font-mono text-gray-400 mt-0.5 break-all">${escapeHtml(model.name)}</div>
+            ${badges.length ? '<div class="flex flex-wrap gap-1 mt-1.5">' + badges.join('') + '</div>' : ''}
+        `;
+        list.appendChild(div);
+    });
+}
+
+function selectModel(name) {
+    modelInput.value = name;
+    closeModelSelector();
+    if (_lastModel !== name) {
+        _lastModel = name;
+        resetSession();
+        appendMsg('system', 'Model changed to: ' + name);
+    }
+}
+
+// Init
+resetSession();
+appendMsg('system', 'Ready. Model: ' + modelInput.value);
+</script>
+</body>
+</html>

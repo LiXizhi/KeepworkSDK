@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigitalHuman Test</title>
+    <!-- dev server 从本地 .env 注入 window.__TEST_SECRETS__（含 VOLC_ACCESS_TOKEN）；生产/Git 不含真值 -->
+    <script src="/test/env.js"></script>
+    <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+    <style>
+        #log-panel::-webkit-scrollbar { width: 4px; }
+        #log-panel::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 2px; }
+        #chat-messages::-webkit-scrollbar { width: 4px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 2px; }
+        .chat-bubble { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .phone-btn { width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; background: #f1f5f9; color: #64748b; flex-shrink: 0; }
+        .phone-btn:hover { background: #e2e8f0; }
+        .phone-btn.calling { background: #fee2e2; color: #dc2626; animation: phonePulse 1.5s ease infinite; }
+        .phone-btn:disabled { opacity: 0.5; cursor: default; animation: none; }
+        @keyframes phonePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.3); } 50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); } }
+        .vc-status { font-size: 11px; color: #94a3b8; min-height: 16px; }
+        .vc-status.active { color: #16a34a; }
+        .vc-status.connecting { color: #d97706; }
+        .vc-status.error { color: #dc2626; }
+        /* Workspace Viewer Panel */
+        .ws-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(800px, 100vw); z-index: 900; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; background: #fff; box-shadow: -4px 0 24px rgba(0,0,0,0.15); }
+        .ws-panel.open { transform: translateX(0); }
+        .ws-panel-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: linear-gradient(135deg, #0f766e, #0ea5a4); color: #ecfeff; flex-shrink: 0; }
+        .ws-panel-header span { font-size: 13px; font-weight: 700; flex: 1; }
+        .ws-panel-header button { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+        .ws-panel-header button:hover { background: rgba(255,255,255,0.35); }
+        .ws-panel-body { flex: 1; min-height: 0; overflow: hidden; }
+        .ws-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.2); z-index: 899; display: none; }
+        .ws-backdrop.open { display: block; }
+        /* Action dropdown */
+        .action-dropdown-wrapper { position: absolute; top: 8px; right: 8px; z-index: 10; }
+        .action-dropdown-btn { width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; background: rgba(255,255,255,0.85); color: #475569; box-shadow: 0 1px 4px rgba(0,0,0,0.15); transition: background 0.2s; }
+        .action-dropdown-btn:hover { background: #fff; }
+        .action-dropdown-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 4px; background: #fff; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); min-width: 120px; max-height: 260px; overflow-y: auto; padding: 4px 0; z-index: 11; }
+        .action-dropdown-menu.open { display: block; }
+        .action-dropdown-menu button { display: block; width: 100%; text-align: left; padding: 6px 12px; border: none; background: none; cursor: pointer; font-size: 12px; color: #334155; white-space: nowrap; }
+        .action-dropdown-menu button:hover { background: #f1f5f9; }
+        .tool-bubble { position: relative; cursor: default; }
+        .tool-bubble .tool-tip { display: none; position: absolute; left: 0; bottom: 100%; margin-bottom: 4px; background: #1e293b; color: #e2e8f0; font-size: 11px; padding: 6px 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-width: 400px; max-height: 200px; overflow: auto; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.4; }
+        .tool-bubble:hover .tool-tip { display: block; }
+        .auth-inline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .auth-inline.trigger { cursor: pointer; border-radius: 12px; padding: 4px 6px; transition: background 0.2s, box-shadow 0.2s; }
+        .auth-inline.trigger:hover { background: rgba(45,122,104,0.08); box-shadow: inset 0 0 0 1px rgba(45,122,104,0.12); }
+        .auth-inline.trigger:focus-visible { outline: 2px solid rgba(45,122,104,0.35); outline-offset: 1px; }
+        .auth-inline-avatar { width: 28px; height: 28px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #2d7a68, #1e5f50); color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; overflow: hidden; box-shadow: 0 2px 6px rgba(45,122,104,0.2); }
+        .auth-inline-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .auth-inline-info { display: flex; flex-direction: column; min-width: 0; }
+        .auth-inline-label { font-size: 10px; line-height: 1.1; color: #94a3b8; }
+        .auth-inline-name { font-size: 11px; line-height: 1.2; color: #0f766e; font-weight: 600; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .auth-inline-actions { display: flex; align-items: center; gap: 6px; }
+        .auth-inline-btn { padding: 6px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; }
+        .auth-inline-btn.primary { color: #fff; background: linear-gradient(135deg, #2d7a68, #1e5f50); }
+        .auth-inline-btn:disabled { opacity: 0.6; cursor: default; }
+        .input-preset-menu { display: none; position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; background: rgba(255,255,255,0.98); border: 1px solid rgba(203,213,225,0.8); border-radius: 12px; box-shadow: 0 -12px 28px rgba(15,23,42,0.12); max-height: min(260px, calc(100vh - 180px)); overflow-y: auto; padding: 6px 0; z-index: 30; }
+        .input-preset-menu.open { display: block; }
+        .input-preset-item { display: block; width: 100%; padding: 8px 12px; border: none; background: transparent; text-align: left; font-size: 12px; color: #334155; cursor: pointer; }
+        .input-preset-item:hover { background: rgba(45,122,104,0.08); }
+    </style>
+</head>
+<body class="m-0 h-screen overflow-hidden font-sans text-slate-800"
+      style="background: linear-gradient(180deg, #f4efe5, #dce8f2);">
+
+<div class="flex h-full">
+    <!-- Left: Controls Panel -->
+    <div class="flex flex-col w-[380px] min-w-[340px] h-full border-r border-slate-200/50"
+         style="background: rgba(255,252,247,0.95); backdrop-filter: blur(12px);">
+
+        <!-- Header -->
+        <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-200/30">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white text-xs font-bold shadow">DH</div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-sm">DigitalHuman Test</div>
+                <div class="text-[11px] text-slate-400" id="status-text">未初始化</div>
+            </div>
+            <div id="auth-trigger" class="auth-inline trigger" role="button" tabindex="0" title="打开个人资料">
+                <div id="auth-avatar" class="auth-inline-avatar">?</div>
+                <div class="auth-inline-info">
+                    <span class="auth-inline-label">Keepwork</span>
+                    <span id="usernameDisplay" class="auth-inline-name">检查登录中...</span>
+                </div>
+            </div>
+            <button id="btn-workspace" class="w-7 h-7 rounded-lg border-none cursor-pointer flex items-center justify-center text-sm" style="background: rgba(45,122,104,0.15); color: #2d7a68;" title="Workspace Viewer">📁</button>
+            <div class="auth-inline-actions">
+                <button id="signInBtn" class="auth-inline-btn primary" type="button">登录</button>
+            </div>
+        </div>
+
+        <!-- Preset selector -->
+        <div class="px-4 py-2 border-b border-slate-200/30 flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+                <select id="preset-select" class="flex-1 px-2 py-1.5 rounded-lg border border-slate-300/40 bg-white/80 text-[11px] outline-none">
+                    <option value="silvermindV1" selected>拉拉 (silvermindV1.yaml)</option>
+                    <option value="dragon">抱抱龙 (dragon.json)</option>
+                    <option value="simpleLLM">Simple LLM (simpleLLM.yaml)</option>
+                    <option value="simpleS2S">Simple S2S (simpleS2S.yaml)</option>
+                    <option value="builtin_asr_webp">Built-in ASR/TTS + Webp</option>
+                    <option value="builtin_s2s_webp">Built-in S2S + Webp</option>
+                </select>
+                <button id="btn-load" class="px-4 py-1.5 rounded-lg text-xs text-white font-medium border-none cursor-pointer"
+                        style="background: linear-gradient(135deg, #2d7a68, #1e5f50);">⚡ Load</button>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                <span>workspace: <span id="workspace-name" class="font-mono text-emerald-600">silvermind</span></span>
+                <span id="mount-folder-label" class="ml-2">mountFolder: <span id="mount-folder-name" class="font-mono text-purple-500">maisi/maisi/silvermindWorkspace</span></span>
+            </div>
+        </div>
+
+        <!-- Chat messages -->
+        <div id="chat-messages" class="flex-1 overflow-y-auto px-4 py-3 space-y-2"></div>
+
+        <!-- Image preview -->
+        <div id="image-preview-row" class="px-3 pt-2 hidden">
+            <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-100/80 border border-slate-200/40">
+                <img id="image-preview-img" class="w-16 h-16 object-cover rounded-lg border border-slate-300/50" />
+                <span id="image-preview-name" class="flex-1 text-xs text-slate-500 truncate"></span>
+                <button id="image-preview-remove" class="text-slate-400 hover:text-red-500 text-sm cursor-pointer bg-transparent border-none">✕</button>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="px-3 py-3 border-t border-slate-200/30">
+            <div class="flex gap-2">
+                <input id="image-file-input" type="file" accept="image/*" class="hidden" />
+                <button id="image-file-btn" class="phone-btn" title="上传图片"
+                        style="width: 36px; height: 36px; font-size: 16px;">🖼️</button>
+                <div class="relative flex-1">
+                    <input id="user-input" type="text" placeholder="输入消息..."
+                           class="w-full px-3 py-2 pr-8 rounded-xl border border-slate-300/40 bg-white/80 text-sm outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition" />
+                    <button id="preset-dropdown-btn" class="absolute right-2 top-1/2 -translate-y-1/2 border-none bg-transparent text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer" title="内置命令">▼</button>
+                    <div id="preset-dropdown" class="input-preset-menu">
+                        <button type="button" class="input-preset-item preset-item" data-value="/context 我刚刚吃了柚子">/context 我刚刚吃了柚子</button>
+                        <button type="button" class="input-preset-item preset-item" data-value="/contextWithHistory 我刚刚吃了柚子">/contextWithHistory 我刚刚吃了柚子</button>
+                        <button type="button" class="input-preset-item preset-item" data-value="/tts 你好，这是一段测试语音">/tts 你好，这是一段测试语音</button>
+                        <button type="button" class="input-preset-item preset-item" data-value="/action wave">/action wave</button>
+                        <button type="button" class="input-preset-item preset-item" data-value="/summarize">/summarize</button>
+                        <button type="button" class="input-preset-item preset-item" data-value="/help">/help</button>
+                    </div>
+                </div>
+                <button id="send-btn" class="px-4 py-2 rounded-xl text-sm text-white font-medium border-none cursor-pointer"
+                        style="background: linear-gradient(135deg, #2d7a68, #1e5f50); box-shadow: 0 2px 8px rgba(45,122,104,0.3);">
+                    发送</button>
+                <button id="phone-btn" class="phone-btn" title="语音通话"
+                        style="width: 40px; height: 40px; font-size: 18px; border: 2px solid rgba(45,122,104,0.4);">📞</button>
+            </div>
+            <div id="vc-status-bar" class="vc-status hidden mt-1 px-1"></div>
+        </div>
+    </div>
+
+    <!-- Center: Avatar container -->
+    <div id="avatar-container" class="flex-1 h-full relative">
+        <div id="action-dropdown-wrapper" class="action-dropdown-wrapper" style="display:none;">
+            <button id="action-dropdown-btn" class="action-dropdown-btn" title="Actions">🎬</button>
+            <div id="action-dropdown-menu" class="action-dropdown-menu"></div>
+        </div>
+    </div>
+
+    <!-- Right: Event log -->
+    <div class="w-[300px] h-full border-l border-slate-200/50 flex flex-col"
+         style="background: rgba(30,41,59,0.95); backdrop-filter: blur(12px);">
+        <div class="px-3 py-2 border-b border-slate-700/50 flex items-center justify-between">
+            <span class="text-xs text-slate-300 font-semibold">Event Log</span>
+            <button id="btn-clear-log" class="text-[10px] text-slate-400 hover:text-slate-200 cursor-pointer bg-transparent border-none">Clear</button>
+        </div>
+        <div id="log-panel" class="flex-1 overflow-y-auto px-3 py-2 text-[11px] text-slate-300 font-mono leading-relaxed space-y-0.5"></div>
+    </div>
+</div>
+
+<!-- Workspace Viewer Slide Panel -->
+<div id="ws-backdrop" class="ws-backdrop"></div>
+<div id="ws-panel" class="ws-panel">
+    <div class="ws-panel-header">
+        <span>📁 Workspace</span>
+        <button id="ws-close" title="Close">✕</button>
+    </div>
+    <div id="ws-panel-body" class="ws-panel-body"></div>
+</div>
+
+<script type="module">
+    // ── SDK ──
+    try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+    // 火山引擎 AccessToken：dev server 从 .env 注入真值；缺失时回落占位符（需手动填写）。
+    const VOLC_ACCESS_TOKEN = (window.__TEST_SECRETS__ && window.__TEST_SECRETS__.VOLC_ACCESS_TOKEN) || 'YOUR_VOLC_ACCESS_TOKEN';
+    const { createWorkspaceViewer } = await import('../src/ui/WorkspaceViewer.ts');
+    const sdk = new KeepworkSDK({ timeout: 30000 });
+
+    // ── Register custom 'weather' tool category ──
+    if (sdk.copilotTools) {
+        sdk.copilotTools.registerToolCategory('weather', {
+            definitions: [{
+                type: 'function',
+                function: {
+                    name: 'getWeather',
+                    description: 'Get current weather information for a given city. Returns temperature, conditions, and humidity.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            city: {
+                                type: 'string',
+                                description: 'The city name to get weather for, e.g. "Beijing", "Shanghai", "New York".',
+                            },
+                        },
+                        required: ['city'],
+                    },
+                },
+            }],
+            executor: async (fnName, fnArgs) => {
+                console.log(`[weather tool] ${fnName}(${JSON.stringify(fnArgs)})`);
+                await new Promise(r => setTimeout(r, 500));
+                const mockData = {
+                    city: fnArgs.city || 'Unknown',
+                    temperature: `${Math.floor(15 + Math.random() * 20)}°C`,
+                    conditions: ['Sunny', 'Cloudy', 'Rainy', 'Partly Cloudy'][Math.floor(Math.random() * 4)],
+                    humidity: `${Math.floor(40 + Math.random() * 50)}%`,
+                };
+                return JSON.stringify(mockData);
+            },
+        });
+    }
+
+    // ── Avatar presets (characterAI.md videoActions format) ──
+    const LIVE2D_BASE = 'https://cdn.keepwork.com/digitalhuman/live2d/assets/';
+    const DRAGON_CDN = 'https://cdn.keepwork.com/digitalhuman/v1/dragon';
+
+    const WEBP_VIDEO_ACTIONS = {
+        'idle':    { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter/idle_nobg.webp' },
+        'talk':    { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter/talking_nobg.webp' },
+        '写字|记录|writing': { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter/writing_nobg.webp' },
+        '查询|编程|用平板|coding':  { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter/pad.webp' },
+        '点赞|喜欢|like':    { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter/like.webp' },
+        '鼓掌|clap':    { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter/clap.webp' },
+        'guide|引导':   { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter/guide.webp' },
+        'listen|倾听':  { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter/listen.webp' },
+        'wave|挥手':    { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter/wave.webp' },
+    };
+
+    // ── Presets ──
+    const PRESETS = {
+        silvermindV1:     { workspace: 'silvermind',       mountFolder: 'maisi/maisi/silvermindWorkspace', config: 'DigitalHumanConfig/silvermindV1.yaml' },
+        dragon:           { workspace: 'testDigitalHuman', mountFolder: '', config: 'DigitalHumanConfig/dragon.json' },
+        simpleLLM:        { workspace: 'testDigitalHuman', mountFolder: '', config: 'DigitalHumanConfig/simpleLLM.yaml' },
+        simpleS2S:        { workspace: 'testDigitalHuman', mountFolder: '', config: 'DigitalHumanConfig/simpleS2S.yaml' },
+        builtin_asr_webp: { workspace: 'testDigitalHuman', mountFolder: '' },
+        builtin_s2s_webp: { workspace: 'testDigitalHuman', mountFolder: '' },
+    };
+
+    function getPreset() { return PRESETS[presetSelect.value] || PRESETS.silvermindV1; }
+
+    // ── Voice presets (used only for built-in presets without config yaml) ──
+    const ENABLED_TOOL_CATEGORIES = ['fileOps', 'weather'];
+    const SYSTEM_PROMPT = `你是拉拉，一个友善的AI角色。请用简短、口语化的中文回复用户。
+回复要自然亲切，像朋友聊天一样。每次回复控制在2-3句话以内。
+偶尔可以用括号描述动作和神态，如"(微笑着看向你)"。如果括号中包含下列词语，角色会自动播放对应动作: \${copilot.getActionList('zh')}.`;
+
+    const SHARED_LLM_SYSTEM_MESSAGES = [SYSTEM_PROMPT];
+
+    const VOICE_PRESETS = {
+        s2s_llm: {
+            appId: '69883f4ae00f9e017600b901',
+            agentUserId: 'ChatBot03',
+            agentConfig: {
+                WelcomeMessage: '你好呀！我是拉拉，很高兴见到你！',
+                UserId: 'ChatBot03',
+                EnableConversationStateCallback: true,
+            },
+            config: {
+                LLMConfig: {
+                    Mode: 'ArkV3',
+                    EndPointId: 'ep-20260315160200-s6fg7',
+                    VisionConfig: { Enable: false },
+                    ThinkingType: 'disabled',
+                    HistoryLength: 20,
+                    SystemMessages: SHARED_LLM_SYSTEM_MESSAGES,
+                    Tools: [],
+                },
+                S2SConfig: {
+                    Provider: 'volcano',
+                    OutputMode: 1,
+                    ProviderParams: {
+                        app: { appid: '3065448513', token: VOLC_ACCESS_TOKEN },
+                        dialog: {
+                            extra: { model: '1.2.1.0' },
+                            bot_name: '拉拉',
+                            system_role: '你是一个友善的AI角色。',
+                            speaking_style: '请使用轻松、亲切的口吻。',
+                        },
+                    },
+                    HistoryLength: 10,
+                },
+                SubtitleConfig: { SubtitleMode: 1 },
+                InterruptMode: 0,
+            },
+            enabledToolCategories: ENABLED_TOOL_CATEGORIES,
+            workspace: 'testDigitalHuman',
+        },
+        asr_llm_tts: {
+            appId: '69883f4ae00f9e017600b901',
+            agentUserId: 'ChatBot01',
+            agentConfig: {
+                WelcomeMessage: '你好呀！我是拉拉，很高兴见到你！',
+                UserId: 'ChatBot01',
+                EnableConversationStateCallback: true,
+            },
+            config: {
+                ASRConfig: {
+                    Provider: 'volcano',
+                    ProviderParams: {
+                        Mode: 'bigmodel',
+                        AppId: '3065448513',
+                        AccessToken: VOLC_ACCESS_TOKEN,
+                        ApiResourceId: 'volc.bigasr.sauc.duration',
+                    },
+                },
+                TTSConfig: {
+                    Provider: 'volcano_bidirection',
+                    ProviderParams: {
+                        app: { appid: '3065448513', token: VOLC_ACCESS_TOKEN },
+                        audio: { voice_type: 'zh_female_tianmeiyueyue_moon_bigtts', speech_rate: 0 },
+                        ResourceId: 'volc.service_type.10029',
+                    },
+                    // 1:（）, 2: (), 3:【】, 4: [], 5: {}
+                    IgnoreBracketText: [1, 2],  // 过滤中文括号（）和英文括号()内的内容
+                },
+                LLMConfig: {
+                    Mode: 'ArkV3',
+                    EndPointId: 'ep-20260315160200-s6fg7',
+                    SystemMessages: SHARED_LLM_SYSTEM_MESSAGES,
+                    VisionConfig: { Enable: false },
+                    ThinkingType: 'disabled',
+                    Tools: [],
+                },
+                SubtitleConfig: { SubtitleMode: 1 },
+                InterruptMode: 0,
+            },
+            enabledToolCategories: ENABLED_TOOL_CATEGORIES,
+            workspace: 'testDigitalHuman',
+        },
+    };
+
+    // ── DOM refs ──
+    const statusText = document.getElementById('status-text');
+    const presetSelect = document.getElementById('preset-select');
+    const workspaceNameEl = document.getElementById('workspace-name');
+    const mountFolderNameEl = document.getElementById('mount-folder-name');
+    const mountFolderLabel = document.getElementById('mount-folder-label');
+    const btnLoad = document.getElementById('btn-load');
+    const actionDropdownWrapper = document.getElementById('action-dropdown-wrapper');
+    const actionDropdownBtn = document.getElementById('action-dropdown-btn');
+    const actionDropdownMenu = document.getElementById('action-dropdown-menu');
+    const sendBtn = document.getElementById('send-btn');
+    const userInput = document.getElementById('user-input');
+    const presetDropdownBtn = document.getElementById('preset-dropdown-btn');
+    const presetDropdown = document.getElementById('preset-dropdown');
+    const chatMessages = document.getElementById('chat-messages');
+    const phoneBtn = document.getElementById('phone-btn');
+    const vcStatusBar = document.getElementById('vc-status-bar');
+    const logPanel = document.getElementById('log-panel');
+    const btnClearLog = document.getElementById('btn-clear-log');
+    const avatarContainer = document.getElementById('avatar-container');
+    const authTrigger = document.getElementById('auth-trigger');
+    const authAvatar = document.getElementById('auth-avatar');
+    const signInBtn = document.getElementById('signInBtn');
+    const usernameDisplay = document.getElementById('usernameDisplay');
+    const imageFileInput = document.getElementById('image-file-input');
+    const imageFileBtn = document.getElementById('image-file-btn');
+    const imagePreviewRow = document.getElementById('image-preview-row');
+    const imagePreviewImg = document.getElementById('image-preview-img');
+    const imagePreviewName = document.getElementById('image-preview-name');
+    const imagePreviewRemove = document.getElementById('image-preview-remove');
+
+    // ── Pending image state ──
+    let pendingImageBase64 = null; // data URI (data:image/...;base64,...)
+
+    function setPendingImage(dataUri, label) {
+        pendingImageBase64 = dataUri;
+        imagePreviewImg.src = dataUri;
+        imagePreviewName.textContent = label || 'image';
+        imagePreviewRow.classList.remove('hidden');
+    }
+
+    function clearPendingImage() {
+        pendingImageBase64 = null;
+        imagePreviewImg.src = '';
+        imagePreviewName.textContent = '';
+        imagePreviewRow.classList.add('hidden');
+        imageFileInput.value = '';
+    }
+
+    imagePreviewRemove.addEventListener('click', clearPendingImage);
+
+    // ── Pick image from file ──
+    imageFileBtn.addEventListener('click', () => imageFileInput.click());
+    imageFileInput.addEventListener('change', () => {
+        const file = imageFileInput.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            setPendingImage(reader.result, file.name);
+            log('Image attached: ' + file.name, '#60a5fa');
+        };
+        reader.readAsDataURL(file);
+    });
+
+    presetDropdownBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        presetDropdown.classList.toggle('open');
+    });
+
+    presetDropdown.addEventListener('click', (e) => {
+        const item = e.target.closest('.preset-item');
+        if (!item) return;
+        userInput.value = item.dataset.value || '';
+        presetDropdown.classList.remove('open');
+        userInput.focus();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!presetDropdown.contains(e.target) && !presetDropdownBtn.contains(e.target)) {
+            presetDropdown.classList.remove('open');
+        }
+    });
+
+
+
+    // ── Preset label update ──
+    function updatePresetLabels() {
+        const preset = getPreset();
+        workspaceNameEl.textContent = preset.workspace;
+        mountFolderNameEl.textContent = preset.mountFolder || '—';
+        mountFolderLabel.style.display = preset.mountFolder ? '' : 'none';
+    }
+    presetSelect.addEventListener('change', updatePresetLabels);
+    updatePresetLabels();
+
+    // ── DigitalHuman instance ──
+    let dh = null;
+
+    function buildNonVoiceSessionConfig() {
+        const characterConfig = dh?.characterConfig;
+        const preset = getPreset();
+
+        if (characterConfig) {
+            const chatConfig = characterConfig.nonVoiceChat || characterConfig.textChat || characterConfig.chat || characterConfig;
+            const mergedTools = {
+                ...(characterConfig.tools || {}),
+                ...(chatConfig.tools || {}),
+                weather: {
+                    enabled: (chatConfig.tools?.weather?.enabled ?? characterConfig.tools?.weather?.enabled) !== false,
+                    ...(characterConfig.tools?.weather || {}),
+                    ...(chatConfig.tools?.weather || {}),
+                },
+            };
+
+            if (!mergedTools.fileOps) mergedTools.fileOps = { enabled: true };
+            if (mergedTools.fileOps.enabled !== false) {
+                if (!mergedTools.fileOps.workspace) {
+                    mergedTools.fileOps.workspace = chatConfig.workspace || characterConfig.workspace || preset.workspace;
+                }
+                if (!mergedTools.fileOps.mountFolder && (chatConfig.mountFolder || characterConfig.mountFolder)) {
+                    mergedTools.fileOps.mountFolder = chatConfig.mountFolder || characterConfig.mountFolder;
+                }
+            }
+
+            return {
+                ...characterConfig,
+                ...chatConfig,
+                llm_model: chatConfig.llm_model ?? characterConfig.llm_model,
+                tools: mergedTools,
+                bracketAction: chatConfig.bracketAction
+                    ?? chatConfig.autoBracketAction
+                    ?? characterConfig.bracketAction
+                    ?? characterConfig.autoBracketAction,
+                skipHistory: chatConfig.skipHistory ?? characterConfig.skipHistory,
+            };
+        }
+
+        return {
+            system_prompt: SYSTEM_PROMPT,
+            llm_model: 'keepwork-flash',
+            tools: {
+                fileOps: { enabled: true, workspace: preset.workspace },
+                weather: { enabled: true },
+            },
+            bracketAction: { enabled: true, autoplay: true, duration: 3 },
+        };
+    }
+
+    // ── Logging ──
+    function log(msg, color = '#94a3b8') {
+        const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        const el = document.createElement('div');
+        el.style.color = color;
+        el.textContent = `[${ts}] ${msg}`;
+        logPanel.appendChild(el);
+        logPanel.scrollTop = logPanel.scrollHeight;
+    }
+    btnClearLog.addEventListener('click', () => { logPanel.innerHTML = ''; });
+
+    // ── Chat UI helpers ──
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function formatHistoryTimestamp(value) {
+        if (value == null) return '';
+        const normalized = typeof value === 'string' && !value.includes('T')
+            ? value.replace(' ', 'T')
+            : value;
+        const date = new Date(normalized);
+        if (isNaN(date.getTime())) return '';
+
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+
+    function addChatMessage(text, isUser, id, options = {}) {
+        const { timestampLabel = '' } = options;
+        // Update existing message by id
+        if (id) {
+            const existing = chatMessages.querySelector(`[data-msg-id="${id}"]`);
+            if (existing) {
+                const bubble = existing.querySelector('.msg-content');
+                if (bubble) bubble.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+                const timeEl = existing.querySelector('.msg-timestamp');
+                if (timeEl) timeEl.textContent = timestampLabel;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                return existing;
+            }
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'chat-bubble flex ' + (isUser ? 'justify-end' : 'justify-start');
+        if (id) wrapper.dataset.msgId = id;
+
+        const stack = document.createElement('div');
+        stack.className = 'flex flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start');
+
+        if (timestampLabel) {
+            const timeEl = document.createElement('div');
+            timeEl.className = 'msg-timestamp px-1 text-[11px] leading-none text-slate-400';
+            timeEl.textContent = timestampLabel;
+            stack.appendChild(timeEl);
+        }
+
+        const bubble = document.createElement('div');
+        bubble.className = 'msg-content max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed '
+            + (isUser
+                ? 'rounded-tr-sm text-white'
+                : 'rounded-tl-sm bg-white/80 border border-slate-200/40 shadow-sm');
+        if (isUser) bubble.style.cssText = 'background: linear-gradient(135deg, #2d7a68, #1e5f50);';
+        bubble.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+
+        stack.appendChild(bubble);
+        wrapper.appendChild(stack);
+        chatMessages.appendChild(wrapper);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        return wrapper;
+    }
+
+    // ── Tool call bubble tracking ──
+    const _pendingToolCalls = {};
+
+    function addToolCallBubble(name, args) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'chat-bubble tool-bubble flex justify-start';
+        wrapper.dataset.toolName = name;
+        const bubble = document.createElement('div');
+        bubble.className = 'max-w-[85%] px-3 py-1.5 rounded-2xl text-xs leading-relaxed bg-amber-50 text-amber-800 border border-amber-200';
+        bubble.innerHTML = `🔧 <b>${escapeHtml(name)}</b> <span class="text-amber-500">running…</span>`;
+        const tip = document.createElement('div');
+        tip.className = 'tool-tip';
+        tip.textContent = 'Input: ' + JSON.stringify(args, null, 2);
+        wrapper.appendChild(tip);
+        wrapper.appendChild(bubble);
+        chatMessages.appendChild(wrapper);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        _pendingToolCalls[name] = { wrapper, bubble, tip };
+        return wrapper;
+    }
+
+    function updateToolCallResult(name, result) {
+        const entry = _pendingToolCalls[name];
+        if (!entry) return;
+        const resultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+        const short = resultStr.length > 60 ? resultStr.slice(0, 60) + '…' : resultStr;
+        entry.bubble.innerHTML = `🔧 <b>${escapeHtml(name)}</b> <span class="text-green-600">✓</span> <span class="text-gray-400 text-[10px]">${escapeHtml(short)}</span>`;
+        entry.tip.textContent += '\n\nOutput: ' + resultStr;
+        delete _pendingToolCalls[name];
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function addSystemMessage(text, options = {}) {
+        const div = document.createElement('div');
+        div.className = 'text-center text-[11px] text-slate-400 py-1';
+        if (options.title) {
+            div.title = options.title;
+            div.className += ' cursor-help';
+        }
+        div.textContent = text;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function formatRestartAgentMessage(data = {}) {
+        const stageText = {
+            start: '开始切换 Agent',
+            config: '已加载 Agent 配置',
+            queued: '排队切换 Agent',
+            complete: '已切换 Agent',
+            failed: '切换 Agent 失败',
+        }[data.stage] || 'Agent 状态更新';
+        const prompt = data.promptFile ? `：${data.promptFile}` : '：默认配置';
+        const tools = Array.isArray(data.tools) && data.tools.length ? ` (${data.tools.join(', ')})` : '';
+        const error = data.error ? ` - ${data.error}` : '';
+        return `🔁 ${stageText}${prompt}${tools}${error}`;
+    }
+
+    function finalizeStreamingMessage(id = 'streaming') {
+        const el = chatMessages.querySelector(`[data-msg-id="${id}"]`);
+        if (el) el.removeAttribute('data-msg-id');
+    }
+
+    async function sendBootMessageIfNeeded(instance, restoredCount) {
+        if (!instance || restoredCount > 0) return;
+        const bootMessage = instance.characterConfig?.initial?.bootMessage;
+        if (!bootMessage) return;
+
+        log('Sending boot message after history restore', '#94a3b8');
+        try {
+            const result = await instance.sendBootMessage();
+            if (result?.skipped) {
+                log(`Boot message skipped: ${result.reason}`, '#fbbf24');
+            }
+        } catch (e) {
+            log(`Boot message failed: ${e.message}`, '#f87171');
+        }
+    }
+
+    // ── Sign-in ──
+    function setAuthBusy(isBusy) {
+        signInBtn.disabled = isBusy;
+    }
+
+    function renderSignedOut() {
+        authAvatar.innerHTML = '?';
+        usernameDisplay.textContent = '未登录';
+        signInBtn.classList.remove('hidden');
+        authTrigger.title = '请先登录';
+    }
+
+    function renderSignedIn(profile) {
+        const displayName = profile?.nickname || profile?.username || `User #${profile?.id || ''}`;
+        const portrait = profile?.portrait;
+        if (portrait) {
+            authAvatar.innerHTML = `<img src="${escapeHtml(portrait)}" alt="avatar">`;
+        } else {
+            authAvatar.textContent = (displayName || '?').trim().charAt(0).toUpperCase() || '?';
+        }
+        usernameDisplay.textContent = displayName;
+        signInBtn.classList.add('hidden');
+        authTrigger.title = '打开个人资料';
+    }
+
+    async function refreshAuthUi(options = {}) {
+        const { silent = false, forceRefresh = false } = options;
+        try {
+            const profile = await sdk.getUserProfile({ useCache: !forceRefresh, forceRefresh });
+            if (profile?.id || profile?.username) {
+                renderSignedIn(profile);
+                return profile;
+            }
+        } catch (e) {
+            if (!silent) log('Refresh auth failed: ' + e.message, '#f87171');
+        }
+        renderSignedOut();
+        return null;
+    }
+
+    async function handleSignIn() {
+        setAuthBusy(true);
+        try {
+            const response = await sdk.showLoginWindow({ title: 'Keepwork 登录' });
+            if (response?.token) {
+                await refreshAuthUi({ forceRefresh: true, silent: true });
+                log('Signed in successfully', '#34d399');
+            } else {
+                await refreshAuthUi({ silent: true });
+            }
+        } catch (e) {
+            if (e?.message) log('Login cancelled or failed: ' + e.message, '#f87171');
+            await refreshAuthUi({ silent: true });
+        } finally {
+            setAuthBusy(false);
+        }
+    }
+
+    async function handleProfileOpen() {
+        if (!sdk.token) {
+            await handleSignIn();
+            return;
+        }
+
+        try {
+            await sdk.showProfileWindow();
+        } catch (e) {
+            if (e?.message) log('Open profile failed: ' + e.message, '#f87171');
+        } finally {
+            await refreshAuthUi({ forceRefresh: true, silent: true });
+        }
+    }
+
+    signInBtn.addEventListener('click', handleSignIn);
+    authTrigger.addEventListener('click', handleProfileOpen);
+    authTrigger.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleProfileOpen();
+        }
+    });
+    refreshAuthUi({ silent: true });
+
+    // ── Wire DigitalHuman events ──
+    let suppressNextUserMessageBubble = false;
+
+    function wireEvents(instance) {
+        instance.on('avatarReady', (data) => {
+            log(`Avatar ready (mode: ${data.mode})`, '#34d399');
+            statusText.textContent = `Avatar: ${data.mode}`;
+        });
+
+        instance.on('message', (data) => {
+            const text = data.partialText ?? data.text;
+            if (text) addChatMessage(text, false, 'streaming');
+            if (data.messageData) log('RTC message: ' + (data.text || '').slice(0, 80), '#38bdf8');
+        });
+
+        instance.on('userMessage', (data) => {
+            const text = data?.text || '';
+            log(`User message: ${text.slice(0, 80)}`, '#60a5fa');
+            if (!text) return;
+            if (suppressNextUserMessageBubble) {
+                suppressNextUserMessageBubble = false;
+                return;
+            }
+            addChatMessage(text, true);
+        });
+
+        instance.on('restartAgent', (data) => {
+            log(`RestartAgent: ${JSON.stringify(data)?.slice(0, 150) || ''}`, '#fbbf24');
+            addSystemMessage(formatRestartAgentMessage(data));
+        });
+
+        instance.on('reasoning', ({ text }) => {
+            log('Reasoning: ' + text.slice(0, 80) + '...', '#a78bfa');
+        });
+
+        instance.on('complete', ({ finalText, intermediate, pendingToolCalls }) => {
+            finalizeStreamingMessage('streaming');
+            const phase = intermediate || pendingToolCalls ? 'intermediate' : 'final';
+            log(`LLM ${phase} complete (` + (finalText?.length || 0) + ' chars)', '#34d399');
+        });
+
+        instance.on('error', ({ error }) => {
+            log('Error: ' + (error?.message || error), '#f87171');
+        });
+        instance.on('textSpeechStart', (data) => log(`textSpeechStart (requestId=${data.requestId})`));
+        instance.on('textSpeechEnd', (data) => log(`textSpeechEnd (requestId=${data.requestId})`));
+        instance.on('textSpeechCanceled', (data) => log(`textSpeechCanceled (requestId=${data.requestId})`));
+
+        instance.on('toolCall', ({ name, source, args }) => {
+            const src = source ? ` [${source}]` : '';
+            log(`Tool call: ${name}${src}`, '#fbbf24');
+            addToolCallBubble(name, args || {});
+        });
+
+        instance.on('toolResult', ({ name, result }) => {
+            const r = result ?? '';
+            const preview = (typeof r === 'string' ? r : JSON.stringify(r)).slice(0, 80);
+            log(`Tool result: ${name} → ${preview}`, '#fbbf24');
+            if (name) updateToolCallResult(name, r);
+        });
+
+        instance.on('subtitle', ({ text, isUser, roundId, definite, paragraph }) => {
+            const key = `${roundId}_${isUser ? 'user' : 'ai'}`;
+            addChatMessage(text, isUser, key);
+            if (paragraph) {
+                // Final — unmark
+                const el = chatMessages.querySelector(`[data-msg-id="${key}"]`);
+                if (el) el.removeAttribute('data-msg-id');
+            }
+            log(`Subtitle [${isUser ? 'user' : 'ai'}]: ${text.slice(0, 50)}`, '#38bdf8');
+        });
+
+        instance.on('voiceChatState', ({ code, label }) => {
+            const labels = { 1: '🎧 聆听中', 2: '🧠 思考中', 3: '🔊 说话中', 4: '⏹ 已中断', 5: '✅ 完成' };
+            const display = labels[code] || label || `state:${code}`;
+            vcStatusBar.textContent = display;
+            log(`VC State: ${display}`, '#818cf8');
+        });
+
+        instance.on('welcome', ({ message }) => {
+            addChatMessage(message, false, 'welcome');
+            log('Welcome: ' + message.slice(0, 50), '#34d399');
+        });
+
+        instance.on('voiceChatStarted', () => {
+            log('Voice chat started', '#34d399');
+        });
+
+        instance.on('voiceChatStopped', () => {
+            log('Voice chat stopped', '#fb923c');
+        });
+
+        instance.on('bracketAction', (data) => {
+            const played = data.autoPlayed ? ' (auto-played)' : '';
+            log(`BracketAction: ${data.actionKey} [${data.bracketText}]${played}`, '#c084fc');
+        });
+
+        instance.on('autoplayFailed', () => {
+            addSystemMessage('⚠️ 点击页面任意位置来启用AI语音');
+            log('Autoplay blocked by browser', '#fbbf24');
+        });
+
+        instance.on('audioLevel', ({ speaking }) => {
+            // lightweight — don't log every frame
+        });
+
+        instance.on('summarized', (data) => {
+            const trigger = data.trigger || 'unknown';
+            const summary = data.summary ? data.summary.slice(0, 80) + '...' : '(pending)';
+            log(`Summarized [${trigger}]: removed=${data.removedCount || 0}, remaining=${data.remainingCount || '?'}, summary=${summary}`, '#a78bfa');
+            addSystemMessage(`📋 对话已整理 (${trigger})`, {
+                title: data.summary || data.status || '',
+            });
+        });
+
+        instance.on('comfortMessage', (data) => {
+            log(`Comfort: ${data.text} [${data.toolName}]`, '#94a3b8');
+        });
+    }
+
+    // ── Load preset (unified init) ──
+    btnLoad.addEventListener('click', async () => {
+        btnLoad.disabled = true;
+        statusText.textContent = '正在加载...';
+        const preset = getPreset();
+        const presetKey = presetSelect.value;
+        updatePresetLabels();
+        log(`Loading preset: ${presetKey} (workspace: ${preset.workspace})`);
+
+        try {
+            if (!sdk.token) {
+                await handleSignIn();
+                if (!sdk.token) throw new Error('需要登录');
+            }
+
+            if (dh) {
+                await dh.destroy();
+                log('Previous instance destroyed');
+            }
+
+            dh = new DigitalHuman({ sdk, container: avatarContainer });
+            wireEvents(dh);
+
+            if (preset.config) {
+                // Load from external YAML/JSON config
+                log(`Loading config: ${preset.config}`);
+                await dh.loadConfig(preset.config);
+                const charName = dh.characterConfig?.character?.name || 'unknown';
+                statusText.textContent = `Ready: ${charName}`;
+                log(`Config loaded — character: ${charName}, tools: ${Object.keys(dh.characterConfig?.tools || {}).join(',')}`, '#34d399');
+                addSystemMessage(`✅ 配置已加载: ${charName}`);
+            } else {
+                // Built-in config (ASR or S2S mode with Webp avatar)
+                const builtinConfig = {
+                    character: { name: 'TestBot' },
+                    system_prompt: SYSTEM_PROMPT,
+                    llm_model: 'keepwork-flash',
+                    workspace: preset.workspace,
+                    tools: {
+                        fileOps: { enabled: true, workspace: preset.workspace },
+                        weather: { enabled: true },
+                    },
+                    videoActions: WEBP_VIDEO_ACTIONS,
+                    bracketAction: { enabled: true, autoplay: true, duration: 3 },
+                };
+                if (presetKey === 'builtin_s2s_webp') {
+                    builtinConfig.voiceChat = VOICE_PRESETS.s2s_llm;
+                } else {
+                    builtinConfig.voiceChat = VOICE_PRESETS.asr_llm_tts;
+                }
+                log(`Calling initFromConfig (${presetKey})...`);
+                await dh.initFromConfig(builtinConfig);
+                statusText.textContent = `Ready: TestBot`;
+                addSystemMessage('✅ 内置配置已加载');
+            }
+
+            buildActionButtons();
+
+            // Load existing chat history into bubbles
+            try {
+                const session = dh.getSession();
+                const msgs = session?.messages;
+                let restored = 0;
+                if (Array.isArray(msgs)) {
+                    for (const m of msgs) {
+                        if (m.role === 'user') {
+                            addChatMessage(m.content, true, undefined, {
+                                timestampLabel: formatHistoryTimestamp(m._ts),
+                            });
+                            restored++;
+                        }
+                        else if (m.role === 'assistant' && m.content) {
+                            addChatMessage(m.content, false, undefined, {
+                                timestampLabel: formatHistoryTimestamp(m._ts),
+                            });
+                            restored++;
+                        }
+                    }
+                    if (restored) log(`Restored ${restored} history messages`, '#94a3b8');
+                }
+                dh.summarize({ onlyWhenNeeded: true, mode: 'replace' });
+                await sendBootMessageIfNeeded(dh, restored);
+            } catch (e) {
+                log(`Failed to load history: ${e.message}`, '#fbbf24');
+            }
+        } catch (e) {
+            log('Load failed: ' + e.message, '#f87171');
+            statusText.textContent = '加载失败';
+        } finally {
+            btnLoad.disabled = false;
+        }
+    });
+
+    // ── Action dropdown ──
+    actionDropdownBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        actionDropdownMenu.classList.toggle('open');
+    });
+    document.addEventListener('click', (e) => {
+        if (!actionDropdownWrapper.contains(e.target)) actionDropdownMenu.classList.remove('open');
+    });
+
+    function buildActionButtons() {
+        actionDropdownMenu.innerHTML = '';
+        if (!dh) { actionDropdownWrapper.style.display = 'none'; return; }
+
+        const actions = dh.getActions();
+        if (actions.length === 0) { actionDropdownWrapper.style.display = 'none'; return; }
+
+        for (const actionStr of actions) {
+            const parts = actionStr.split('|');
+            const actionKey = parts[0];
+            const btn = document.createElement('button');
+            btn.textContent = actionStr;
+            btn.addEventListener('click', () => {
+                if (!dh) return;
+                dh.playAction(actionKey, 5);
+                log(`playAction('${actionKey}', 5)`);
+                actionDropdownMenu.classList.remove('open');
+            });
+            actionDropdownMenu.appendChild(btn);
+        }
+
+        // Add Live2D motion button if in live2d mode
+        if (dh.live2dMode) {
+            const motionBtn = document.createElement('button');
+            motionBtn.textContent = '🎭 motion';
+            motionBtn.addEventListener('click', () => {
+                if (!dh?.live2dModel) { log('No Live2D model loaded', '#fbbf24'); return; }
+                dh.playMotion(['Tap', 'TapBody'], 3);
+                log('Playing motion');
+                actionDropdownMenu.classList.remove('open');
+            });
+            actionDropdownMenu.appendChild(motionBtn);
+        }
+
+        actionDropdownWrapper.style.display = '';
+    }
+
+    // ── Send message (auto-routes voice ↔ text via dh.send()) ──
+    async function sendMessage() {
+        const text = userInput.value.trim();
+        const hasImage = !!pendingImageBase64;
+        if (!text && !hasImage) return;
+        if (!dh) { log('Init avatar + session first', '#fbbf24'); return; }
+        if (!dh.isVoiceChatActive && !dh.getSession()) { log('Create session first', '#fbbf24'); return; }
+
+        userInput.value = '';
+        sendBtn.disabled = true;
+
+        // Build user message: multimodal array if image attached, plain string otherwise
+        let userMessage;
+        if (hasImage) {
+            userMessage = [];
+            if (text) userMessage.push({ type: 'text', text });
+            userMessage.push({ type: 'image_url', image_url: { url: pendingImageBase64 } });
+            addChatMessage((text || '📷 [图片]') + ' 📎', true);
+            suppressNextUserMessageBubble = true;
+            log('Sending with image' + (text ? ': ' + text.slice(0, 40) : ''), '#60a5fa');
+            clearPendingImage();
+        } else {
+            userMessage = text;
+            log('Sending: ' + text.slice(0, 50));
+        }
+
+        statusText.textContent = '发送中...';
+
+        try {
+            const { finalText, mode } = await dh.send(userMessage);
+            log(`Send complete (${mode}, ${finalText?.length || 0} chars)`, '#34d399');
+            statusText.textContent = dh.isVoiceChatActive ? 'Voice Chat' : 'Session ready';
+        } catch (e) {
+            log('Send failed: ' + e.message, '#f87171');
+            addChatMessage('抱歉，出现了错误。', false);
+            statusText.textContent = dh.isVoiceChatActive ? 'Voice Chat' : 'Session ready';
+        } finally {
+            suppressNextUserMessageBubble = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+        }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    userInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    // ── Voice Chat ──
+    phoneBtn.addEventListener('click', async () => {
+        if (!dh) { log('Init avatar first', '#fbbf24'); return; }
+
+        // Stop
+        if (dh.isVoiceChatActive) {
+            phoneBtn.disabled = true;
+            log('Stopping voice chat...');
+            try {
+                await dh.stopVoiceChat();
+            } catch (e) {
+                log('Stop VC error: ' + e.message, '#f87171');
+            }
+            phoneBtn.classList.remove('calling');
+            phoneBtn.textContent = '📞';
+            phoneBtn.disabled = false;
+            vcStatusBar.classList.add('hidden');
+            statusText.textContent = dh.getSession() ? 'Session ready' : 'Avatar ready';
+            addSystemMessage('📞 通话已结束');
+            return;
+        }
+
+        // Start
+        phoneBtn.disabled = true;
+        phoneBtn.textContent = '📶';
+        vcStatusBar.classList.remove('hidden');
+        vcStatusBar.textContent = '正在连接...';
+        vcStatusBar.className = 'vc-status connecting';
+        statusText.textContent = '连接语音...';
+        log('Starting voice chat...');
+
+        try {
+            if (!sdk.token) {
+                await handleSignIn();
+                if (!sdk.token) throw new Error('需要登录');
+            }
+
+            // Use voiceChat from loaded config when available, fall back to hardcoded presets
+            let voicePreset;
+            if (dh.characterConfig?.voiceChat) {
+                voicePreset = {};
+            } else {
+                voicePreset = { ...VOICE_PRESETS.asr_llm_tts };
+            }
+            // Use characterConfig system prompt when available; fall back to HTML-hardcoded prompt
+            if (!dh.characterConfig?.system_prompt) {
+                voicePreset.system_prompt = SYSTEM_PROMPT;
+            }
+            voicePreset.bracketAction = dh.characterConfig?.bracketAction || { enabled: true, autoplay: true, duration: 3 };
+            await dh.startVoiceChat(voicePreset);
+
+            phoneBtn.classList.add('calling');
+            phoneBtn.textContent = '📴';
+            const modeLabel = dh.characterConfig?.voiceChat
+                ? (dh.characterConfig.voiceChat.config?.S2SConfig ? 'S2S' : 'ASR')
+                : 'ASR';
+            vcStatusBar.textContent = `🟢 通话中 (${modeLabel})`;
+            vcStatusBar.className = 'vc-status active';
+            statusText.textContent = `Voice Chat (${modeLabel})`;
+        } catch (err) {
+            log('VC start failed: ' + err.message, '#f87171');
+            vcStatusBar.textContent = '连接失败: ' + err.message;
+            vcStatusBar.className = 'vc-status error';
+            phoneBtn.textContent = '📞';
+            statusText.textContent = 'VC 连接失败';
+            setTimeout(() => vcStatusBar.classList.add('hidden'), 3000);
+        } finally {
+            phoneBtn.disabled = false;
+        }
+    });
+
+    // ── Workspace Viewer Panel ──
+    const wsPanel = document.getElementById('ws-panel');
+    const wsBackdrop = document.getElementById('ws-backdrop');
+    const wsPanelBody = document.getElementById('ws-panel-body');
+    const btnWorkspace = document.getElementById('btn-workspace');
+    let workspaceViewer = null;
+
+    function getWorkspaceViewerParams() {
+        const preset = getPreset();
+        const ws = dh?.characterConfig?.tools?.fileOps?.workspace
+                || dh?.characterConfig?.workspace
+                || preset.workspace;
+        const mount = dh?.characterConfig?.tools?.fileOps?.mountFolder
+                   || dh?.characterConfig?.mountFolder
+                   || preset.mountFolder
+                   || '';
+        return { workspace: ws, mountFolder: mount };
+    }
+
+    function mountWorkspaceViewer() {
+        const { workspace, mountFolder } = getWorkspaceViewerParams();
+        if (workspaceViewer) {
+            workspaceViewer.destroy();
+            workspaceViewer = null;
+        }
+        wsPanelBody.innerHTML = '';
+        workspaceViewer = createWorkspaceViewer({
+            container: wsPanelBody,
+            sdk,
+            workspace,
+            mountFolder,
+            compact: true,
+        });
+    }
+
+    function openWorkspacePanel() {
+        mountWorkspaceViewer();
+        wsPanel.classList.add('open');
+        wsBackdrop.classList.add('open');
+    }
+
+    function closeWorkspacePanel() {
+        wsPanel.classList.remove('open');
+        wsBackdrop.classList.remove('open');
+        if (workspaceViewer) {
+            workspaceViewer.destroy();
+            workspaceViewer = null;
+        }
+        wsPanelBody.innerHTML = '';
+    }
+
+    btnWorkspace.addEventListener('click', () => {
+        if (wsPanel.classList.contains('open')) closeWorkspacePanel();
+        else openWorkspacePanel();
+    });
+    document.getElementById('ws-close').addEventListener('click', closeWorkspacePanel);
+    wsBackdrop.addEventListener('click', closeWorkspacePanel);
+
+    // ── Initial log ──
+    log('DigitalHuman test page loaded');
+    log('SDK token: ' + (sdk.token ? 'present' : 'none'));
+</script>
+</body>
+</html>

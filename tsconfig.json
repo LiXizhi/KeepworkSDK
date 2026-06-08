@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    // ── 目标 & 模块 ──
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+
+    // ── 严格模式 ──
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+
+    // ── 输出控制 ──
+    // noEmit:true 是 allowImportingTsExtensions 的前提，实际编译由 Vite/esbuild 完成
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+
+    // ── 解析 & 互操作 ──
+    // src/ 已全量 TS 化（Phase 9 完成），不再需要 allowJs。
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "index.ts",
+    "indexCore.ts",
+    "indexAIChat.ts",
+    "vite.keepworkSDK.config.ts",
+    "vite.keepworkSDK.core.config.ts",
+    "vite.keepworkSDK.AIChat.config.ts"
+  ],
+  "exclude": ["node_modules", "dist", "scripts", "deploy_tools"]
+}

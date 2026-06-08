@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PersonalPageStore Workspace Viewer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: #f3f5f7;
+      color: #1f2937;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #viewer { flex: 1; min-height: 0; }
+  </style>
+</head>
+<body>
+
+  <div id="viewer"></div>
+
+  <script type="module">
+    try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+    const { createWorkspaceViewer } = await import('../src/ui/WorkspaceViewer.ts');
+
+    const sdk = window.keepwork;
+    if (!sdk) throw new Error('KeepworkSDK not initialized — window.keepwork is missing');
+
+    const viewer = createWorkspaceViewer({
+      container: document.getElementById('viewer'),
+      workspace: 'workspace_default',
+      mountFolder: 'lixizhi/note/2026',
+      allowChangeWorkspace: true,
+      allowChangeMount: true,
+      compact: false,
+    });
+  </script>
+</body>
+</html>

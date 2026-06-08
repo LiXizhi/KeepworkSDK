@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>蛋蛋星球 MagicHaqi 登录测试</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 24px;
+            padding-top: 48px;
+            background: #f0f5ff;
+            color: #1f2329;
+        }
+        h1 {
+            color: #07314a;
+            border-bottom: 3px solid #0ea5e9;
+            padding-bottom: 10px;
+            margin-bottom: 24px;
+            font-size: 1.5em;
+        }
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 12px rgba(6,18,44,0.08);
+            border: 1px solid #e0f7ff;
+        }
+        .card h2 {
+            font-size: 1.1em;
+            color: #164e7a;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card h2 .icon { font-size: 1.3em; }
+        button {
+            padding: 10px 22px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+        button:hover { transform: translateY(-1px); }
+        button:active { transform: translateY(1px); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-primary {
+            background: linear-gradient(135deg, #67e8f9, #0ea5e9);
+            color: #fff;
+            box-shadow: 0 4px 0 #0369a1, 0 6px 14px rgba(14,165,233,0.3);
+        }
+        .btn-primary:active { box-shadow: 0 1px 0 #0369a1, 0 2px 6px rgba(14,165,233,0.2); }
+        .btn-green { background: #10b981; color: #fff; box-shadow: 0 4px 0 #047857; }
+        .btn-green:active { box-shadow: 0 1px 0 #047857; }
+        .btn-red { background: #ef4444; color: #fff; box-shadow: 0 4px 0 #b91c1c; }
+        .btn-red:active { box-shadow: 0 1px 0 #b91c1c; }
+        .btn-gray { background: #e5e7eb; color: #374151; }
+        .btn-outline {
+            background: #fff;
+            color: #0ea5e9;
+            border: 2px solid #0ea5e9;
+            box-shadow: none;
+        }
+
+        .status {
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .status.info { background: #e0f7ff; color: #0c4a6e; border: 1px solid #67e8f9; }
+        .status.ok { background: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7; }
+        .status.err { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
+        .status.warn { background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; }
+
+        .log-box {
+            background: #0f2747;
+            color: #7dd3fc;
+            border-radius: 8px;
+            padding: 14px;
+            margin-top: 12px;
+            font-family: "SF Mono", "Cascadia Code", monospace;
+            font-size: 12px;
+            max-height: 320px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.6;
+        }
+        .log-box .log-ok { color: #6ee7b7; }
+        .log-box .log-err { color: #fca5a5; }
+        .log-box .log-info { color: #67e8f9; }
+        .log-box .log-warn { color: #fcd34d; }
+
+        .auth-bar {
+            position: fixed;
+            top: 0; right: 0;
+            z-index: 9999;
+            background: #fff;
+            border-bottom-left-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            border: 1px solid #e0f7ff;
+        }
+        .auth-bar .auth-user {
+            color: #164e7a;
+            font-weight: 700;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .auth-bar .auth-hint {
+            color: #94a3b8;
+            cursor: pointer;
+        }
+        .auth-bar button {
+            padding: 5px 12px;
+            font-size: 12px;
+            margin: 0;
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #475569;
+            cursor: pointer;
+        }
+        label input[type="checkbox"] { accent-color: #0ea5e9; }
+
+        .info-box {
+            background: #e0f7ff;
+            border: 1px dashed #0ea5e9;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #0c4a6e;
+            line-height: 1.6;
+        }
+        .info-box code {
+            background: rgba(14,165,233,0.15);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .env-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+        .env-tag.yes { background: #ecfdf5; color: #065f46; }
+        .env-tag.no { background: #f1f5f9; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<!-- Fixed top-right auth panel -->
+<div class="auth-bar" id="auth-bar">
+    <span class="auth-hint" id="bar-status">未登录</span>
+</div>
+
+<h1>🥚 蛋蛋星球 MagicHaqi · 登录测试</h1>
+
+<!-- Auth Status -->
+<div class="card" id="auth-card">
+    <h2><span class="icon">🔐</span> 登录状态</h2>
+    <div class="status info" id="auth-status">初始化 SDK…</div>
+    <div>
+        <button class="btn-primary" id="btn-login">🥚 蛋蛋星球 登录</button>
+        <button class="btn-green" id="btn-profile" disabled>👤 个人信息</button>
+        <button class="btn-red" id="btn-logout" disabled>退出登录</button>
+    </div>
+</div>
+
+<!-- Options -->
+<div class="card">
+    <h2><span class="icon">⚙️</span> 登录选项</h2>
+    <label><input type="checkbox" id="opt-register" checked> 启用注册</label>
+    <label><input type="checkbox" id="opt-wechat" checked> 启用微信登录</label>
+    <div class="info-box">
+        <strong>📋 微信登录行为说明:</strong><br>
+        • <strong>微信小程序内</strong>：<code>showLoginWindow()</code> 会<strong>自动触发微信 OAuth 跳转</strong>，跳过登录框。<br>
+        • <strong>微信内置浏览器</strong>：正常弹出登录框，需用户点击「微信登录」按钮；登录成功后<strong>自动刷新页面</strong>进入登录态（与 Google 一致）。<br>
+        • 不再针对蛋蛋星球 URL / 标题做特殊处理。
+    </div>
+</div>
+
+<!-- Environment Info -->
+<div class="card">
+    <h2><span class="icon">🔍</span> 当前环境</h2>
+    <div class="status info" id="env-info">检测中…</div>
+    <div class="info-box" id="env-detail"></div>
+</div>
+
+<!-- Title Preview -->
+<div class="card">
+    <h2><span class="icon">📝</span> 登录框标题</h2>
+    <div class="status info">
+        传入 title: <strong style="font-size:1.1em">"蛋蛋星球 登录"</strong>
+    </div>
+    <p style="font-size:13px;color:#64748b;margin-top:8px;">
+        该 title 通过 <code>showLoginWindow({ title: '蛋蛋星球 登录' })</code> 传入
+    </p>
+</div>
+
+<!-- Log -->
+<div class="card">
+    <h2><span class="icon">📜</span> 日志</h2>
+    <button class="btn-gray" id="btn-clear" style="font-size:12px;padding:6px 14px;">清空</button>
+    <div class="log-box" id="log"></div>
+</div>
+
+<!-- ==================== SDK bootstrap ==================== -->
+<script type="module">
+try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+
+const sdk = window.keepwork;
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+
+function log(msg, type = 'info') {
+    const cls = type === 'ok' ? 'log-ok' : type === 'err' ? 'log-err' : type === 'warn' ? 'log-warn' : 'log-info';
+    const ts = new Date().toLocaleTimeString();
+    logEl.innerHTML += `<span class="${cls}">[${ts}] ${escHtml(String(msg))}</span>\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function updateAuthUI() {
+    const s = $('auth-status');
+    const barStatus = $('bar-status');
+    if (sdk.token) {
+        const user = sdk.user;
+        const name = user ? user.username : '(unknown)';
+        s.className = 'status ok';
+        s.textContent = `✅ 已登录: ${name}`;
+        $('btn-profile').disabled = false;
+        $('btn-logout').disabled = false;
+        barStatus.className = 'auth-user';
+        barStatus.textContent = name;
+    } else {
+        s.className = 'status info';
+        s.textContent = '❌ 未登录';
+        $('btn-profile').disabled = true;
+        $('btn-logout').disabled = true;
+        barStatus.className = 'auth-hint';
+        barStatus.textContent = '未登录';
+    }
+}
+
+function updateEnvInfo() {
+    const ua = navigator.userAgent;
+    const url = window.location.href;
+
+    const isWeChat = /MicroMessenger/i.test(ua);
+    const isMiniProgram = /miniProgram/i.test(ua);
+
+    const envStatus = $('env-info');
+    const envDetail = $('env-detail');
+
+    let statusHtml = '';
+    statusHtml += `微信环境: <span class="env-tag ${isWeChat ? 'yes' : 'no'}">${isWeChat ? '✅ 是' : '❌ 否'}</span>`;
+    statusHtml += ` &nbsp; 微信小程序: <span class="env-tag ${isMiniProgram ? 'yes' : 'no'}">${isMiniProgram ? '✅ 是' : '❌ 否'}</span>`;
+    envStatus.innerHTML = statusHtml;
+
+    let detailHtml = '<strong>当前 URL:</strong><br>';
+    detailHtml += `<code style="word-break:break-all">${escHtml(url)}</code><br><br>`;
+    detailHtml += `<strong>User Agent:</strong><br>`;
+    detailHtml += `<code style="word-break:break-all;font-size:11px">${escHtml(ua)}</code><br><br>`;
+
+    const hasCode = !!new URL(url).searchParams.get('code');
+    if (isMiniProgram && !hasCode) {
+        detailHtml += '<span style="color:#065f46">⭐ <strong>微信小程序环境：</strong>调用 showLoginWindow() 将<strong>直接触发微信 OAuth 跳转</strong>，不渲染登录框。</span>';
+    } else if (isWeChat) {
+        detailHtml += '<span style="color:#92400e"><strong>微信内置浏览器：</strong>正常弹出登录框，需点击「微信登录」按钮；登录成功后自动刷新页面。</span><br>';
+        if (hasCode) detailHtml += '<span style="color:#94a3b8">  - URL 带有 code 参数 (OAuth 回调中)，将自动换取 token 并刷新页面</span><br>';
+    } else {
+        detailHtml += '<span style="color:#94a3b8">非微信环境，正常弹出登录框（微信扫码 / 账号密码 / Google）。</span>';
+    }
+
+    envDetail.innerHTML = detailHtml;
+}
+
+function getOptions() {
+    return {
+        title: '蛋蛋星球 登录',
+        enableRegister: $('opt-register').checked,
+        enableWechat: $('opt-wechat').checked,
+    };
+}
+
+// ── Init ──
+log('🚀 SDK 已加载, baseURL = ' + sdk.baseURL);
+if (sdk.token) {
+    log('发现已有 token，获取用户信息…');
+    try {
+        await sdk.getUserProfile({ forceRefresh: true });
+        log('✅ 用户信息加载成功: ' + sdk.user?.username, 'ok');
+    } catch (e) {
+        log('⚠️ 用户信息加载失败: ' + e.message, 'warn');
+    }
+}
+updateAuthUI();
+updateEnvInfo();
+
+// ── Bar click ──
+$('bar-status').addEventListener('click', () => {
+    if (sdk.token) {
+        $('btn-profile').click();
+    } else {
+        $('btn-login').click();
+    }
+});
+
+// ── Login ──
+$('btn-login').addEventListener('click', async () => {
+    const opts = getOptions();
+    log('🥚 打开蛋蛋星球登录框, options: ' + JSON.stringify(opts));
+
+    // 检查自动微信登录条件
+    const url = window.location.href;
+    const isMini = /miniProgram/i.test(navigator.userAgent);
+    const hasCode = new URL(url).searchParams.get('code');
+    if (isMini && !hasCode) {
+        log('⚡ 微信小程序环境，将直接跳转微信 OAuth（不弹框）', 'warn');
+    }
+
+    try {
+        const res = await sdk.showLoginWindow(opts);
+        log('✅ 登录成功: ' + (res.username || (res.token ? res.token.slice(0, 20) + '…' : 'OK')), 'ok');
+        await sdk.getUserProfile({ forceRefresh: true });
+        updateAuthUI();
+    } catch (e) {
+        log('❌ 登录取消或失败: ' + e.message, 'err');
+    }
+});
+
+// ── Profile ──
+$('btn-profile').addEventListener('click', async () => {
+    const opts = getOptions();
+    log('👤 打开个人信息窗口…');
+    try {
+        await sdk.showProfileWindow(opts);
+        log('✅ 个人信息窗口已关闭');
+        updateAuthUI();
+    } catch (e) {
+        log('⚠️ 个人信息窗口异常: ' + e.message, 'warn');
+    }
+});
+
+// ── Logout ──
+$('btn-logout').addEventListener('click', () => {
+    log('🚪 退出登录…');
+    sdk.setToken(null);
+    // clear cookie
+    document.cookie = 'token=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;';
+    updateAuthUI();
+    log('✅ 已退出登录', 'ok');
+});
+
+// ── Clear log ──
+$('btn-clear').addEventListener('click', () => {
+    logEl.innerHTML = '';
+});
+</script>
+</body>
+</html>

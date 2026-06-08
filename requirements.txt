@@ -1,0 +1,8 @@
+# Python dependencies for KWS wake-word GUI tools in scripts/
+# Install with:
+#   python -m pip install -r requirements.txt
+
+sherpa-onnx
+click
+sentencepiece
+pypinyin

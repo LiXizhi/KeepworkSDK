@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>人生时间线</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var sdkUrl = params.get('sdk') || 'https://cdn.keepwork.com/sdk/keepworkSDK.iife.js';
+      var isModule = params.get('module') === '1';
+      var s = document.createElement('script');
+      if (isModule) s.type = 'module';
+      s.src = sdkUrl;
+      document.head.appendChild(s);
+    })();
+  </script>
+  <style>
+    .event-btn {
+      transition: all 0.18s ease;
+      border: 3px solid transparent;
+      cursor: pointer;
+      user-select: none;
+      text-align: left;
+    }
+    .event-btn:hover { filter: brightness(1.05); transform: scale(1.01); }
+    .event-btn:active { transform: scale(0.98); }
+    .event-picked {
+      background-color: #dbeafe !important;
+      border-color: #2563eb !important;
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    .order-num {
+      display: inline-flex; width: 32px; height: 32px;
+      align-items: center; justify-content: center;
+      background: #2563eb; color: white; border-radius: 50%;
+      font-weight: bold; margin-right: 10px; flex-shrink: 0;
+    }
+    .order-slot {
+      min-height: 60px;
+      border-style: solid; border-color: #93c5fd; background: #eff6ff;
+      border-width: 2px; cursor: grab;
+    }
+    .order-slot:active { cursor: grabbing; }
+    .order-selected { outline: 3px solid #f59e0b; outline-offset: 2px; }
+    .order-correct { background: #dcfce7 !important; border-color: #86efac !important; }
+    .order-wrong { background: #fee2e2 !important; border-color: #fca5a5 !important; }
+    .drag-ghost {
+      position: fixed; pointer-events: none; z-index: 9999;
+      opacity: 0.9; transform: translate(-50%, -50%) scale(1.03);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+      border-radius: 12px; background: #fff; padding: 12px;
+      border: 2px solid #6366f1; font-size: 1rem; font-weight: 500;
+      max-width: 420px;
+    }
+    .drag-source { opacity: 0.35; }
+    .drop-indicator {
+      height: 3px; background: #6366f1; border-radius: 2px;
+      margin: 2px 0; transition: opacity 0.1s;
+    }
+    .drop-zone-active { outline: 2px dashed #6366f1; outline-offset: 2px; border-radius: 12px; }
+    .order-slot { touch-action: none; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-50 to-cyan-50 flex justify-center items-start p-5 font-sans">
+  <div class="w-full max-w-[480px] bg-white rounded-2xl shadow-lg px-5 py-6 flex flex-col gap-4"
+       aria-label="人生时间线游戏"
+       data-ai-hint="人生时间线小游戏：AI用type_in_app向隐藏文本框写入JSON（格式：{&quot;title&quot;:&quot;可选主题&quot;,&quot;events&quot;:[&quot;事件1&quot;,&quot;事件2&quot;,...],&quot;correctOrder&quot;:[2,0,1,...]})，界面把events按JSON顺序打乱后在同一个列表里显示，用户通过拖拽或点击两项交换来原地重排。直接type_in_app写入下一组JSON即可自动进入下一组，无需点击'下一组'按钮，组数由type_in_app调用次数决定。">
+
+    <div id="titleBar" class="text-center text-base text-gray-700 leading-snug min-h-[1.5rem] font-semibold">等待出题...</div>
+
+    <!-- 隐藏 JSON 输入 -->
+    <div id="inputWrapper" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">
+      <input id="eventsInput" type="text"
+           data-ai-type="textbox"
+           aria-label="事件JSON"
+           data-ai-hint="AI用type_in_app写入**严格JSON**（注意events数组必须用]闭合后再写correctOrder）：{&quot;title&quot;:&quot;请按从早到晚的顺序排好&quot;,&quot;events&quot;:[&quot;1985年从淮安来到上海&quot;,&quot;1968年进红星机械厂当车工&quot;,&quot;1990年女儿小芳出生&quot;,&quot;2000年退休&quot;],&quot;correctOrder&quot;:[1,0,2,3]}。events是字符串数组，correctOrder是events按时间从早到晚排序后的索引数组（与events等长），两者是兄弟字段不能嵌套。建议4-6个事件。">
+    </div>
+
+    <div class="text-xs text-gray-500 text-center">拖动 或 点击两项交换，按 <span class="font-bold text-indigo-600">从早到晚</span> 排序</div>
+
+    <!-- 原地排序列表 -->
+    <div id="timelineArea" class="flex flex-col gap-2"></div>
+
+    <!-- 隐藏控制按钮 -->
+    <div style="opacity:0;position:absolute;pointer-events:none">
+      <button id="btnHint" aria-label="提示" data-ai-hint="AI点击此按钮高亮当前排序中位置错误的最早一行，提示用户先调整该项">提示</button>
+      <button id="btnCheck" aria-label="核对" data-ai-hint="一般无需点击：每次用户移动后已自动判定并回传结果；此按钮仅用于兼容旧流程强制核对">核对</button>
+      <button id="btnUndo" aria-label="撤销" data-ai-hint="AI点击此按钮撤销最近一次拖拽/交换，恢复到上一个排序状态">撤销</button>
+      <button id="btnFinish" aria-label="结束" data-ai-hint="AI点击此按钮结束游戏，显示结果页">结束</button>
+    </div>
+
+    <!-- 结果页 -->
+    <div id="resultPage" class="hidden text-center py-6 px-2.5">
+      <div class="text-6xl mb-4">🎉</div>
+      <h2 class="text-2xl font-bold text-indigo-700 mb-4">时间线完成！</h2>
+      <div class="flex justify-center gap-4 mb-5">
+        <div class="bg-indigo-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-indigo-600" id="statTotal">0</span>
+          <span class="text-sm text-gray-500 mt-1">总组数</span>
+        </div>
+        <div class="bg-green-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-green-600" id="statCorrect">0</span>
+          <span class="text-sm text-gray-500 mt-1">一次过</span>
+        </div>
+        <div class="bg-amber-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-amber-600" id="statAccuracy">0%</span>
+          <span class="text-sm text-gray-500 mt-1">正确率</span>
+        </div>
+      </div>
+      <p id="resultSummary" class="text-lg text-gray-600 leading-relaxed mb-2"></p>
+      <p class="mt-4 text-sm text-gray-400">把这些日子串起来，就是您的故事～</p>
+      <button id="btnClose" aria-label="关闭" data-ai-hint="AI点击此按钮关闭游戏并发送gameFinished事件"
+              class="mt-6 w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white text-2xl font-bold rounded-xl shadow-md transition-colors">
+        关闭
+      </button>
+    </div>
+  </div>
+
+  <div id="feedback" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl opacity-0 scale-50 pointer-events-none transition-all duration-400 z-50"></div>
+
+  <script>
+    function waitForSdkGlobals(timeoutMs) {
+      timeoutMs = timeoutMs || 10000;
+      var start = Date.now();
+      return new Promise(function(resolve) {
+        (function check() {
+          if (typeof window.KeepworkSDK === 'function') return resolve();
+          if (Date.now() - start >= timeoutMs) return resolve();
+          setTimeout(check, 30);
+        })();
+      });
+    }
+
+    (async function() {
+      await waitForSdkGlobals();
+      var token = new URLSearchParams(window.location.search).get('token');
+      if (token && window.KeepworkSDK) {
+        if (!window.keepwork) window.keepwork = new KeepworkSDK();
+        window.keepwork.setToken(token);
+      }
+
+      if (new URLSearchParams(window.location.search).get('dev') === 'true') {
+        const w = document.getElementById('inputWrapper');
+        w.style.cssText = 'position:static;width:auto;height:auto;overflow:visible;';
+        const ei = document.getElementById('eventsInput');
+        ei.type = 'text';
+        ei.style.cssText = 'display:block;width:100%;border:2px dashed #94a3b8;border-radius:8px;padding:10px;min-height:40px;font-family:monospace;font-size:12px;background:#f8fafc;box-sizing:border-box;';
+        ['btnHint','btnCheck','btnUndo','btnFinish'].forEach(id => {
+          const b = document.getElementById(id);
+          b.parentElement.style.opacity = '1';
+          b.parentElement.style.position = 'static';
+          b.parentElement.style.pointerEvents = 'auto';
+          b.style.cssText = 'margin:4px;padding:4px 10px;background:#e2e8f0;border-radius:6px;font-size:12px;';
+        });
+      }
+
+      const $ = (id) => document.getElementById(id);
+      const titleBar     = $('titleBar');
+      const timelineArea = $('timelineArea');
+      const eventsInput  = $('eventsInput');
+      const btnHint      = $('btnHint');
+      const btnCheck     = $('btnCheck');
+      const btnUndo      = $('btnUndo');
+      const btnFinish    = $('btnFinish');
+      const btnClose     = $('btnClose');
+      const resultPage   = $('resultPage');
+      const feedbackEl   = $('feedback');
+
+      const state = {
+        events: [],            // string[]
+        correctOrder: [],      // index[]
+        userOrder: [],         // full permutation of all event indices
+        history: [],           // snapshots for undo
+        selectedIdx: null,     // tap-to-swap selection
+        rounds: 0,
+        firstTryCorrect: 0,
+        currentRoundHadError: false,
+        finished: false,
+      };
+
+      function showFeedback(emoji) {
+        feedbackEl.textContent = emoji;
+        feedbackEl.classList.remove('opacity-0', 'scale-50');
+        feedbackEl.classList.add('opacity-100', 'scale-100');
+        setTimeout(() => {
+          feedbackEl.classList.remove('opacity-100', 'scale-100');
+          feedbackEl.classList.add('opacity-0', 'scale-50');
+        }, 700);
+      }
+
+      function shuffle(arr) {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      }
+
+      function renderBoard(data) {
+        const events = data.events || [];
+        const correctOrder = data.correctOrder || [];
+        if (events.length === 0 || correctOrder.length !== events.length) return;
+        state.events = events;
+        state.correctOrder = correctOrder;
+        // Initial shuffled permutation; ensure it differs from correct order if possible.
+        let perm = shuffle(events.map((_, i) => i));
+        if (events.length > 1 && perm.every((v, i) => v === correctOrder[i])) {
+          [perm[0], perm[1]] = [perm[1], perm[0]];
+        }
+        state.userOrder = perm;
+        state.history = [];
+        state.selectedIdx = null;
+        state.currentRoundHadError = false;
+
+        titleBar.textContent = data.title || '请按从早到晚的顺序排好';
+        renderTimeline();
+      }
+
+      // ---------- In-place ordering: drag OR tap-to-swap ----------
+      const DRAG_THRESHOLD = 6;
+
+      function renderTimeline() {
+        timelineArea.innerHTML = '';
+        state.userOrder.forEach((eventIdx, i) => {
+          const row = document.createElement('div');
+          row.className = 'order-slot rounded-xl px-3 py-3 flex items-center text-base';
+          row.dataset.position = i;
+          row.dataset.eventIdx = eventIdx;
+          row.innerHTML = '<span class="order-num">' + (i + 1) + '</span><span>' + state.events[eventIdx] + '</span>';
+          if (state.selectedIdx === eventIdx) row.classList.add('order-selected');
+          attachDragAndClick(row);
+          timelineArea.appendChild(row);
+        });
+      }
+
+      function clearCheckStyling() {
+        timelineArea.querySelectorAll('.order-slot').forEach(r => {
+          r.classList.remove('order-correct', 'order-wrong');
+        });
+      }
+
+      function pushHistory() {
+        state.history.push(state.userOrder.slice());
+        if (state.history.length > 50) state.history.shift();
+      }
+
+      function attachDragAndClick(el) {
+        let startX = 0, startY = 0, dragging = false, ghost = null, pointerId = null;
+
+        const onPointerDown = (e) => {
+          if (el.classList.contains('order-correct')) return; // locked
+          pointerId = e.pointerId;
+          startX = e.clientX; startY = e.clientY;
+          dragging = false;
+          try { el.setPointerCapture(pointerId); } catch (_) {}
+          window.addEventListener('pointermove', onPointerMove);
+          window.addEventListener('pointerup', onPointerUp, { once: true });
+          window.addEventListener('pointercancel', onPointerUp, { once: true });
+        };
+
+        const onPointerMove = (e) => {
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          if (!dragging) {
+            if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+            dragging = true;
+            startDrag();
+          }
+          updateDrag(e);
+        };
+
+        const onPointerUp = (e) => {
+          window.removeEventListener('pointermove', onPointerMove);
+          try { el.releasePointerCapture(pointerId); } catch (_) {}
+          if (dragging) {
+            endDrag(e);
+          } else {
+            handleTap(el);
+          }
+          dragging = false; ghost = null;
+        };
+
+        function startDrag() {
+          ghost = document.createElement('div');
+          ghost.className = 'drag-ghost';
+          ghost.textContent = el.textContent;
+          ghost.style.width = el.offsetWidth + 'px';
+          document.body.appendChild(ghost);
+          el.classList.add('drag-source');
+        }
+
+        function updateDrag(e) {
+          if (ghost) {
+            ghost.style.left = e.clientX + 'px';
+            ghost.style.top = e.clientY + 'px';
+          }
+          clearDropIndicator();
+          const insertBefore = findInsertPosition(e.clientY);
+          showDropIndicator(insertBefore);
+        }
+
+        function endDrag(e) {
+          if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+          el.classList.remove('drag-source');
+          clearDropIndicator();
+          const eventIdx = parseInt(el.dataset.eventIdx, 10);
+          const insertBefore = findInsertPosition(e.clientY);
+          reorderInsert(eventIdx, insertBefore);
+        }
+
+        el.addEventListener('pointerdown', onPointerDown);
+      }
+
+      function clearDropIndicator() {
+        const ind = timelineArea.querySelector('.drop-indicator');
+        if (ind) ind.remove();
+      }
+
+      function showDropIndicator(insertBefore) {
+        const ind = document.createElement('div');
+        ind.className = 'drop-indicator';
+        const slots = timelineArea.querySelectorAll('.order-slot');
+        if (insertBefore >= slots.length) timelineArea.appendChild(ind);
+        else timelineArea.insertBefore(ind, slots[insertBefore]);
+      }
+
+      function findInsertPosition(y) {
+        const slots = Array.from(timelineArea.querySelectorAll('.order-slot'));
+        for (let i = 0; i < slots.length; i++) {
+          const r = slots[i].getBoundingClientRect();
+          if (y < r.top + r.height / 2) return i;
+        }
+        return slots.length;
+      }
+
+      function reorderInsert(eventIdx, insertBefore) {
+        const from = state.userOrder.indexOf(eventIdx);
+        if (from < 0) return;
+        let to = insertBefore;
+        if (to > from) to--;
+        if (to === from) return;
+        pushHistory();
+        clearCheckStyling();
+        state.userOrder.splice(from, 1);
+        state.userOrder.splice(to, 0, eventIdx);
+        state.selectedIdx = null;
+        renderTimeline();
+
+        // Auto-check after move
+        autoCheckAfterMove(`用户把"${state.events[eventIdx]}"移动到了第${to + 1}位`);
+      }
+
+      function handleTap(row) {
+        const eventIdx = parseInt(row.dataset.eventIdx, 10);
+        if (state.selectedIdx === null) {
+          state.selectedIdx = eventIdx;
+          renderTimeline();
+        } else if (state.selectedIdx === eventIdx) {
+          state.selectedIdx = null;
+          renderTimeline();
+        } else {
+          // Swap the two, with animation
+          pushHistory();
+          clearCheckStyling();
+          const firstIdx = state.selectedIdx;
+          const secondIdx = eventIdx;
+          // Capture positions BEFORE reorder (FLIP technique)
+          const beforeRects = captureRowRects();
+          const a = state.userOrder.indexOf(firstIdx);
+          const b = state.userOrder.indexOf(secondIdx);
+          [state.userOrder[a], state.userOrder[b]] = [state.userOrder[b], state.userOrder[a]];
+          state.selectedIdx = null;
+          renderTimeline();
+          animateFromRects(beforeRects, [firstIdx, secondIdx]);
+
+          // Auto-check after swap
+          autoCheckAfterMove(`用户交换了"${state.events[firstIdx]}"和"${state.events[secondIdx]}"`);
+        }
+      }
+
+      function captureRowRects() {
+        const map = new Map();
+        timelineArea.querySelectorAll('.order-slot').forEach(r => {
+          map.set(parseInt(r.dataset.eventIdx, 10), r.getBoundingClientRect());
+        });
+        return map;
+      }
+
+      function animateFromRects(beforeRects, highlightIdxs) {
+        const rows = timelineArea.querySelectorAll('.order-slot');
+        rows.forEach(row => {
+          const idx = parseInt(row.dataset.eventIdx, 10);
+          const before = beforeRects.get(idx);
+          if (!before) return;
+          const after = row.getBoundingClientRect();
+          const dx = before.left - after.left;
+          const dy = before.top - after.top;
+          if (dx === 0 && dy === 0) return;
+          row.animate([
+            { transform: `translate(${dx}px, ${dy}px)`, boxShadow: '0 0 0 0 rgba(99,102,241,0)' },
+            { transform: 'translate(0, 0)', boxShadow: highlightIdxs && highlightIdxs.includes(idx) ? '0 6px 18px rgba(99,102,241,0.35)' : '0 0 0 0 rgba(99,102,241,0)' }
+          ], {
+            duration: 320,
+            easing: 'cubic-bezier(0.22, 1, 0.36, 1)'
+          });
+        });
+      }
+
+      // Auto-check after each move: report correctness and auto-complete if all correct
+      function autoCheckAfterMove(moveDescription) {
+        if (state.userOrder.length !== state.events.length) return;
+        const correctCount = state.userOrder.filter((v, i) => v === state.correctOrder[i]).length;
+        const total = state.events.length;
+        const allCorrect = correctCount === total;
+
+        if (allCorrect) {
+          // Auto-complete the round
+          state.rounds++;
+          if (!state.currentRoundHadError) state.firstTryCorrect++;
+
+          // Visual: mark all correct
+          timelineArea.querySelectorAll('.order-slot').forEach(row => row.classList.add('order-correct'));
+          showFeedback('🎉');
+          window.parent.postMessage({ type: 'roundComplete', data: { correct: true, firstTry: !state.currentRoundHadError } }, '*');
+
+          window.parent.postMessage({
+            type: 'dh:context',
+            text: `${moveDescription}。全部${total}个事件排序正确！${!state.currentRoundHadError ? '一次就排对了！' : ''}`
+          }, '*');
+        } else {
+          window.parent.postMessage({
+            type: 'dh:context',
+            text: `${moveDescription}，当前${correctCount}/${total}个位置正确`,
+            debounce: 3000
+          }, '*');
+        }
+      }
+
+      btnUndo.addEventListener('click', () => {
+        if (state.history.length === 0) return;
+        state.userOrder = state.history.pop();
+        state.selectedIdx = null;
+        clearCheckStyling();
+        renderTimeline();
+      });
+
+      btnCheck.addEventListener('click', () => {
+        if (state.userOrder.length !== state.events.length) {
+          showFeedback('⏳');
+          return;
+        }
+        let allCorrect = true;
+        timelineArea.querySelectorAll('.order-slot').forEach((row, i) => {
+          const eventIdx = parseInt(row.dataset.eventIdx, 10);
+          if (state.correctOrder[i] === eventIdx) {
+            row.classList.add('order-correct');
+          } else {
+            row.classList.add('order-wrong');
+            allCorrect = false;
+          }
+        });
+        if (allCorrect) {
+          state.rounds++;
+          if (!state.currentRoundHadError) state.firstTryCorrect++;
+          showFeedback('🎉');
+          window.parent.postMessage({ type: 'roundComplete', data: { correct: true, firstTry: !state.currentRoundHadError } }, '*');
+
+          // dh:context — 排序完全正确
+          window.parent.postMessage({
+            type: 'dh:context',
+            text: `太棒了！用户把所有事件都按正确顺序排好了${!state.currentRoundHadError ? '，一次就排对了' : ''}`
+          }, '*');
+        } else {
+          state.currentRoundHadError = true;
+          showFeedback('🤔');
+
+          // dh:context — 排序有错
+          const wrongCount = state.userOrder.filter((v, i) => v !== state.correctOrder[i]).length;
+          window.parent.postMessage({
+            type: 'dh:context',
+            text: `用户核对了排序，还有${wrongCount}个位置不对，继续调整`,
+            debounce: 3000
+          }, '*');
+          // Clear red highlight after 1.2s so user can keep adjusting in place
+          setTimeout(() => {
+            timelineArea.querySelectorAll('.order-wrong').forEach(r => r.classList.remove('order-wrong'));
+          }, 1200);
+        }
+      });
+
+      btnHint.addEventListener('click', () => {
+        // Highlight the first row that is currently in the wrong position
+        for (let i = 0; i < state.userOrder.length; i++) {
+          if (state.userOrder[i] !== state.correctOrder[i]) {
+            const row = timelineArea.querySelector('[data-position="' + i + '"]');
+            if (row) {
+              row.style.boxShadow = '0 0 0 4px #fbbf24';
+              setTimeout(() => { row.style.boxShadow = ''; }, 1800);
+            }
+            // dh:context — 用户请求了提示
+            window.parent.postMessage({
+              type: 'dh:context',
+              text: `用户请求提示，第${i + 1}行"${state.events[state.userOrder[i]]}"位置不对`,
+              debounce: 3000
+            }, '*');
+            return;
+          }
+        }
+      });
+
+      // Next round is handled by type_in_app writing new JSON (auto-detected by value setter)
+
+      function tryRepairJson(raw) {
+        // Common AI mistake: correctOrder written inside events array, e.g.
+        //   {"events":["e1","e2","correctOrder":[0,1]}
+        // Repair by inserting "]," before "correctOrder" when it sits inside the array.
+        let s = raw.replace(/,\s*"correctOrder"\s*:\s*\[/g, '],"correctOrder":[');
+        // If we introduced a duplicate closing "]]," collapse it back.
+        s = s.replace(/\]\]\s*,\s*"correctOrder"/g, '],"correctOrder"');
+        return s;
+      }
+
+      function handleEventsInput() {
+        const raw = (eventsInput.value || '').trim();
+        if (!raw) return;
+        let data = null;
+        let parseErr = null;
+        try { data = JSON.parse(raw); }
+        catch (e1) {
+          try { data = JSON.parse(tryRepairJson(raw)); }
+          catch (e2) { parseErr = e2.message || String(e2); }
+        }
+        if (!data) {
+          titleBar.textContent = 'JSON解析失败，请重写：' + (parseErr || '');
+          titleBar.classList.add('text-red-600');
+          return;
+        }
+        if (!Array.isArray(data.events) || !Array.isArray(data.correctOrder)) {
+          titleBar.textContent = 'JSON缺少events或correctOrder数组';
+          titleBar.classList.add('text-red-600');
+          return;
+        }
+        if (data.events.length !== data.correctOrder.length) {
+          titleBar.textContent = 'events与correctOrder长度不一致（' + data.events.length + ' vs ' + data.correctOrder.length + '）';
+          titleBar.classList.add('text-red-600');
+          return;
+        }
+        titleBar.classList.remove('text-red-600');
+        renderBoard(data);
+      }
+      eventsInput.addEventListener('input', handleEventsInput);
+      const origDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      Object.defineProperty(eventsInput, 'value', {
+        get() { return origDesc.get.call(this); },
+        set(v) { origDesc.set.call(this, v); handleEventsInput(); },
+        configurable: true
+      });
+
+      btnFinish.addEventListener('click', () => {
+        if (state.finished) return;
+        state.finished = true;
+        const total = state.rounds;
+        const correct = state.firstTryCorrect;
+        const accuracy = total === 0 ? 0 : Math.round((correct / total) * 100);
+        $('statTotal').textContent = total;
+        $('statCorrect').textContent = correct;
+        $('statAccuracy').textContent = accuracy + '%';
+        let comment = '';
+        if (total === 0) comment = '一起把日子串起来，已经很棒啦～';
+        else if (accuracy >= 80) comment = '记得真清楚，时间线一气呵成！';
+        else if (accuracy >= 50) comment = '差不多都记得，再多聊聊就更好啦～';
+        else comment = '慢慢来，今天聊得开心最重要～';
+        $('resultSummary').textContent = comment;
+        document.querySelectorAll('#timelineArea, #titleBar').forEach(el => el.classList.add('hidden'));
+        resultPage.classList.remove('hidden');
+        state._result = { total, correct, accuracy, comment };
+
+        // dh:context — 游戏结束
+        window.parent.postMessage({
+          type: 'dh:context',
+          text: `人生时间线游戏结束，共${total}组，一次排对${correct}组，正确率${accuracy}%。${comment}`
+        }, '*');
+
+        // 5秒后自动发送 gameFinished
+        _autoFinishTimer = setTimeout(sendGameFinished, 5000);
+      });
+
+      let _autoFinishTimer = null;
+      function sendGameFinished() {
+        if (_autoFinishTimer) { clearTimeout(_autoFinishTimer); _autoFinishTimer = null; }
+        const r = state._result || { total: 0, correct: 0, accuracy: 0, comment: '' };
+        window.parent.postMessage({ type: 'gameFinished', data: r }, '*');
+      }
+      btnClose.addEventListener('click', sendGameFinished);
+
+      window.parent.postMessage({ type: 'gameLoaded' }, '*');
+    })();
+  </script>
+</body>
+</html>

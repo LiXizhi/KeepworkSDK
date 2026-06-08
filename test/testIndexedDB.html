@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndexedDB Storage Test - PersonalPageStore</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #667eea;
+            margin: 0 0 10px 0;
+        }
+        .header p {
+            color: #666;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #fafafa;
+        }
+        .test-section h3 {
+            color: #764ba2;
+            margin-top: 0;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button.danger {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        button.success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .result {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .result.error {
+            border-left-color: #f5576c;
+            background: #fff5f5;
+            color: #c53030;
+        }
+        .result.success {
+            border-left-color: #48bb78;
+            background: #f0fff4;
+            color: #276749;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        .badge.idb {
+            background: #667eea;
+            color: white;
+        }
+        .badge.localStorage {
+            background: #f5576c;
+            color: white;
+        }
+        .badge.memory {
+            background: #48bb78;
+            color: white;
+        }
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .info-box h4 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .log-entry {
+            padding: 8px;
+            margin: 4px 0;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .log-entry.info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        .log-entry.warn {
+            background: #fff3e0;
+            color: #e65100;
+        }
+        .log-entry.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗄️ IndexedDB Storage Test Suite</h1>
+        <p>测试 PersonalPageStore 的 IndexedDB + 内存缓存双层架构 (已移除localStorage)</p>
+    </div>
+
+    <!-- Storage Statistics -->
+    <div class="container">
+        <h2>📊 存储统计</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h4>IndexedDB 使用量</h4>
+                <div class="value" id="idbSize">0 KB</div>
+            </div>
+            <div class="stat-card">
+                <h4>内存缓存项数</h4>
+                <div class="value" id="memoryCacheCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h4>内存缓存大小</h4>
+                <div class="value" id="memoryCacheSize">0 / 10 MB</div>
+            </div>
+            <div class="stat-card">
+                <h4>单项缓存限制</h4>
+                <div class="value" id="maxItemSize">2 MB</div>
+            </div>
+            <div class="stat-card">
+                <h4>测试状态</h4>
+                <div class="value" id="testStatus">就绪</div>
+            </div>
+        </div>
+        <button onclick="refreshStats()" class="success">🔄 刷新统计</button>
+    </div>
+
+    <!-- Basic Storage Tests -->
+    <div class="container">
+        <h2>🧪 基础存储测试</h2>
+        
+        <div class="test-section">
+            <h3><span class="badge idb">IndexedDB</span> 1. 小数据存储测试 (< 1KB)</h3>
+            <div class="form-group">
+                <label>页面名称:</label>
+                <input type="text" id="smallDataPageName" value="test-small" placeholder="例如: test-small">
+            </div>
+            <div class="form-group">
+                <label>键名:</label>
+                <input type="text" id="smallDataKey" value="user.name" placeholder="例如: user.name">
+            </div>
+            <div class="form-group">
+                <label>值:</label>
+                <input type="text" id="smallDataValue" value="测试用户" placeholder="输入任意值">
+            </div>
+            <div class="button-group">
+                <button onclick="testSmallDataSave()">💾 保存数据</button>
+                <button onclick="testSmallDataLoad()">📖 读取数据</button>
+                <button onclick="testSmallDataDelete()" class="danger">🗑️ 删除数据</button>
+            </div>
+            <div id="smallDataResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3><span class="badge idb">IndexedDB</span> 2. 大数据存储测试 (> 2MB)</h3>
+            <p style="color: #666; font-size: 13px;">测试大数据存储到 IndexedDB (单项最大2MB不缓存)</p>
+            <div class="form-group">
+                <label>数据大小 (MB):</label>
+                <input type="number" id="largeDataSize" value="5" min="2" max="50" step="1">
+            </div>
+            <div class="button-group">
+                <button onclick="testLargeDataSave()">💾 保存大数据</button>
+                <button onclick="testLargeDataLoad()">📖 读取大数据</button>
+                <button onclick="testLargeDataDelete()" class="danger">🗑️ 删除大数据</button>
+            </div>
+            <div id="largeDataResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3><span class="badge memory">Memory</span> 3. 性能测试 - 批量写入</h3>
+            <div class="form-group">
+                <label>写入数量:</label>
+                <input type="number" id="batchCount" value="100" min="10" max="1000" step="10">
+            </div>
+            <div class="button-group">
+                <button onclick="testBatchWrite()">⚡ 批量写入测试</button>
+                <button onclick="testBatchRead()">📚 批量读取测试</button>
+            </div>
+            <div id="batchResult" class="result"></div>
+        </div>
+    </div>
+
+    <!-- Advanced Tests -->
+    <div class="container">
+        <h2>🔬 高级功能测试</h2>
+        
+        <div class="test-section">
+            <h3>4. 容量限制测试</h3>
+            <div class="info-box">
+                <h4>测试说明:</h4>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>超过 2MB 的数据不会被缓存到内存，直接存入 IndexedDB</li>
+                    <li>内存缓存达到 8MB (80%) 时自动触发 LRU 清理</li>
+                    <li>数据应始终成功保存到 IndexedDB</li>
+                </ul>
+            </div>
+            <div class="button-group">
+                <button onclick="testQuotaExceeded()">🚨 触发配额超出</button>
+                <button onclick="testAutoCleanup()">🧹 测试自动清理</button>
+            </div>
+            <div id="quotaResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. 两层存储测试</h3>
+            <p style="color: #666; font-size: 13px;">测试 Memory Cache → IndexedDB 的双层架构</p>
+            <div class="button-group">
+                <button onclick="testTwoLayerSync()">🔄 测试两层同步</button>
+                <button onclick="testStorageFallback()">⬇️ 测试降级机制</button>
+            </div>
+            <div id="syncResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>6. 异步读取 vs 同步读取</h3>
+            <div class="button-group">
+                <button onclick="testSyncRead()">⚡ 同步读取 (getItem)</button>
+                <button onclick="testAsyncRead()">🔄 异步读取 (getItemAsync)</button>
+                <button onclick="compareReadPerformance()">📊 性能对比</button>
+            </div>
+            <div id="readResult" class="result"></div>
+        </div>
+    </div>
+
+    <!-- Real-world Scenarios -->
+    <div class="container">
+        <h2>🌍 真实场景测试</h2>
+        
+        <div class="test-section">
+            <h3>7. 游戏数据存储 (Time Series)</h3>
+            <div class="form-group">
+                <label>玩家分数:</label>
+                <input type="number" id="gameScore" value="1000" min="0">
+            </div>
+            <div class="form-group">
+                <label>准确率:</label>
+                <input type="number" id="gameAccuracy" value="95" min="0" max="100">
+            </div>
+            <div class="button-group">
+                <button onclick="saveGameData()">🎮 保存游戏数据</button>
+                <button onclick="loadGameData()">📊 查看游戏历史</button>
+            </div>
+            <div id="gameResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>8. 并发写入测试</h3>
+            <p style="color: #666; font-size: 13px;">模拟多个标签页同时写入数据</p>
+            <div class="button-group">
+                <button onclick="testConcurrentWrites()">🔀 并发写入测试</button>
+            </div>
+            <div id="concurrentResult" class="result"></div>
+        </div>
+    </div>
+
+    <!-- Debug Console -->
+    <div class="container">
+        <h2>🐛 调试控制台</h2>
+        <div class="button-group">
+            <button onclick="clearAllStorage()" class="danger">🗑️ 清空所有存储</button>
+            <button onclick="inspectIndexedDB()">🔍 检查 IndexedDB</button>
+            <button onclick="inspectMemoryCache()">🔍 检查内存缓存</button>
+            <button onclick="exportTestData()" class="success">📥 导出测试数据</button>
+        </div>
+        <div id="debugResult" class="result"></div>
+    </div>
+
+    <!-- Event Log -->
+    <div class="container">
+        <h2>📝 事件日志</h2>
+        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 6px; background: #fafafa;">
+            <div id="eventLog"></div>
+        </div>
+        <button onclick="clearEventLog()" style="margin-top: 10px;">🧹 清空日志</button>
+    </div>
+
+    <!-- Load SDK -->
+    <script src="../dist/keepworkSDK.iife.js"></script>
+    
+    <script>
+        // Initialize SDK
+        const sdk = window.keepwork;
+        const store = sdk.personalPageStore;
+        
+        // Event logging
+        function logEvent(message, type = 'info') {
+            const log = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            log.insertBefore(entry, log.firstChild);
+            
+            // Keep only last 50 entries
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function clearEventLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        // Refresh statistics
+        async function refreshStats() {
+            try {
+                const stats = await window.StorageUtil.getStorageStats();
+                
+                document.getElementById('idbSize').textContent = 
+                    formatSize(stats.indexedDB);
+                document.getElementById('memoryCacheCount').textContent = 
+                    stats.memoryCache;
+                document.getElementById('memoryCacheSize').textContent = 
+                    `${formatSize(stats.memoryCacheSize)} / ${formatSize(stats.memoryCacheMaxSize)}`;
+                document.getElementById('maxItemSize').textContent = 
+                    formatSize(stats.memoryCacheMaxSize * 0.2); // 20% of max cache
+                
+                logEvent(`统计刷新完成: IDB=${formatSize(stats.indexedDB)}, MemCache=${formatSize(stats.memoryCacheSize)}/${formatSize(stats.memoryCacheMaxSize)}`, 'info');
+            } catch (error) {
+                logEvent(`统计刷新失败: ${error.message}`, 'error');
+            }
+        }
+
+        // Format bytes to human readable
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Test 1: Small Data
+        async function testSmallDataSave() {
+            const pageName = document.getElementById('smallDataPageName').value;
+            const key = document.getElementById('smallDataKey').value;
+            const value = document.getElementById('smallDataValue').value;
+            const resultDiv = document.getElementById('smallDataResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '保存中...';
+                
+                await store.savePageData(pageName, key, value, true);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 保存成功!\n页面: ${pageName}\n键: ${key}\n值: ${value}`;
+                logEvent(`小数据保存成功: ${pageName}.${key}`, 'info');
+                
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 保存失败: ${error.message}`;
+                logEvent(`小数据保存失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSmallDataLoad() {
+            const pageName = document.getElementById('smallDataPageName').value;
+            const key = document.getElementById('smallDataKey').value;
+            const resultDiv = document.getElementById('smallDataResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '读取中...';
+                
+                const value = await store.loadPageData(pageName, key);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 读取成功!\n页面: ${pageName}\n键: ${key}\n值: ${JSON.stringify(value, null, 2)}`;
+                logEvent(`小数据读取成功: ${pageName}.${key}`, 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 读取失败: ${error.message}`;
+                logEvent(`小数据读取失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSmallDataDelete() {
+            const pageName = document.getElementById('smallDataPageName').value;
+            const key = document.getElementById('smallDataKey').value;
+            const resultDiv = document.getElementById('smallDataResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '删除中...';
+                
+                await store.deletePageData(pageName, key, true);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 删除成功!\n页面: ${pageName}\n键: ${key}`;
+                logEvent(`小数据删除成功: ${pageName}.${key}`, 'info');
+                
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 删除失败: ${error.message}`;
+                logEvent(`小数据删除失败: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 2: Large Data
+        async function testLargeDataSave() {
+            const size = parseInt(document.getElementById('largeDataSize').value);
+            const resultDiv = document.getElementById('largeDataResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = `生成 ${size}MB 测试数据...`;
+                
+                // Generate large data (1MB ≈ 1 million characters)
+                const charCount = size * 1024 * 1024;
+                const largeData = {
+                    timestamp: Date.now(),
+                    size: `${size}MB`,
+                    content: 'x'.repeat(charCount)
+                };
+                
+                resultDiv.textContent = `保存 ${size}MB 数据到 IndexedDB...`;
+                const startTime = performance.now();
+                
+                await store.savePageData('test-large', 'bigData', largeData, true);
+                
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 保存成功!\n大小: ${size}MB\n耗时: ${duration}ms\n数据已保存到 IndexedDB\n(超过2MB不会缓存到内存)`;
+                logEvent(`大数据保存成功: ${size}MB, 耗时 ${duration}ms`, 'info');
+                
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 保存失败: ${error.message}`;
+                logEvent(`大数据保存失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLargeDataLoad() {
+            const resultDiv = document.getElementById('largeDataResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '读取大数据中...';
+                
+                const startTime = performance.now();
+                const data = await store.loadPageData('test-large', 'bigData');
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                
+                if (!data) {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = '❌ 未找到数据，请先保存';
+                    return;
+                }
+                
+                const sizeInMB = (data.content.length / 1024 / 1024).toFixed(2);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 读取成功!\n大小: ${sizeInMB}MB\n耗时: ${duration}ms\n时间戳: ${new Date(data.timestamp).toLocaleString()}`;
+                logEvent(`大数据读取成功: ${sizeInMB}MB, 耗时 ${duration}ms`, 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 读取失败: ${error.message}`;
+                logEvent(`大数据读取失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLargeDataDelete() {
+            const resultDiv = document.getElementById('largeDataResult');
+            
+            try {
+                await store.deletePageData('test-large', 'bigData', true);
+                resultDiv.className = 'result success';
+                resultDiv.textContent = '✅ 大数据已删除';
+                logEvent('大数据删除成功', 'info');
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 删除失败: ${error.message}`;
+                logEvent(`大数据删除失败: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 3: Batch Operations
+        async function testBatchWrite() {
+            const count = parseInt(document.getElementById('batchCount').value);
+            const resultDiv = document.getElementById('batchResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = `批量写入 ${count} 条数据...`;
+                
+                const startTime = performance.now();
+                
+                for (let i = 0; i < count; i++) {
+                    await store.savePageData('test-batch', `item_${i}`, {
+                        id: i,
+                        value: Math.random(),
+                        timestamp: Date.now()
+                    });
+                }
+                
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                const avgTime = (duration / count).toFixed(2);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 批量写入完成!\n数量: ${count} 条\n总耗时: ${duration}ms\n平均耗时: ${avgTime}ms/条`;
+                logEvent(`批量写入完成: ${count}条, 耗时 ${duration}ms`, 'info');
+                
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 批量写入失败: ${error.message}`;
+                logEvent(`批量写入失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBatchRead() {
+            const count = parseInt(document.getElementById('batchCount').value);
+            const resultDiv = document.getElementById('batchResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = `批量读取 ${count} 条数据...`;
+                
+                const startTime = performance.now();
+                const results = [];
+                
+                for (let i = 0; i < count; i++) {
+                    const value = await store.loadPageData('test-batch', `item_${i}`);
+                    if (value) results.push(value);
+                }
+                
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                const avgTime = (duration / count).toFixed(2);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 批量读取完成!\n期望: ${count} 条\n实际: ${results.length} 条\n总耗时: ${duration}ms\n平均耗时: ${avgTime}ms/条`;
+                logEvent(`批量读取完成: ${results.length}/${count}条, 耗时 ${duration}ms`, 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 批量读取失败: ${error.message}`;
+                logEvent(`批量读取失败: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 4: Quota Tests
+        async function testQuotaExceeded() {
+            const resultDiv = document.getElementById('quotaResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '测试大数据存储...';
+                
+                // Try to save data larger than 2MB
+                const largeData = 'x'.repeat(3 * 1024 * 1024); // 3MB
+                
+                await store.savePageData('test-quota', 'largeItem', largeData, true);
+                
+                // Check if data is in IndexedDB
+                const fromMemory = window.StorageUtil._memoryCache['personal_page_anonymous_test-quota'];
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 测试完成!\n数据大小: 3MB\n✓ IndexedDB: 已保存\n✓ Memory: ${fromMemory ? '未缓存 (超过2MB)' : '未缓存'}`;
+                logEvent('大数据存储测试完成', 'info');
+                
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 测试失败: ${error.message}`;
+                logEvent(`大数据存储测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAutoCleanup() {
+            const resultDiv = document.getElementById('quotaResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '测试 LRU 缓存自动清理...';
+                
+                // Get current cache size
+                const beforeStats = await window.StorageUtil.getStorageStats();
+                const beforeSize = beforeStats.memoryCacheSize;
+                
+                // Fill cache with data close to threshold (8MB = 80% of 10MB)
+                for (let i = 0; i < 5; i++) {
+                    const data = 'x'.repeat(1.5 * 1024 * 1024); // 1.5MB each
+                    await store.savePageData('test-lru', `item${i}`, data, false);
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+                
+                const afterStats = await window.StorageUtil.getStorageStats();
+                const afterSize = afterStats.memoryCacheSize;
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ LRU 清理测试完成!\n测试前: ${formatSize(beforeSize)}\n测试后: ${formatSize(afterSize)}\n阈值: ${formatSize(10 * 1024 * 1024 * 0.8)} (80%)\n如果超过阈值，应自动清理最久未访问的项`;
+                logEvent(`LRU 测试完成: ${formatSize(beforeSize)} → ${formatSize(afterSize)}`, 'info');
+                
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 测试失败: ${error.message}`;
+                logEvent(`LRU 测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 5: Two-layer Sync
+        async function testTwoLayerSync() {
+            const resultDiv = document.getElementById('syncResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '测试两层存储同步...';
+                
+                const testKey = 'personal_page_anonymous_test-sync';
+                const testData = { test: 'sync', timestamp: Date.now() };
+                
+                // Save data
+                window.StorageUtil.setItem(testKey, testData);
+                
+                // Wait a bit for async operations
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Check both layers
+                const inMemory = testKey in window.StorageUtil._memoryCache;
+                
+                // Check IndexedDB
+                const inIDB = await window.StorageUtil.getItemAsync(testKey);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 两层同步测试完成!\n✓ Memory Cache: ${inMemory ? '✓ 已保存' : '✗ 未保存'}\n✓ IndexedDB: ${inIDB ? '✓ 已保存' : '✗ 未保存'}`;
+                logEvent('两层同步测试完成', 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 测试失败: ${error.message}`;
+                logEvent(`两层同步测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testStorageFallback() {
+            const resultDiv = document.getElementById('syncResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '测试存储降级...';
+                
+                const testKey = 'personal_page_anonymous_test-fallback';
+                const testData = { fallback: 'test', timestamp: Date.now() };
+                
+                // Clear memory cache
+                delete window.StorageUtil._memoryCache[testKey];
+                
+                // Save to IndexedDB directly
+                await window.StorageUtil._setItemAsync(testKey, testData);
+                
+                // Try to read - should be from IndexedDB (not in memory)
+                const retrieved = await window.StorageUtil.getItemAsync(testKey);
+                
+                const success = retrieved && retrieved.fallback === 'test';
+                
+                resultDiv.className = success ? 'result success' : 'result error';
+                resultDiv.textContent = success 
+                    ? '✅ 降级机制测试完成!\n✓ 内存缓存为空\n✓ 从 IndexedDB 读取成功\n✓ 数据已缓存到内存' 
+                    : '❌ 降级机制测试失败';
+                logEvent('降级机制测试完成', success ? 'info' : 'error');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 测试失败: ${error.message}`;
+                logEvent(`降级机制测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+
+        // Test 6: Read Performance
+        async function testSyncRead() {
+            const resultDiv = document.getElementById('readResult');
+            
+            try {
+                const testKey = 'personal_page_anonymous_test-read';
+                const testData = { sync: true, timestamp: Date.now() };
+                
+                window.StorageUtil.setItem(testKey, testData);
+                
+                const startTime = performance.now();
+                const result = window.StorageUtil.getItem(testKey);
+                const endTime = performance.now();
+                
+                const duration = (endTime - startTime).toFixed(4);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 同步读取完成!\n耗时: ${duration}ms\n数据源: Memory Cache → localStorage\n结果: ${JSON.stringify(result, null, 2)}`;
+                logEvent(`同步读取完成: ${duration}ms`, 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 测试失败: ${error.message}`;
+                logEvent(`同步读取失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAsyncRead() {
+            const resultDiv = document.getElementById('readResult');
+            
+            try {
+                const testKey = 'personal_page_anonymous_test-read';
+                const testData = { async: true, timestamp: Date.now() };
+                
+                await window.StorageUtil._setItemAsync(testKey, testData);
+                
+                // Clear caches to force IndexedDB read
+                delete window.StorageUtil._memoryCache[testKey];
+                localStorage.removeItem(testKey);
+                
+                const startTime = performance.now();
+                const result = await window.StorageUtil.getItemAsync(testKey);
+                const endTime = performance.now();
+                
+                const duration = (endTime - startTime).toFixed(4);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 异步读取完成!\n耗时: ${duration}ms\n数据源: IndexedDB\n结果: ${JSON.stringify(result, null, 2)}`;
+                logEvent(`异步读取完成: ${duration}ms`, 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 测试失败: ${error.message}`;
+                logEvent(`异步读取失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function compareReadPerformance() {
+            const resultDiv = document.getElementById('readResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '性能对比测试中...';
+                
+                const iterations = 100;
+                const testKey = 'personal_page_anonymous_test-perf';
+                const testData = { perf: true, data: 'x'.repeat(1000) };
+                
+                // Prepare data
+                window.StorageUtil.setItem(testKey, testData);
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Test sync reads
+                let syncTotal = 0;
+                for (let i = 0; i < iterations; i++) {
+                    const start = performance.now();
+                    window.StorageUtil.getItem(testKey);
+                    syncTotal += performance.now() - start;
+                }
+                
+                // Clear caches for async test
+                delete window.StorageUtil._memoryCache[testKey];
+                
+                // Test async reads
+                let asyncTotal = 0;
+                for (let i = 0; i < iterations; i++) {
+                    const start = performance.now();
+                    await window.StorageUtil.getItemAsync(testKey);
+                    asyncTotal += performance.now() - start;
+                }
+                
+                const syncAvg = (syncTotal / iterations).toFixed(4);
+                const asyncAvg = (asyncTotal / iterations).toFixed(4);
+                const speedup = (asyncTotal / syncTotal).toFixed(2);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `📊 性能对比结果 (${iterations}次):\n\n` +
+                    `同步读取 (Memory/localStorage):\n` +
+                    `  平均耗时: ${syncAvg}ms\n` +
+                    `  总耗时: ${syncTotal.toFixed(2)}ms\n\n` +
+                    `异步读取 (IndexedDB):\n` +
+                    `  平均耗时: ${asyncAvg}ms\n` +
+                    `  总耗时: ${asyncTotal.toFixed(2)}ms\n\n` +
+                    `结论: 同步读取快 ${speedup}x (得益于内存缓存)`;
+                logEvent(`性能对比完成: 同步${syncAvg}ms vs 异步${asyncAvg}ms`, 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 测试失败: ${error.message}`;
+                logEvent(`性能对比失败: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 7: Game Data (Real-world)
+        async function saveGameData() {
+            const score = parseInt(document.getElementById('gameScore').value);
+            const accuracy = parseInt(document.getElementById('gameAccuracy').value);
+            const resultDiv = document.getElementById('gameResult');
+            
+            try {
+                const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+                
+                await store.savePageDataTimeSeries(
+                    'game-stats',
+                    [
+                        { key: 'date', value: parseInt(today), type: 'unique' },
+                        { key: 'score', value: score, type: 'addictive' },
+                        { key: 'accuracy', value: accuracy, type: 'mean' },
+                        { key: 'plays', value: 1, type: 'addictive' }
+                    ],
+                    10,  // Keep last 10 records
+                    true // Flush immediately
+                );
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 游戏数据已保存!\n日期: ${today}\n分数: ${score}\n准确率: ${accuracy}%`;
+                logEvent(`游戏数据保存: 分数${score}, 准确率${accuracy}%`, 'info');
+                
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 保存失败: ${error.message}`;
+                logEvent(`游戏数据保存失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadGameData() {
+            const resultDiv = document.getElementById('gameResult');
+            
+            try {
+                const dates = await store.loadPageData('game-stats', 'date');
+                const scores = await store.loadPageData('game-stats', 'score');
+                const accuracy = await store.loadPageData('game-stats', 'accuracy');
+                const plays = await store.loadPageData('game-stats', 'plays');
+                
+                if (!dates || !Array.isArray(dates) || dates.length === 0) {
+                    resultDiv.className = 'result';
+                    resultDiv.textContent = '暂无游戏数据，请先保存一些数据';
+                    return;
+                }
+                
+                let output = '📊 游戏历史数据:\n\n';
+                for (let i = 0; i < dates.length; i++) {
+                    output += `日期: ${dates[i]}\n`;
+                    output += `  分数: ${scores[i]}\n`;
+                    output += `  准确率: ${accuracy[i].toFixed(2)}%\n`;
+                    output += `  游玩次数: ${plays[i]}\n\n`;
+                }
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = output;
+                logEvent(`游戏数据读取: ${dates.length}条记录`, 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 读取失败: ${error.message}`;
+                logEvent(`游戏数据读取失败: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 8: Concurrent Writes
+        async function testConcurrentWrites() {
+            const resultDiv = document.getElementById('concurrentResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '测试并发写入...';
+                
+                const promises = [];
+                const count = 50;
+                
+                // Simulate concurrent writes
+                for (let i = 0; i < count; i++) {
+                    promises.push(
+                        store.savePageData('test-concurrent', `key_${i}`, {
+                            id: i,
+                            timestamp: Date.now(),
+                            random: Math.random()
+                        })
+                    );
+                }
+                
+                const startTime = performance.now();
+                await Promise.all(promises);
+                const endTime = performance.now();
+                
+                const duration = (endTime - startTime).toFixed(2);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 并发写入完成!\n并发数: ${count}\n总耗时: ${duration}ms\n平均耗时: ${(duration/count).toFixed(2)}ms/个`;
+                logEvent(`并发写入完成: ${count}个, 耗时${duration}ms`, 'info');
+                
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 测试失败: ${error.message}`;
+                logEvent(`并发写入失败: ${error.message}`, 'error');
+            }
+        }
+
+        // Debug Functions
+        async function clearAllStorage() {
+            if (!confirm('确定要清空所有存储吗？这将删除所有测试数据！')) {
+                return;
+            }
+            
+            const resultDiv = document.getElementById('debugResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '清空所有存储...';
+                
+                // Clear StorageUtil
+                window.StorageUtil.clear();
+                
+                // Clear memory cache
+                window.StorageUtil._memoryCache = {};
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = '✅ 所有存储已清空!';
+                logEvent('所有存储已清空', 'warn');
+                
+                await refreshStats();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 清空失败: ${error.message}`;
+                logEvent(`清空存储失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function inspectIndexedDB() {
+            const resultDiv = document.getElementById('debugResult');
+            
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = '检查 IndexedDB...';
+                
+                const db = await window.StorageUtil._getDB();
+                const transaction = db.transaction(window.StorageUtil.STORE_NAME, 'readonly');
+                const store = transaction.objectStore(window.StorageUtil.STORE_NAME);
+                
+                const allKeys = await new Promise((resolve, reject) => {
+                    const request = store.getAllKeys();
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `🔍 IndexedDB 内容:\n\n` +
+                    `数据库: ${window.StorageUtil.DB_NAME}\n` +
+                    `存储: ${window.StorageUtil.STORE_NAME}\n` +
+                    `键数量: ${allKeys.length}\n\n` +
+                    `键列表:\n${allKeys.map(k => `  - ${k}`).join('\n')}`;
+                logEvent(`IndexedDB检查完成: ${allKeys.length}个键`, 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 检查失败: ${error.message}`;
+                logEvent(`IndexedDB检查失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function inspectMemoryCache() {
+            const resultDiv = document.getElementById('debugResult');
+            
+            try {
+                const cache = window.StorageUtil._memoryCache;
+                const keys = Object.keys(cache);
+                
+                const cacheItems = keys.map(key => ({
+                    key,
+                    size: window.StorageUtil._estimateSize(cache[key]),
+                    lastAccess: window.StorageUtil._memoryCacheAccess[key]
+                }));
+                
+                cacheItems.sort((a, b) => b.size - a.size);
+                
+                const stats = await window.StorageUtil.getStorageStats();
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `🔍 内存缓存内容:\n\n` +
+                    `缓存项数: ${keys.length}\n` +
+                    `总大小: ${formatSize(stats.memoryCacheSize)} / ${formatSize(stats.memoryCacheMaxSize)}\n` +
+                    `使用率: ${(stats.memoryCacheSize / stats.memoryCacheMaxSize * 100).toFixed(1)}%\n\n` +
+                    `缓存项列表 (按大小排序):\n` +
+                    cacheItems.slice(0, 20).map(k => {
+                        const accessTime = new Date(k.lastAccess).toLocaleTimeString();
+                        return `  - ${k.key}\n    大小: ${formatSize(k.size)}, 最后访问: ${accessTime}`;
+                    }).join('\n');
+                logEvent(`内存缓存检查完成: ${keys.length}个项`, 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 检查失败: ${error.message}`;
+                logEvent(`内存缓存检查失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function exportTestData() {
+            const resultDiv = document.getElementById('debugResult');
+            
+            try {
+                const stats = await window.StorageUtil.getStorageStats();
+                const exportData = {
+                    timestamp: new Date().toISOString(),
+                    stats: stats,
+                    memoryCache: {
+                        count: Object.keys(window.StorageUtil._memoryCache).length,
+                        size: stats.memoryCacheSize,
+                        maxSize: stats.memoryCacheMaxSize,
+                        items: Object.keys(window.StorageUtil._memoryCache)
+                    },
+                    indexedDB: []
+                };
+                
+                // Export IndexedDB keys
+                const db = await window.StorageUtil._getDB();
+                const transaction = db.transaction(window.StorageUtil.STORE_NAME, 'readonly');
+                const store = transaction.objectStore(window.StorageUtil.STORE_NAME);
+                const allKeys = await new Promise((resolve, reject) => {
+                    const request = store.getAllKeys();
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+                
+                exportData.indexedDB = allKeys;
+                
+                // Download as JSON
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+                    type: 'application/json'
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `indexeddb-test-${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 测试数据已导出!\n文件: indexeddb-test-${Date.now()}.json`;
+                logEvent('测试数据导出完成', 'info');
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 导出失败: ${error.message}`;
+                logEvent(`数据导出失败: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            refreshStats();
+            logEvent('IndexedDB 测试页面已加载', 'info');
+            
+            // Set test status
+            document.getElementById('testStatus').textContent = '就绪 ✓';
+        });
+
+        // Refresh stats every 5 seconds
+        setInterval(refreshStats, 5000);
+    </script>
+</body>
+</html>

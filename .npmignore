@@ -1,0 +1,25 @@
+# 发布到 npm 的白名单由 package.json 的 "files": ["dist-npm"] 控制。
+# 此文件作为双保险，显式排除敏感与无关内容，避免误打包。
+
+# 密钥（绝不发布）
+.env
+.env.local
+.env.*.local
+
+# 源码与配置（npm 包只需 dist-npm 产物）
+src/
+test/
+scripts/
+deploy_tools/
+docs/
+*.config.ts
+tsconfig*.json
+
+# CDN/IIFE 自用产物（含 maisi key，绝不进 npm 包）
+dist/
+
+# 其它
+README.internal.md
+PHASE9_HANDOFF_PLAN.md
+requirements.txt
+index.html

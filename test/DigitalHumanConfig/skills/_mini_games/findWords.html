@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>找单词</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var sdkUrl = params.get('sdk') || 'https://cdn.keepwork.com/sdk/keepworkSDK.iife.js';
+      var isModule = params.get('module') === '1';
+      var s = document.createElement('script');
+      if (isModule) s.type = 'module';
+      s.src = sdkUrl;
+      document.head.appendChild(s);
+    })();
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { touch-action: none; }
+
+    .hex-cell {
+      width: 46px; height: 46px;
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+      background: #c7d2fe;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 17px; color: #334155;
+      cursor: pointer; user-select: none;
+      transition: background 0.12s, box-shadow 0.12s;
+      position: absolute;
+    }
+    .hex-cell .hex-inner {
+      width: 42px; height: 42px;
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+      background: #e0e7ff;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s;
+    }
+    .hex-cell.selecting .hex-inner {
+      background: #818cf8; color: #fff;
+    }
+    .hex-cell.selecting { background: #6366f1; z-index: 2; }
+    .hex-cell.click-start { background: #4f46e5; z-index: 2; }
+    .hex-cell.click-start .hex-inner { background: #a5b4fc; color: #fff; }
+    .hex-cell.found .hex-inner {
+      background: inherit; color: #fff;
+      filter: brightness(0.85);
+    }
+    .hex-cell.found {
+      color: #fff;
+      filter: brightness(0.9);
+    }
+
+    /* found-color variants for distinguishing words */
+    .found-0 { background: #6366f1; }
+    .found-1 { background: #e21b3c; }
+    .found-2 { background: #1368ce; }
+    .found-3 { background: #d89e00; }
+    .found-4 { background: #26890c; }
+    .found-5 { background: #864cbf; }
+    .found-6 { background: #0aa3a3; }
+    .found-7 { background: #e06820; }
+    .found-8 { background: #c026d3; }
+    .found-9 { background: #0891b2; }
+
+    .word-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 12px; border-radius: 9999px;
+      font-size: 15px; font-weight: 600; color: #475569;
+      background: #f1f5f9; border: 2px solid #cbd5e1;
+      transition: all 0.25s;
+    }
+    .word-chip.found-word {
+      text-decoration: line-through; opacity: 0.5;
+      border-color: #a5b4fc; background: #eef2ff;
+    }
+
+    .draw-line {
+      position: absolute; pointer-events: none; z-index: 10;
+      height: 4px; background: rgba(99,102,241,0.5); border-radius: 2px;
+      transform-origin: 0 50%;
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.5); opacity: 0; }
+      60% { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .pop-in { animation: popIn 0.3s ease-out; }
+
+    /* Tip / hint highlight */
+    @keyframes hintPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.0); }
+      50%      { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.55); }
+    }
+    .hex-cell.hint { background: #facc15; z-index: 3; animation: hintPulse 0.7s ease-in-out 3; }
+    .hex-cell.hint .hex-inner { background: #fde68a; color: #78350f; }
+    /* While a hint cell is actively selected (pressed), show the selection
+       color instead of yellow. When selection clears, the yellow returns. */
+    .hex-cell.hint.selecting { background: #6366f1; }
+    .hex-cell.hint.selecting .hex-inner { background: #818cf8; color: #fff; }
+    .hex-cell.hint.click-start { background: #4f46e5; }
+    .hex-cell.hint.click-start .hex-inner { background: #a5b4fc; color: #fff; }
+
+    .tip-btn {
+      position: absolute; top: 10px; left: 10px;
+      width: 36px; height: 36px; border-radius: 9999px;
+      background: #fef3c7; color: #b45309;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; cursor: pointer; user-select: none;
+      border: 2px solid #fcd34d;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: transform 0.15s, background 0.15s;
+      z-index: 5;
+    }
+    .tip-btn:hover { background: #fde68a; transform: scale(1.08); }
+    .tip-btn:active { transform: scale(0.95); }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex justify-center items-start p-4 font-sans">
+  <div class="w-full max-w-[520px] bg-white rounded-2xl shadow-lg px-5 py-6 flex flex-col gap-4 relative"
+       aria-label="找单词游戏"
+       data-ai-hint="找单词小游戏：AI用type_in_app向隐藏文本框写入单词（英文单词或中文词语），单词之间可用换行、空格、逗号等分隔，最多10个。界面自动生成六边形字母网格，用户在网格中沿水平、垂直或对角线方向划线找出所有单词。找到全部单词后自动显示结果。AI可点击'结束'提前结束或'关闭'关闭游戏。">
+
+    <!-- 提示按钮 -->
+    <div id="tipBtn" class="tip-btn" role="button" aria-label="提示" title="提示：高亮一个未找到的单词"
+         data-ai-hint="AI或用户点击此按钮可高亮一个尚未找到的单词的起始格子（黄色脉冲动画），用于提供视觉线索。每次点击随机挑选一个未找到的词。用户卡住或主动求助时，AI可调用click_element点击此按钮。">💡</div>
+
+    <!-- 游戏区 -->
+    <div id="gameArea" class="flex flex-col gap-4">
+
+      <!-- 隐藏输入框，供 AI 通过 type_in_app 填写。
+           用 left:-9999px 离屏定位，保证 read_app 能检测到 -->
+      <div id="inputWrapper" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">
+        <textarea id="wordsInput"
+             data-ai-type="textbox"
+             aria-label="单词列表"
+             data-ai-hint="AI用type_in_app写入单词，单词之间用换行、空格或逗号分隔，英文单词或中文词语，最多10个。写入后界面自动生成字母网格。例如：HELLO\nWORLD\nCAT 或 人工智能 经验 数字化"></textarea>
+      </div>
+
+      <!-- 标题 -->
+      <div class="text-center">
+        <h2 class="text-xl font-bold text-indigo-700">🔍 找单词</h2>
+        <p id="instructions" class="text-sm text-gray-400 mt-1">等待出题...</p>
+      </div>
+
+      <!-- 待找单词列表 -->
+      <div id="wordList" class="flex flex-wrap gap-2 justify-center min-h-[32px]"></div>
+
+      <!-- 网格容器 -->
+      <div class="flex justify-center">
+        <div id="gridContainer" class="relative" style="touch-action:none"></div>
+      </div>
+
+      <!-- 状态栏 -->
+      <div class="flex justify-between items-center text-sm text-gray-500 px-1">
+        <span>已找到: <strong id="foundCount" class="text-indigo-600">0</strong> / <span id="totalCount">0</span></span>
+      </div>
+
+      <!-- 隐藏按钮，供 AI 点击 -->
+      <div style="opacity:0;position:absolute;pointer-events:none">
+        <button id="btnFinish" aria-label="结束" data-ai-hint="AI点击此按钮结束游戏，显示结果页">结束</button>
+        <button id="btnClose" aria-label="关闭" data-ai-hint="AI点击此按钮关闭游戏">关闭</button>
+      </div>
+    </div>
+
+    <!-- 结果页 -->
+    <div id="resultPage" class="hidden text-center py-8 px-2" data-ai-hint="游戏结束后的结果展示区域">
+      <div class="text-6xl mb-5">🎉</div>
+      <h2 class="text-2xl font-bold text-indigo-700 mb-4">游戏完成！</h2>
+      <div class="flex justify-center gap-4 mb-5">
+        <div class="bg-indigo-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-indigo-600" id="statTotal">0</span>
+          <span class="text-sm text-gray-500 mt-1">总词数</span>
+        </div>
+        <div class="bg-green-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-green-600" id="statFound">0</span>
+          <span class="text-sm text-gray-500 mt-1">已找到</span>
+        </div>
+      </div>
+      <p id="resultSummary" class="text-lg text-gray-600 leading-relaxed mb-2"></p>
+      <button id="btnResultClose" aria-label="关闭"
+              class="mt-6 w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white text-2xl font-bold rounded-xl shadow-md transition-colors">
+        关闭
+      </button>
+    </div>
+  </div>
+
+  <!-- 反馈浮层 -->
+  <div id="feedback" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl opacity-0 scale-50 pointer-events-none transition-all duration-300 z-50"></div>
+
+  <script>
+    // =================== SDK ===================
+    function waitForSdkGlobals(ms) {
+      ms = ms || 10000;
+      var start = Date.now();
+      return new Promise(function(resolve) {
+        (function check() {
+          if (typeof window.KeepworkSDK === 'function') return resolve();
+          if (Date.now() - start >= ms) return resolve();
+          setTimeout(check, 30);
+        })();
+      });
+    }
+
+    (async function() {
+    await waitForSdkGlobals();
+    var token = new URLSearchParams(window.location.search).get('token');
+    if (token && window.KeepworkSDK) {
+      if (!window.keepwork) window.keepwork = new KeepworkSDK();
+      window.keepwork.setToken(token);
+    }
+
+    // =================== State ===================
+    const state = {
+      words: [],          // truncated words for grid/matching (max MAX_CHAR_COUNT)
+      displayWords: [],   // original full words for display
+      wordChars: [],      // array of char arrays
+      foundWords: new Set(),
+      grid: [],           // 2D array of chars
+      gridSize: 0,
+      isChinese: false,
+      placements: [],     // [{word, cells:[{r,c}]}]
+      finished: false,
+    };
+
+    // =================== DOM ===================
+    const $ = id => document.getElementById(id);
+    const wordsInput     = $('wordsInput');
+    const wordList       = $('wordList');
+    const gridContainer  = $('gridContainer');
+    const instructions   = $('instructions');
+    const foundCountEl   = $('foundCount');
+    const totalCountEl   = $('totalCount');
+    const gameArea       = $('gameArea');
+    const resultPage     = $('resultPage');
+    const feedbackEl     = $('feedback');
+
+    // =================== Utilities ===================
+    function isChinese(text) {
+      return /[\u4e00-\u9fff]/.test(text);
+    }
+
+    function showFeedback(emoji) {
+      feedbackEl.textContent = emoji;
+      feedbackEl.classList.remove('opacity-0', 'scale-50');
+      feedbackEl.classList.add('opacity-100', 'scale-100');
+      setTimeout(() => {
+        feedbackEl.classList.remove('opacity-100', 'scale-100');
+        feedbackEl.classList.add('opacity-0', 'scale-50');
+      }, 700);
+    }
+
+    const MAX_CHAR_COUNT = 8;
+
+    const RANDOM_CN = '的一是了我不人在他有这个上们来到时大地为子中你说生国年着就那和要她出也得里后自以会家可下而过天去能对小多然于心学么之都好看起发当没成只如事把还用第样道想作种开美总从无情己面最女但现前些所同日手又行意动方期它头经长儿回位分爱老因很给名法间斯知世什两次使身者被高已亲其进此话且长';
+
+    function randomChar(useChinese) {
+      if (useChinese) {
+        return RANDOM_CN[Math.floor(Math.random() * RANDOM_CN.length)];
+      }
+      return String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    }
+
+    // =================== Grid Generation ===================
+    // Hex grid has 6 natural neighbor directions (pointy-top, odd rows shifted right).
+    // Each direction corresponds to a visually straight line.
+    const HEX_DIRS = ['E', 'W', 'NE', 'NW', 'SE', 'SW'];
+
+    // Return next cell in given hex direction from (r, c).
+    function hexStep(r, c, dir) {
+      const odd = r % 2 === 1;
+      switch (dir) {
+        case 'E':  return { r, c: c + 1 };
+        case 'W':  return { r, c: c - 1 };
+        case 'NE': return { r: r - 1, c: odd ? c + 1 : c };
+        case 'NW': return { r: r - 1, c: odd ? c     : c - 1 };
+        case 'SE': return { r: r + 1, c: odd ? c + 1 : c };
+        case 'SW': return { r: r + 1, c: odd ? c     : c - 1 };
+      }
+    }
+
+    function generateGrid(words) {
+      const maxLen = Math.max(...words.map(w => w.length));
+      const totalChars = words.reduce((s, w) => s + w.length, 0);
+      let size = Math.max(maxLen + 2, Math.ceil(Math.sqrt(totalChars * 3)));
+      size = Math.max(size, 8);
+      size = Math.min(size, 15);
+
+      state.gridSize = size;
+      state.placements = [];
+
+      // Initialize empty grid
+      let grid = Array.from({ length: size }, () => Array(size).fill(null));
+
+      // Place each word
+      for (const word of words) {
+        const chars = [...word]; // handle multi-byte chars
+        let placed = false;
+        for (let attempt = 0; attempt < 300; attempt++) {
+          const dir = HEX_DIRS[Math.floor(Math.random() * HEX_DIRS.length)];
+          const len = chars.length;
+
+          const r = Math.floor(Math.random() * size);
+          const c = Math.floor(Math.random() * size);
+
+          // Walk cells via hexStep, checking bounds + conflicts as we go.
+          const cells = [];
+          let ok = true;
+          let cr = r, cc = c;
+          for (let i = 0; i < len; i++) {
+            if (cr < 0 || cr >= size || cc < 0 || cc >= size) { ok = false; break; }
+            if (grid[cr][cc] !== null && grid[cr][cc] !== chars[i]) { ok = false; break; }
+            cells.push({ r: cr, c: cc });
+            const next = hexStep(cr, cc, dir);
+            cr = next.r; cc = next.c;
+          }
+          if (!ok) continue;
+
+          for (let i = 0; i < len; i++) {
+            grid[cells[i].r][cells[i].c] = chars[i];
+          }
+          state.placements.push({ word, cells });
+          placed = true;
+          break;
+        }
+        if (!placed) {
+          // Expand grid and retry all
+          return generateGrid(words.map(w => w)); // retry (size will grow via totalChars heuristic — add padding)
+        }
+      }
+
+      // Fill empty cells
+      const useCN = state.isChinese;
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (grid[r][c] === null) {
+            grid[r][c] = randomChar(useCN);
+          }
+        }
+      }
+
+      state.grid = grid;
+      return grid;
+    }
+
+    // =================== Rendering ===================
+    function renderWordList() {
+      wordList.innerHTML = '';
+      state.displayWords.forEach((w, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'word-chip pop-in';
+        chip.id = 'chip-' + i;
+        chip.style.animationDelay = (i * 60) + 'ms';
+        const chars = [...w];
+        if (chars.length > MAX_CHAR_COUNT) {
+          const highlighted = document.createElement('span');
+          highlighted.textContent = chars.slice(0, MAX_CHAR_COUNT).join('');
+          const dimmed = document.createElement('span');
+          dimmed.textContent = chars.slice(MAX_CHAR_COUNT).join('');
+          dimmed.style.cssText = 'opacity:0.4;font-weight:400;';
+          chip.appendChild(highlighted);
+          chip.appendChild(dimmed);
+        } else {
+          chip.textContent = w;
+        }
+        wordList.appendChild(chip);
+      });
+    }
+
+    const HEX_W = 46;
+    const HEX_H = 46;
+    const GAP = 2;
+    const COL_STEP = HEX_W + GAP;         // horizontal spacing with gap
+    const ROW_STEP = HEX_H * 0.75 + GAP;  // vertical honeycomb overlap with gap
+    const HALF_OFF = COL_STEP * 0.5;       // odd-row offset
+
+    function renderGrid() {
+      const size = state.gridSize;
+      gridContainer.innerHTML = '';
+
+      const totalW = size * COL_STEP + HALF_OFF;
+      const totalH = (size - 1) * ROW_STEP + HEX_H;
+      gridContainer.style.width  = totalW + 'px';
+      gridContainer.style.height = totalH + 'px';
+
+      for (let r = 0; r < size; r++) {
+        const isOdd = r % 2 === 1;
+        for (let c = 0; c < size; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'hex-cell';
+          cell.dataset.r = r;
+          cell.dataset.c = c;
+          cell.id = `cell-${r}-${c}`;
+          cell.style.left = (c * COL_STEP + (isOdd ? HALF_OFF : 0)) + 'px';
+          cell.style.top  = (r * ROW_STEP) + 'px';
+          const inner = document.createElement('div');
+          inner.className = 'hex-inner';
+          inner.textContent = state.grid[r][c];
+          cell.appendChild(inner);
+          gridContainer.appendChild(cell);
+        }
+      }
+    }
+
+    function updateStats() {
+      foundCountEl.textContent = state.foundWords.size;
+      totalCountEl.textContent = state.words.length;
+    }
+
+    // =================== Selection / Drawing ===================
+    let dragStart = null;   // {r, c}
+    let dragStartPx = null; // {x, y} pixel position of pointerdown
+    let currentCells = [];  // [{r, c}]
+
+    // Get pixel center of a grid cell
+    function cellCenter(r, c) {
+      const isOdd = r % 2 === 1;
+      return {
+        x: c * COL_STEP + (isOdd ? HALF_OFF : 0) + HEX_W / 2,
+        y: r * ROW_STEP + HEX_H / 2
+      };
+    }
+
+    // Snap pixel delta to one of 6 hex directions, return direction name.
+    // Each hex direction has a fixed pixel delta (independent of row parity):
+    //   E: (+COL_STEP, 0)       W: (-COL_STEP, 0)
+    //   SE: (+HALF_OFF, +ROW_STEP)    SW: (-HALF_OFF, +ROW_STEP)
+    //   NE: (+HALF_OFF, -ROW_STEP)    NW: (-HALF_OFF, -ROW_STEP)
+    function snapDirection(dx, dy) {
+      const diag = Math.atan2(ROW_STEP, HALF_OFF); // angle of SE/NE from horizontal
+      const DIR_ANGLES = {
+        E:   0,
+        SE:  diag,
+        SW:  Math.PI - diag,
+        W:   Math.PI,
+        NW: -(Math.PI - diag),
+        NE: -diag,
+      };
+      const angle = Math.atan2(dy, dx);
+      let best = 'E', bestDiff = Infinity;
+      for (const dir of Object.keys(DIR_ANGLES)) {
+        // shortest angular distance, wrapped to [0, PI]
+        let diff = Math.abs(angle - DIR_ANGLES[dir]);
+        if (diff > Math.PI) diff = 2 * Math.PI - diff;
+        if (diff < bestDiff) { bestDiff = diff; best = dir; }
+      }
+      return best;
+    }
+
+    function getCellsAlongDirection(r1, c1, dir, maxFromPointer) {
+      // Walk hex cells in direction, up to maxFromPointer distance
+      const cells = [];
+      let r = r1, c = c1;
+      const startPx = cellCenter(r1, c1);
+      for (let i = 0; i < 20; i++) {
+        if (r < 0 || r >= state.gridSize || c < 0 || c >= state.gridSize) break;
+        const px = cellCenter(r, c);
+        const dist = Math.sqrt((px.x - startPx.x) ** 2 + (px.y - startPx.y) ** 2);
+        if (i > 0 && dist > maxFromPointer + COL_STEP * 0.6) break;
+        cells.push({ r, c });
+        const next = hexStep(r, c, dir);
+        r = next.r; c = next.c;
+      }
+      return cells;
+    }
+
+    // Fallback for click-click: use pixel line between two cells to pick a hex direction.
+    function getCellsAlongLine(r1, c1, r2, c2) {
+      if (r1 === r2 && c1 === c2) return [{ r: r1, c: c1 }];
+      const p1 = cellCenter(r1, c1);
+      const p2 = cellCenter(r2, c2);
+      const dir = snapDirection(p2.x - p1.x, p2.y - p1.y);
+      const dist = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+      return getCellsAlongDirection(r1, c1, dir, dist);
+    }
+
+    function highlightCells(cells) {
+      // Clear previous selection highlights
+      gridContainer.querySelectorAll('.selecting').forEach(el => el.classList.remove('selecting'));
+      cells.forEach(({ r, c }) => {
+        const el = $(`cell-${r}-${c}`);
+        if (el && !el.classList.contains('found')) {
+          // Keep any .hint class so that if this selection is later cleared
+          // (e.g. invalid prefix), the cell returns to yellow hint styling
+          // rather than appearing unhinted (grey).
+          el.classList.add('selecting');
+        }
+      });
+    }
+
+    function clearSelection() {
+      gridContainer.querySelectorAll('.selecting').forEach(el => el.classList.remove('selecting'));
+      currentCells = [];
+    }
+
+    function getCellFromPointer(e) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (!el) return null;
+      const cell = el.closest('.hex-cell');
+      if (!cell) return null;
+      return { r: +cell.dataset.r, c: +cell.dataset.c };
+    }
+
+    // Check whether the current ordered cells form a prefix (forward or reverse) of
+    // any unfound word's placement cells. Used in click-click mode to prevent
+    // extending a selection that can no longer complete a word.
+    function isValidPrefix(cells) {
+      if (cells.length === 0) return true;
+      for (const p of state.placements) {
+        if (state.foundWords.has(p.word)) continue;
+        if (cells.length > p.cells.length) continue;
+        // Forward: match placement.cells[0..n-1]
+        let fwd = true;
+        for (let j = 0; j < cells.length; j++) {
+          if (cells[j].r !== p.cells[j].r || cells[j].c !== p.cells[j].c) { fwd = false; break; }
+        }
+        if (fwd) return true;
+        // Reverse: match placement.cells from the end backwards
+        let rev = true;
+        for (let j = 0; j < cells.length; j++) {
+          const pc = p.cells[p.cells.length - 1 - j];
+          if (cells[j].r !== pc.r || cells[j].c !== pc.c) { rev = false; break; }
+        }
+        if (rev) return true;
+      }
+      return false;
+    }
+
+    function checkSelection(cells) {
+      if (cells.length < 2) return;
+
+      const selectedStr = cells.map(({ r, c }) => state.grid[r][c]).join('');
+      const selectedStrRev = [...selectedStr].reverse().join('');
+
+      // Check against each unfound word's placement
+      for (let i = 0; i < state.placements.length; i++) {
+        const p = state.placements[i];
+        if (state.foundWords.has(p.word)) continue;
+
+        const placedStr = p.cells.map(({ r, c }) => state.grid[r][c]).join('');
+
+        // Check if selection matches this word (forward or reverse)
+        if (selectedStr === placedStr || selectedStrRev === placedStr) {
+          // Check cells match (forward or reverse)
+          const fwd = cells.length === p.cells.length && cells.every((cell, j) => cell.r === p.cells[j].r && cell.c === p.cells[j].c);
+          const rev = cells.length === p.cells.length && cells.every((cell, j) => cell.r === p.cells[p.cells.length - 1 - j].r && cell.c === p.cells[p.cells.length - 1 - j].c);
+
+          if (fwd || rev) {
+            markFound(p, i);
+            return;
+          }
+        }
+      }
+    }
+
+    function markFound(placement, wordIndex) {
+      state.foundWords.add(placement.word);
+      const colorIdx = wordIndex % 10;
+
+      // If this was the word currently being hinted, reset tip progression.
+      if (typeof tipState !== 'undefined' && tipState.word === placement.word) {
+        tipState.word = null;
+        tipState.count = 0;
+      }
+
+      placement.cells.forEach(({ r, c }) => {
+        const el = $(`cell-${r}-${c}`);
+        if (el) {
+          el.classList.remove('selecting');
+          el.classList.remove('hint');
+          el.classList.add('found', `found-${colorIdx}`);
+        }
+      });
+
+      // Update word chip
+      const chipIdx = state.words.indexOf(placement.word);
+      if (chipIdx >= 0) {
+        const chip = $('chip-' + chipIdx);
+        if (chip) chip.classList.add('found-word');
+      }
+
+      updateStats();
+      showFeedback('✅');
+
+      // Notify parent
+      const displayWord = state.displayWords[wordIndex] || placement.word;
+      window.parent.postMessage({
+        type: 'wordFound',
+        data: { word: displayWord, found: state.foundWords.size, total: state.words.length }
+      }, '*');
+
+      // dh:context — 通知 AI 用户找到了一个单词
+      window.parent.postMessage({
+        type: 'dh:context',
+        text: `用户找到了"${displayWord}"，已找到${state.foundWords.size}/${state.words.length}个`,
+        debounce: 2000
+      }, '*');
+
+      // Check if all found
+      if (state.foundWords.size === state.words.length) {
+        // dh:context — 全部找到
+        window.parent.postMessage({
+          type: 'dh:context',
+          text: `太棒了！用户找到了全部${state.words.length}个单词！`
+        }, '*');
+        setTimeout(() => {
+          showFeedback('🎉');
+          setTimeout(() => finishGame(), 600);
+        }, 400);
+      }
+    }
+
+    // =================== Pointer Events (drag + click-click) ===================
+    let isDragging = false;
+    let clickedCells = []; // for click-click mode: accumulated cells [{r,c}]
+
+    // Check if two hex cells are neighbors (offset hex grid, odd rows shifted right)
+    function areHexNeighbors(a, b) {
+      const dr = b.r - a.r;
+      const dc = b.c - a.c;
+      if (dr === 0) return Math.abs(dc) === 1;            // same row, left/right
+      if (Math.abs(dr) !== 1) return false;                // must be one row apart
+      const isOdd = a.r % 2 === 1;
+      if (isOdd) return dc === 0 || dc === 1;             // odd row: same col or +1
+      return dc === 0 || dc === -1;                        // even row: same col or -1
+    }
+
+    gridContainer.addEventListener('pointerdown', (e) => {
+      if (state.finished || state.words.length === 0) return;
+      const cell = getCellFromPointer(e);
+      if (!cell) return;
+      e.preventDefault();
+      isDragging = false;
+      dragStart = cell;
+      // Store pixel position relative to gridContainer
+      const rect = gridContainer.getBoundingClientRect();
+      dragStartPx = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      currentCells = [cell];
+      // Don't highlight here — let pointermove (drag) or pointerup (click) handle it
+      // to avoid flicker when click resets selection
+      gridContainer.setPointerCapture(e.pointerId);
+    });
+
+    gridContainer.addEventListener('pointermove', (e) => {
+      if (!dragStart || state.finished) return;
+      e.preventDefault();
+      const cell = getCellFromPointer(e);
+      if (!cell) return;
+      // If pointer moved to a different cell, it's a drag
+      if (cell.r !== dragStart.r || cell.c !== dragStart.c) isDragging = true;
+      if (isDragging) {
+        const rect = gridContainer.getBoundingClientRect();
+        const px = e.clientX - rect.left;
+        const py = e.clientY - rect.top;
+        const dx = px - dragStartPx.x;
+        const dy = py - dragStartPx.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 5) return;
+        const dir = snapDirection(dx, dy);
+        currentCells = getCellsAlongDirection(dragStart.r, dragStart.c, dir, dist);
+        highlightCells(currentCells);
+      }
+    });
+
+    gridContainer.addEventListener('pointerup', (e) => {
+      if (!dragStart) return;
+      e.preventDefault();
+
+      if (isDragging) {
+        // Drag mode: finalize
+        checkSelection(currentCells);
+        clearSelection();
+        clearClickedCells();
+        dragStart = null;
+        isDragging = false;
+        return;
+      }
+
+      // Click mode
+      const cell = getCellFromPointer(e);
+      dragStart = null;
+      isDragging = false;
+
+      if (!cell) { clearSelection(); clearClickedCells(); return; }
+
+      if (clickedCells.length === 0) {
+        // First click: mark start
+        startClickedCells(cell);
+      } else {
+        const last = clickedCells[clickedCells.length - 1];
+        const isAdjacentToLast = areHexNeighbors(last, cell);
+        const alreadySelected = clickedCells.some(c => c.r === cell.r && c.c === cell.c);
+
+        if (alreadySelected) {
+          // Clicked an already-selected cell: ignore
+        } else if (!isAdjacentToLast) {
+          // Not adjacent: reset and start fresh with this cell
+          clearSelection();
+          clearClickedCells();
+          startClickedCells(cell);
+        } else {
+          // Adjacent: tentatively add to path and verify it can still complete a word
+          const candidate = clickedCells.concat([cell]);
+          if (!isValidPrefix(candidate)) {
+            // Selection would no longer be a valid prefix of any unfound word:
+            // reset and start fresh from this cell (do not allow two incorrect cells).
+            clearSelection();
+            clearClickedCells();
+            startClickedCells(cell);
+            return;
+          }
+          clickedCells = candidate;
+          highlightCells(clickedCells);
+          // Mark first cell distinctly
+          const startEl = $(`cell-${clickedCells[0].r}-${clickedCells[0].c}`);
+          if (startEl) startEl.classList.add('click-start');
+
+          // Check if accumulated cells match a word
+          const beforeSize = state.foundWords.size;
+          checkSelection(clickedCells);
+          if (state.foundWords.size > beforeSize) {
+            clearSelection();
+            clearClickedCells();
+          }
+        }
+      }
+    });
+
+    gridContainer.addEventListener('pointercancel', () => {
+      clearSelection();
+      clearClickedCells();
+      dragStart = null;
+      isDragging = false;
+    });
+
+    function startClickedCells(cell) {
+      clickedCells = [cell];
+      clearSelection();
+      const el = $(`cell-${cell.r}-${cell.c}`);
+      if (el) el.classList.add('click-start', 'selecting');
+    }
+
+    function clearClickedCells() {
+      clickedCells.forEach(({ r, c }) => {
+        const el = $(`cell-${r}-${c}`);
+        if (el) el.classList.remove('click-start');
+      });
+      clickedCells = [];
+    }
+
+    // =================== Parse Input & Build Puzzle ===================
+    function onWordsChanged(text) {
+      const raw = (text || '').trim();
+      if (!raw) return;
+
+      // Split on any whitespace (newlines, spaces, tabs) or common separators (commas, semicolons, Chinese punctuation)
+      const lines = raw.split(/[\s,，、;；]+/).map(l => l.trim()).filter(l => l.length > 0).slice(0, 10);
+      if (lines.length === 0) return;
+
+      // Detect language
+      state.isChinese = lines.some(l => isChinese(l));
+
+      // Normalize: English → uppercase
+      state.displayWords = lines.map(w => state.isChinese ? w : w.toUpperCase());
+      // Truncate to MAX_CHAR_COUNT for grid placement / matching
+      state.words = state.displayWords.map(w => {
+        const chars = [...w];
+        return chars.length > MAX_CHAR_COUNT ? chars.slice(0, MAX_CHAR_COUNT).join('') : w;
+      });
+      state.wordChars = state.words.map(w => [...w]);
+      state.foundWords = new Set();
+
+      // Generate puzzle
+      generateGrid(state.words);
+
+      // Render
+      instructions.textContent = '在网格中找出所有单词，沿水平、垂直或对角线方向划线选择';
+      renderWordList();
+      renderGrid();
+      updateStats();
+    }
+
+    // =================== Observe AI Input ===================
+    function handleWordsInput() {
+      const raw = (wordsInput.value || '').trim();
+      if (raw) onWordsChanged(raw);
+    }
+    wordsInput.addEventListener('input', handleWordsInput);
+    const origDesc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+    Object.defineProperty(wordsInput, 'value', {
+      get() { return origDesc.get.call(this); },
+      set(v) { origDesc.set.call(this, v); handleWordsInput(); },
+      configurable: true
+    });
+
+    // =================== Game End ===================
+    function finishGame() {
+      state.finished = true;
+      gameArea.classList.add('hidden');
+      resultPage.classList.remove('hidden');
+
+      const total = state.words.length;
+      const found = state.foundWords.size;
+
+      $('statTotal').textContent = total;
+      $('statFound').textContent = found;
+
+      let comment = '继续加油哦！';
+      if (found === total && total > 0) comment = '全部找到，太厉害了！🎉';
+      else if (found >= total * 0.7) comment = '非常不错，找到了大部分！';
+      else if (found >= total * 0.4) comment = '还不错，多练习会更好！';
+      $('resultSummary').textContent = comment;
+
+      // dh:context — 通知 AI 游戏结束
+      window.parent.postMessage({
+        type: 'dh:context',
+        text: `找单词游戏结束，共${total}个单词，找到${found}个。${comment}`
+      }, '*');
+
+      // 5秒后自动发送 gameFinished
+      _autoFinishTimer = setTimeout(closeGame, 5000);
+    }
+
+    $('btnFinish').addEventListener('click', () => finishGame());
+
+    // =================== Tip / Hint ===================
+    // Each click of the tip button reveals one more letter of the current
+    // unfound word's placement. Once the word is fully revealed (or found),
+    // the next click advances to the next unfound word.
+    const tipState = { word: null, count: 0 };
+    function clearHintHighlights() {
+      gridContainer.querySelectorAll('.hex-cell.hint').forEach(el => el.classList.remove('hint'));
+    }
+    function showTip() {
+      if (state.finished || state.placements.length === 0) return;
+      const p = state.placements.find(pl => !state.foundWords.has(pl.word));
+      if (!p) { showFeedback('🎉'); return; }
+
+      // If we advanced to a different word (previous one was found or not yet
+      // hinted), restart the progressive reveal.
+      if (tipState.word !== p.word) {
+        tipState.word = p.word;
+        tipState.count = 0;
+      }
+
+      // Reveal one more letter, capped at the word length.
+      tipState.count = Math.min(tipState.count + 1, p.cells.length);
+
+      clearHintHighlights();
+      for (let i = 0; i < tipState.count; i++) {
+        const { r, c } = p.cells[i];
+        const el = $(`cell-${r}-${c}`);
+        if (el && !el.classList.contains('found') && !el.classList.contains('selecting')) {
+          el.classList.add('hint');
+        }
+      }
+    }
+    $('tipBtn').addEventListener('click', showTip);
+
+    let _autoFinishTimer = null;
+    function closeGame() {
+      if (_autoFinishTimer) { clearTimeout(_autoFinishTimer); _autoFinishTimer = null; }
+      const total = state.words.length;
+      const found = state.foundWords.size;
+      window.parent.postMessage({
+        type: 'gameFinished',
+        data: { total, found, comment: $('resultSummary').textContent || '' }
+      }, '*');
+    }
+
+    $('btnClose').addEventListener('click', closeGame);
+    $('btnResultClose').addEventListener('click', closeGame);
+
+    // =================== Dev Mode ===================
+    if (new URLSearchParams(window.location.search).get('dev') === 'true') {
+      const wrapper = $('inputWrapper');
+      wrapper.style.cssText = 'position:static;width:auto;height:auto;overflow:visible;';
+      wordsInput.style.cssText = 'display:block;width:100%;border:2px dashed #94a3b8;border-radius:8px;padding:12px;min-height:60px;font-family:monospace;font-size:14px;white-space:pre-wrap;background:#f8fafc;box-sizing:border-box;';
+
+      // Show finish button
+      $('btnFinish').parentElement.style.cssText = 'opacity:1;position:static;pointer-events:auto;margin-top:8px;';
+      $('btnFinish').style.cssText = 'padding:8px 20px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-right:8px;';
+      $('btnClose').style.cssText = 'padding:8px 20px;background:#64748b;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;';
+
+      // Example words
+      const example = 'HELLO\nWORLD\nCAT\nDOG';
+      wordsInput.value = example;
+      onWordsChanged(example);
+    }
+
+    // =================== Init ===================
+    window.parent.postMessage({ type: 'gameLoaded' }, '*');
+    })();
+  </script>
+</body>
+</html>

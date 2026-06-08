@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudDrive Test Page</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 960px; margin: 0 auto; padding: 20px;
+            background: #f0f2f5; color: #333;
+        }
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px;
+        }
+        .header h1 { margin: 0; font-size: 1.5em; }
+        .user-bar {
+            display: flex; align-items: center; gap: 10px; font-size: 14px;
+        }
+        .user-bar .avatar {
+            width: 32px; height: 32px; border-radius: 50%; background: #007bff;
+            color: white; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 14px;
+        }
+        .card {
+            background: white; padding: 20px; border-radius: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px;
+        }
+        .card h2 { margin: 0 0 14px; font-size: 1.15em; color: #444; }
+
+        button {
+            padding: 8px 18px; border: none; border-radius: 6px;
+            cursor: pointer; font-size: 14px; color: white;
+            transition: opacity .15s;
+        }
+        button:hover { opacity: 0.85; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: #007bff; }
+        .btn-success { background: #28a745; }
+        .btn-danger  { background: #dc3545; }
+        .btn-info    { background: #17a2b8; }
+        .btn-warning { background: #e0a800; color: #333; }
+        .btn-outline {
+            background: transparent; color: #007bff; border: 1px solid #007bff;
+        }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed #c0c0c0; border-radius: 10px;
+            padding: 40px 20px; text-align: center; color: #888;
+            cursor: pointer; transition: border-color .2s, background .2s;
+            position: relative;
+        }
+        .drop-zone.drag-over { border-color: #007bff; background: #e8f0fe; }
+        .drop-zone input[type="file"] {
+            position: absolute; inset: 0; opacity: 0; cursor: pointer;
+        }
+        .drop-zone .icon { font-size: 36px; margin-bottom: 8px; }
+        .drop-zone .hint { font-size: 13px; color: #aaa; }
+
+        .progress-bar {
+            width: 100%; height: 22px; background: #e9ecef;
+            border-radius: 11px; overflow: hidden; margin: 10px 0; display: none;
+        }
+        .progress-bar-inner {
+            height: 100%; background: linear-gradient(90deg,#007bff,#00b4d8);
+            transition: width .25s; text-align: center;
+            color: white; font-size: 11px; line-height: 22px;
+        }
+
+        /* File list */
+        .toolbar {
+            display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .toolbar input {
+            padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px;
+            font-size: 13px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px 10px; text-align: left; font-size: 13px; border-bottom: 1px solid #eee; }
+        th { background: #fafafa; font-weight: 600; position: sticky; top: 0; }
+        tr:hover td { background: #f8f9fa; }
+        .key-cell { font-size: 11px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-actions { display: flex; gap: 4px; }
+        .empty-state { text-align: center; padding: 30px; color: #aaa; }
+
+        /* Log */
+        #log {
+            background: #1e1e1e; color: #d4d4d4;
+            padding: 12px; border-radius: 6px;
+            font-family: 'Cascadia Code', Consolas, monospace;
+            font-size: 12px; max-height: 260px;
+            overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+        }
+        .log-ok  { color: #4ec9b0; }
+        .log-err { color: #f44747; }
+        .log-info{ color: #569cd6; }
+
+        /* Login overlay placeholder */
+        .login-prompt {
+            text-align: center; padding: 60px 20px;
+        }
+        .login-prompt p { margin-bottom: 16px; color: #666; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <h1>☁️ CloudDrive</h1>
+        <div class="user-bar" id="userBar">
+            <span id="userInfo">Not logged in</span>
+            <button class="btn-primary" id="loginBtn" onclick="doLogin()">Login</button>
+            <button class="btn-outline hidden" id="logoutBtn" onclick="doLogout()">Logout</button>
+        </div>
+    </div>
+
+    <!-- Login prompt (shown when not logged in) -->
+    <div class="card login-prompt" id="loginPrompt">
+        <div style="font-size:48px;margin-bottom:10px">🔒</div>
+        <p>Log in to your Keepwork account to manage your files.</p>
+        <button class="btn-primary" onclick="doLogin()" style="padding:12px 36px;font-size:16px">Login / Register</button>
+    </div>
+
+    <!-- Main content (hidden until logged in) -->
+    <div id="mainContent" class="hidden">
+
+        <!-- Upload -->
+        <div class="card">
+            <h2>Upload</h2>
+            <div class="drop-zone" id="dropZone">
+                <input type="file" id="fileInput" multiple>
+                <div class="icon">📁</div>
+                <div>Click or drag files here to upload</div>
+                <div class="hint">Files are uploaded to your personal Keepwork CDN folder</div>
+            </div>
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-bar-inner" id="progressInner">0%</div>
+            </div>
+            <div id="uploadStatus" style="font-size:13px;margin-top:6px;color:#666"></div>
+        </div>
+
+        <!-- File List -->
+        <div class="card">
+            <h2>My Files</h2>
+            <div class="toolbar">
+                <input type="text" id="listSearch" placeholder="🔍 Search files..." style="flex:1;min-width:160px">
+                <button class="btn-primary" onclick="doList()">Refresh</button>
+                <button class="btn-info" onclick="doInfo()">Storage Info</button>
+            </div>
+            <div id="fileListContainer">
+                <div class="empty-state">Click <b>Refresh</b> to load your files</div>
+            </div>
+            <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
+                <button class="btn-outline btn-sm" onclick="changePage(-1)">← Previous</button>
+                <span id="pageInfo" style="font-size:13px;line-height:30px;color:#888">Page 1</span>
+                <button class="btn-outline btn-sm" onclick="changePage(1)">Next →</button>
+            </div>
+        </div>
+
+        <!-- Storage Info -->
+        <pre id="infoResult" class="card hidden" style="font-size:13px;margin:0 0 16px;white-space:pre-wrap"></pre>
+    </div>
+
+    <!-- Log -->
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h2 style="margin:0;border:none;padding:0">Log</h2>
+            <button class="btn-warning btn-sm" onclick="clearLog()">Clear</button>
+        </div>
+        <div id="log"></div>
+    </div>
+
+<script type="module">
+// ── Bootstrap ──
+try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+
+const sdk = window.keepwork;
+const drive = sdk.cloudDrive;
+let currentPage = 1;
+const perPage = 10;
+
+// Expose to inline handlers
+Object.assign(window, {
+    doLogin, doLogout, doList, doInfo, doRename, doRemove, doRawUrl, doCopyUrl,
+    changePage, clearLog
+});
+
+// ── Auth / Login ──
+
+async function doLogin() {
+    try {
+        log('Opening login window...', 'info');
+        const res = await sdk.showLoginWindow({ title: 'CloudDrive Login' });
+        log('Login successful!', 'ok');
+        await onLoggedIn();
+    } catch (e) {
+        if (e && e.message === 'Login cancelled') {
+            log('Login cancelled', 'info');
+        } else {
+            log('Login error: ' + (e?.message || e), 'err');
+        }
+    }
+}
+
+function doLogout() {
+    sdk.setToken(null);
+    sdk.clearUserCache();
+    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    updateAuthUI(null);
+    log('Logged out', 'info');
+}
+
+async function onLoggedIn() {
+    try {
+        const user = await sdk.getUserProfile({ forceRefresh: true });
+        updateAuthUI(user);
+        log('Welcome, ' + (user.username || user.nickname || 'user') + '!', 'ok');
+        doList();
+    } catch (e) {
+        log('Failed to fetch profile: ' + e.message, 'err');
+        updateAuthUI(null);
+    }
+}
+
+function updateAuthUI(user) {
+    const loggedIn = !!user;
+    document.getElementById('loginPrompt').classList.toggle('hidden', loggedIn);
+    document.getElementById('mainContent').classList.toggle('hidden', !loggedIn);
+    document.getElementById('loginBtn').classList.toggle('hidden', loggedIn);
+    document.getElementById('logoutBtn').classList.toggle('hidden', !loggedIn);
+
+    if (user) {
+        const name = user.username || user.nickname || 'User';
+        const initial = name.charAt(0).toUpperCase();
+        document.getElementById('userInfo').innerHTML =
+            `<span class="avatar">${esc(initial)}</span> ${esc(name)}`;
+    } else {
+        document.getElementById('userInfo').textContent = 'Not logged in';
+    }
+}
+
+// ── Upload (drag & drop + click) ──
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) uploadFiles(fileInput.files);
+});
+
+async function uploadFiles(fileList) {
+    const bar = document.getElementById('progressBar');
+    const inner = document.getElementById('progressInner');
+    const status = document.getElementById('uploadStatus');
+    const files = Array.from(fileList);
+
+    bar.style.display = 'block';
+    let completed = 0;
+
+    for (const file of files) {
+        status.textContent = `Uploading ${completed + 1}/${files.length}: ${file.name}`;
+        inner.style.width = '0%';
+        inner.textContent = '0%';
+
+        try {
+            const result = await drive.upload(file, {
+                onProgress: ({ percent }) => {
+                    inner.style.width = percent + '%';
+                    inner.textContent = percent + '%';
+                }
+            });
+            completed++;
+            log(`✓ Uploaded: ${file.name} → key: ${result.key}`, 'ok');
+        } catch (e) {
+            log(`✗ Failed: ${file.name} — ${e.message}`, 'err');
+        }
+    }
+
+    status.textContent = `Done — ${completed}/${files.length} files uploaded.`;
+    inner.style.width = '100%';
+    inner.textContent = '100%';
+    fileInput.value = '';
+    doList();
+}
+
+// ── List ──
+
+async function doList() {
+    try {
+        const opts = { page: currentPage, perPage };
+        const search = document.getElementById('listSearch').value.trim();
+        if (search) opts.filename = search;
+
+        const res = await drive.list(opts);
+        const total = res.count ?? res.total ?? 0;
+        const files = res.rows || res.data || [];
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        document.getElementById('pageInfo').textContent = `Page ${currentPage} / ${totalPages} (${total} files)`;
+        renderFileTable(files);
+    } catch (e) {
+        log('List error: ' + e.message, 'err');
+    }
+}
+
+function changePage(delta) {
+    currentPage = Math.max(1, currentPage + delta);
+    doList();
+}
+
+function renderFileTable(files) {
+    const container = document.getElementById('fileListContainer');
+    if (!files.length) {
+        container.innerHTML = '<div class="empty-state">No files found</div>';
+        return;
+    }
+    let html = `<table>
+        <thead><tr><th>#</th><th>Filename</th><th>Key</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead><tbody>`;
+    files.forEach((f, i) => {
+        const id = f.id || f.key;
+        const size = f.size ? formatSize(f.size) : '-';
+        const date = f.createdAt ? new Date(f.createdAt).toLocaleDateString() : '-';
+        html += `<tr>
+            <td>${(currentPage - 1) * perPage + i + 1}</td>
+            <td>${esc(f.filename || f.key)}</td>
+            <td class="key-cell" title="${esc(f.key)}">${esc(f.key)}</td>
+            <td>${size}</td>
+            <td>${date}</td>
+            <td class="file-actions">
+                <button class="btn-info btn-sm"    onclick="doRawUrl('${escAttr(id)}')">Open</button>
+                <button class="btn-success btn-sm" onclick="doCopyUrl('${escAttr(id)}')">Copy URL</button>
+                <button class="btn-warning btn-sm" onclick="doRename('${escAttr(f.key)}','${escAttr(f.filename || '')}')">Rename</button>
+                <button class="btn-danger btn-sm"  onclick="doRemove('${escAttr(id)}')">Delete</button>
+            </td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+// ── File actions ──
+
+async function doRawUrl(id) {
+    try {
+        const url = await drive.getRawUrl(id);
+        log('Opened: ' + url, 'ok');
+        window.open(url, '_blank');
+    } catch (e) { log('getRawUrl error: ' + e.message, 'err'); }
+}
+
+async function doCopyUrl(id) {
+    try {
+        const url = await drive.getRawUrl(id);
+        await navigator.clipboard.writeText(url);
+        log('Copied URL: ' + url, 'ok');
+    } catch (e) { log('Copy URL error: ' + e.message, 'err'); }
+}
+
+async function doRename(key, oldName) {
+    const newName = prompt('New filename:', oldName);
+    if (!newName) return;
+    try {
+        await drive.rename(key, newName);
+        log('Renamed → ' + newName, 'ok');
+        doList();
+    } catch (e) { log('Rename error: ' + e.message, 'err'); }
+}
+
+async function doRemove(id) {
+    if (!confirm('Delete this file permanently?')) return;
+    try {
+        await drive.remove(id);
+        log('Deleted: ' + id, 'ok');
+        doList();
+    } catch (e) { log('Delete error: ' + e.message, 'err'); }
+}
+
+// ── Info ──
+async function doInfo() {
+    try {
+        const res = await drive.info();
+        const el = document.getElementById('infoResult');
+        el.textContent = JSON.stringify(res, null, 2);
+        el.classList.remove('hidden');
+        log('Storage info fetched', 'ok');
+    } catch (e) { log('Info error: ' + e.message, 'err'); }
+}
+
+// ── Helpers ──
+function log(msg, type) {
+    const el = document.getElementById('log');
+    const cls = type === 'ok' ? 'log-ok' : type === 'err' ? 'log-err' : 'log-info';
+    el.innerHTML += `<span class="${cls}">[${new Date().toLocaleTimeString()}] ${esc(msg)}</span>\n`;
+    el.scrollTop = el.scrollHeight;
+}
+function clearLog() { document.getElementById('log').innerHTML = ''; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escAttr(s) { return esc(String(s)); }
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// ── Auto-init: check existing token ──
+log('CloudDrive ready. Gateway: ' + drive._getStorageBase(), 'info');
+if (sdk.token) {
+    log('Token detected, fetching profile...', 'info');
+    onLoggedIn();
+} else {
+    updateAuthUI(null);
+    log('No token found — please log in.', 'info');
+}
+</script>
+</body>
+</html>

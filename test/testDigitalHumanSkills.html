@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Skills</title>
+  <!-- dev server 从本地 .env 注入 window.__TEST_SECRETS__（含 VOLC_ACCESS_TOKEN）；生产/Git 不含真值 -->
+  <script src="/test/env.js"></script>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  
+  <script>
+    tailwind.config = { theme: { extend: {} } }
+  </script>
+  <style>
+    .phone-btn { width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; background: #f1f5f9; color: #64748b; flex-shrink: 0; }
+    .phone-btn:hover { background: #e2e8f0; }
+    .phone-btn.calling { background: #fee2e2; color: #dc2626; animation: phonePulse 1.5s ease infinite; }
+    .phone-btn:disabled { opacity: 0.5; cursor: default; animation: none; }
+    @keyframes phonePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.3); } 50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); } }
+    .vc-status { font-size: 11px; color: #94a3b8; min-height: 16px; }
+    .vc-status.active { color: #16a34a; }
+    .vc-status.connecting { color: #d97706; }
+    .vc-status.error { color: #dc2626; }
+    .chat-bubble { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    #chat-messages::-webkit-scrollbar { width: 4px; }
+    #chat-messages::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 2px; }
+    .tool-bubble { position: relative; cursor: default; }
+    .tool-bubble .tool-tip { display: none; position: absolute; left: 0; bottom: 100%; margin-bottom: 4px; background: #1e293b; color: #e2e8f0; font-size: 11px; padding: 6px 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-width: 400px; max-height: 200px; overflow: auto; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.4; }
+    .tool-bubble:hover .tool-tip { display: block; }
+    .auth-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 9999px; background: linear-gradient(135deg, rgba(248,250,252,0.96), rgba(241,245,249,0.96)); box-shadow: 0 2px 10px rgba(15,23,42,0.06); }
+    .auth-chip-avatar { width: 30px; height: 30px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; font-size: 13px; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+    .auth-chip-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .auth-chip-info { display: flex; flex-direction: column; min-width: 0; }
+    .auth-chip-label { font-size: 10px; line-height: 1.1; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; }
+    .auth-chip-name { font-size: 13px; line-height: 1.2; color: #0f172a; font-weight: 600; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .auth-chip-actions { display: inline-flex; gap: 6px; align-items: center; }
+    .auth-btn { border: 1px solid #cbd5e1; border-radius: 9999px; background: #fff; color: #334155; font-size: 12px; line-height: 1; padding: 8px 12px; cursor: pointer; transition: all 0.2s; }
+    .auth-btn:hover { background: #f8fafc; border-color: #94a3b8; }
+    .auth-btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .auth-btn.primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+    .auth-btn:disabled { opacity: 0.6; cursor: default; }
+    .action-dropdown-wrapper { position: absolute; top: 4px; right: 4px; z-index: 70; }
+    .action-dropdown-btn { width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; background: rgba(255,255,255,0.85); color: #475569; box-shadow: 0 1px 4px rgba(0,0,0,0.15); transition: background 0.2s; }
+    .action-dropdown-btn:hover { background: #fff; }
+    .action-dropdown-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 4px; background: #fff; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); min-width: 120px; max-height: 260px; overflow-y: auto; padding: 4px 0; z-index: 71; }
+    .action-dropdown-menu.open { display: block; }
+    .action-dropdown-menu button { display: block; width: 100%; text-align: left; padding: 6px 12px; border: none; background: none; cursor: pointer; font-size: 12px; color: #334155; white-space: nowrap; }
+    .action-dropdown-menu button:hover { background: #f1f5f9; }
+    .skill-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    /* Workspace Viewer Panel */
+    .ws-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(800px, 100vw); z-index: 900; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; background: #fff; box-shadow: -4px 0 24px rgba(0,0,0,0.15); }
+    .ws-panel.open { transform: translateX(0); }
+    .ws-panel-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: linear-gradient(135deg, #0f766e, #0ea5a4); color: #ecfeff; flex-shrink: 0; }
+    .ws-panel-header span { font-size: 13px; font-weight: 700; flex: 1; }
+    .ws-panel-header button { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+    .ws-panel-header button:hover { background: rgba(255,255,255,0.35); }
+    .ws-panel-body { flex: 1; min-height: 0; overflow: hidden; }
+    .ws-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.2); z-index: 899; display: none; }
+    .ws-backdrop.open { display: block; }
+  </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col p-4">
+
+  <!-- Header -->
+  <div class="mb-4 bg-white p-4 rounded shadow">
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+      <div>
+        <h1 class="text-2xl font-bold mb-1">🧠 Skill 测试：记忆训练</h1>
+        <p class="text-sm text-gray-500">基于 DigitalHumanFrame + Skill 系统，测试 memory-practice 小游戏流程</p>
+      </div>
+      <div id="auth-chip" class="auth-chip">
+        <div id="auth-avatar" class="auth-chip-avatar">?</div>
+        <div class="auth-chip-info">
+          <span class="auth-chip-label">Keepwork</span>
+          <span id="auth-username" class="auth-chip-name">检查登录状态…</span>
+        </div>
+        <div class="auth-chip-actions">
+          <button id="btn-signin" class="auth-btn primary" type="button">登录</button>
+          <button id="btn-signout" class="auth-btn" type="button">退出</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-2 flex-wrap items-center">
+      <button id="btnInit" class="px-4 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 shadow-sm text-sm">⚡ 初始化数字人</button>
+      <span id="skill-buttons" class="flex gap-2 flex-wrap items-center"></span>
+      <span class="text-xs text-gray-400 ml-1">workspace: <span id="label-workspace" class="font-mono text-gray-500">—</span></span>
+      <span class="text-xs text-gray-400 ml-1">mountFolder: <span id="label-mountFolder" class="font-mono text-purple-500">—</span></span>
+      <button id="btn-workspace" class="px-3 py-1.5 bg-teal-500 text-white rounded hover:bg-teal-600 shadow-sm text-sm">📁</button>
+      <button id="btn-reset-minigame" class="px-3 py-1.5 bg-gray-500 text-white rounded hover:bg-gray-600 shadow-sm text-sm" disabled>🎮 Reset Window</button>
+
+      <div class="flex items-center gap-2 ml-auto">
+        <div class="relative">
+          <input id="user-input" type="text" class="px-3 py-1.5 rounded border shadow-sm w-64 text-sm pr-7" placeholder="和数字人对话…" disabled>
+          <button id="preset-dropdown-btn" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs leading-none" title="快捷输入">▼</button>
+          <div id="preset-dropdown" class="hidden absolute top-full left-0 mt-1 bg-white border rounded shadow-lg z-50 w-64 text-sm">
+            <div class="preset-item px-3 py-1.5 hover:bg-blue-50 cursor-pointer truncate" data-value="我们来做个记忆训练吧">我们来做个记忆训练吧</div>
+            <div class="preset-item px-3 py-1.5 hover:bg-blue-50 cursor-pointer truncate" data-value="我昨天去了超市">我昨天去了超市</div>
+            <div class="preset-item px-3 py-1.5 hover:bg-blue-50 cursor-pointer truncate" data-value="不记得了">不记得了</div>
+            <div class="preset-item px-3 py-1.5 hover:bg-blue-50 cursor-pointer truncate" data-value="结束吧">结束吧</div>
+            <div class="preset-item px-3 py-1.5 hover:bg-blue-50 cursor-pointer truncate" data-value="/context 我前天吃了火锅">/context 我前天吃了火锅</div>
+          </div>
+        </div>
+        <button id="btnChat" class="px-4 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 shadow-sm transition-transform active:scale-95 text-sm" disabled>发送</button>
+        <button id="phone-btn" class="phone-btn" title="语音聊天" disabled>📞</button>
+        <button id="mute-btn" class="phone-btn hidden" title="静音" disabled>🎙️</button>
+        <div id="vc-status-bar" class="vc-status hidden ml-2"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Main Layout -->
+  <div class="flex flex-1 gap-4 overflow-hidden relative">
+    <!-- Chat Messages + Log -->
+    <div class="flex-1 flex flex-col gap-2 overflow-hidden">
+      <div id="chat-messages" class="h-[50%] bg-white rounded shadow p-3 overflow-y-auto space-y-2"></div>
+      <div class="flex-1 bg-gray-900 text-green-400 p-4 rounded shadow font-mono text-sm overflow-y-auto whitespace-pre-wrap" id="log"></div>
+    </div>
+
+    <!-- Minigame iframe overlay is created on-demand by MinigameTools -->
+
+    <!-- Avatar Container -->
+    <div id="avatar-root" class="bg-transparent overflow-hidden rounded shadow-lg absolute right-4 bottom-4" style="width: 300px; height: 400px; z-index: 50;">
+      <div id="drag-overlay" style="position:absolute;inset:0;z-index:60;cursor:grab;touch-action:none;"></div>
+    </div>
+    <!-- Action dropdown -->
+    <div id="action-dropdown-wrapper" class="action-dropdown-wrapper" style="display:none; position:absolute; right:8px; bottom:372px; z-index:70;">
+      <button id="action-dropdown-btn" class="action-dropdown-btn" title="动作">🎬</button>
+      <div id="action-dropdown-menu" class="action-dropdown-menu"></div>
+    </div>
+  </div>
+
+  <!-- Workspace Viewer Slide Panel -->
+  <div id="ws-backdrop" class="ws-backdrop"></div>
+  <div id="ws-panel" class="ws-panel">
+    <div class="ws-panel-header">
+      <span>📁 Workspace</span>
+      <button id="ws-close" title="Close">✕</button>
+    </div>
+    <div id="ws-panel-body" class="ws-panel-body"></div>
+  </div>
+
+  <script type="module">
+    try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+    // 火山引擎 AccessToken：dev server 从 .env 注入真值；缺失时回落占位符（需手动填写）。
+    const VOLC_ACCESS_TOKEN = (window.__TEST_SECRETS__ && window.__TEST_SECRETS__.VOLC_ACCESS_TOKEN) || 'YOUR_VOLC_ACCESS_TOKEN';
+    const { createWorkspaceViewer } = await import('../src/ui/WorkspaceViewer.ts');
+    
+    // ── Helpers ──
+    function ensureSDK() {
+      if (!window.keepwork) window.keepwork = new KeepworkSDK();
+      return window.keepwork;
+    }
+
+    const logEl = document.getElementById('log');
+    const chatMessages = document.getElementById('chat-messages');
+
+    function log(msg, id) {
+      console.log(id ? `[${id}] ${msg}` : msg);
+      if (id) {
+        let el = logEl.querySelector(`[data-log-id="${id}"]`);
+        if (el) { el.textContent = msg; logEl.scrollTop = logEl.scrollHeight; return; }
+        el = document.createElement('span');
+        el.dataset.logId = id;
+        el.textContent = msg;
+        logEl.appendChild(el);
+        logEl.appendChild(document.createTextNode('\n'));
+      } else {
+        logEl.appendChild(document.createTextNode(msg + '\n'));
+      }
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatHistoryTimestamp(value) {
+      if (value == null) return '';
+      const normalized = typeof value === 'string' && !value.includes('T') ? value.replace(' ', 'T') : value;
+      const date = new Date(normalized);
+      if (isNaN(date.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+
+    function addChatMessage(text, isUser, id, options = {}) {
+      const { timestampLabel = '' } = options;
+      if (id) {
+        const existing = chatMessages.querySelector(`[data-msg-id="${id}"]`);
+        if (existing) {
+          const bubble = existing.querySelector('.msg-content');
+          if (bubble) bubble.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          return existing;
+        }
+      }
+      const wrapper = document.createElement('div');
+      wrapper.className = 'chat-bubble flex ' + (isUser ? 'justify-end' : 'justify-start');
+      if (id) wrapper.dataset.msgId = id;
+
+      const stack = document.createElement('div');
+      stack.className = 'flex flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start');
+
+      if (timestampLabel) {
+        const timeEl = document.createElement('div');
+        timeEl.className = 'msg-timestamp px-1 text-[11px] leading-none text-gray-400';
+        timeEl.textContent = timestampLabel;
+        stack.appendChild(timeEl);
+      }
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-content max-w-[95%] px-3 py-2 rounded-2xl text-sm leading-relaxed ' + (isUser ? 'text-white' : 'bg-gray-100 text-gray-800');
+      if (isUser) bubble.style.cssText = 'background: linear-gradient(135deg, #3b82f6, #2563eb);';
+      bubble.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+      stack.appendChild(bubble);
+      wrapper.appendChild(stack);
+      chatMessages.appendChild(wrapper);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return wrapper;
+    }
+
+    function addSystemMessage(text) {
+      const div = document.createElement('div');
+      div.className = 'text-center text-[11px] text-gray-400 py-1';
+      div.textContent = text;
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function formatRestartAgentMessage(data = {}) {
+      const stageText = {
+        start: '开始切换 Agent',
+        config: '已加载 Agent 配置',
+        queued: '排队切换 Agent',
+        complete: '已切换 Agent',
+        failed: '切换 Agent 失败',
+      }[data.stage] || 'Agent 状态更新';
+      const prompt = data.promptFile ? `：${data.promptFile}` : '：默认配置';
+      const tools = Array.isArray(data.tools) && data.tools.length ? ` (${data.tools.join(', ')})` : '';
+      const error = data.error ? ` - ${data.error}` : '';
+      return `🔁 ${stageText}${prompt}${tools}${error}`;
+    }
+
+    function finalizeStreamingMessage(id = 'streaming') {
+      const el = chatMessages.querySelector(`[data-msg-id="${id}"]`);
+      if (el) el.removeAttribute('data-msg-id');
+    }
+
+    // ── Tool call bubble tracking ──
+    const _pendingToolCalls = {};
+
+    function addToolCallBubble(name, args) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'chat-bubble tool-bubble flex justify-start';
+      wrapper.dataset.toolName = name;
+      const bubble = document.createElement('div');
+      bubble.className = 'max-w-[85%] px-3 py-1.5 rounded-2xl text-xs leading-relaxed bg-amber-50 text-amber-800 border border-amber-200';
+      bubble.innerHTML = `🔧 <b>${escapeHtml(name)}</b> <span class="text-amber-500">running…</span>`;
+      const tip = document.createElement('div');
+      tip.className = 'tool-tip';
+      tip.textContent = 'Input: ' + JSON.stringify(args, null, 2);
+      wrapper.appendChild(tip);
+      wrapper.appendChild(bubble);
+      chatMessages.appendChild(wrapper);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      _pendingToolCalls[name] = { wrapper, bubble, tip };
+      return wrapper;
+    }
+
+    function updateToolCallResult(name, result) {
+      const entry = _pendingToolCalls[name];
+      if (!entry) return;
+      const resultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+      const short = resultStr.length > 60 ? resultStr.slice(0, 60) + '…' : resultStr;
+      entry.bubble.innerHTML = `🔧 <b>${escapeHtml(name)}</b> <span class="text-green-600">✓</span> <span class="text-gray-400 text-[10px]">${escapeHtml(short)}</span>`;
+      entry.tip.textContent += '\n\nOutput: ' + resultStr;
+      delete _pendingToolCalls[name];
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // ── Auth UI ──
+    const authAvatar = document.getElementById('auth-avatar');
+    const authUsername = document.getElementById('auth-username');
+    const btnSignIn = document.getElementById('btn-signin');
+    const btnSignOut = document.getElementById('btn-signout');
+
+    function setAuthBusy(b) { btnSignIn.disabled = b; btnSignOut.disabled = b; }
+
+    function renderSignedOut() {
+      authAvatar.textContent = '?';
+      authUsername.textContent = '未登录';
+      btnSignIn.classList.remove('hidden');
+      btnSignOut.classList.add('hidden');
+    }
+
+    function renderSignedIn(profile) {
+      const name = profile?.nickname || profile?.username || `User #${profile?.id || ''}`;
+      const portrait = profile?.portrait;
+      if (portrait) authAvatar.innerHTML = `<img src="${escapeHtml(portrait)}" alt="avatar">`;
+      else authAvatar.textContent = (name || '?').trim().charAt(0).toUpperCase() || '?';
+      authUsername.textContent = name;
+      btnSignIn.classList.add('hidden');
+      btnSignOut.classList.remove('hidden');
+    }
+
+    async function refreshAuthUi(options = {}) {
+      const sdk = ensureSDK();
+      try {
+        const profile = await sdk.getUserProfile({ useCache: !options.forceRefresh, forceRefresh: options.forceRefresh });
+        if (profile?.id || profile?.username) { renderSignedIn(profile); return profile; }
+      } catch (err) { if (!options.silent) log(`Auth refresh failed: ${err.message}`); }
+      renderSignedOut();
+      return null;
+    }
+
+    btnSignIn.addEventListener('click', async () => {
+      setAuthBusy(true);
+      try {
+        const result = await ensureSDK().showLoginWindow({ title: '' });
+        if (result?.token) log('登录成功');
+        await refreshAuthUi({ forceRefresh: true, silent: true });
+      } catch (err) { if (err?.message) log(`登录失败: ${err.message}`); }
+      finally { setAuthBusy(false); }
+    });
+
+    btnSignOut.addEventListener('click', async () => {
+      setAuthBusy(true);
+      try { await ensureSDK().logout(); log('已退出'); } catch (err) { log(`退出失败: ${err.message}`); }
+      finally { renderSignedOut(); setAuthBusy(false); }
+    });
+
+    // ── Preset dropdown ──
+    const presetDropdownBtn = document.getElementById('preset-dropdown-btn');
+    const presetDropdown = document.getElementById('preset-dropdown');
+    const userInput = document.getElementById('user-input');
+    presetDropdownBtn.addEventListener('click', () => presetDropdown.classList.toggle('hidden'));
+    document.querySelectorAll('.preset-item').forEach(item => {
+      item.addEventListener('click', () => {
+        userInput.value = item.dataset.value;
+        presetDropdown.classList.add('hidden');
+        userInput.focus();
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (!presetDropdownBtn.contains(e.target) && !presetDropdown.contains(e.target)) presetDropdown.classList.add('hidden');
+    });
+
+    // ── Main state ──
+    let dhf = null;
+    let workspaceViewer = null;
+    const btnInit = document.getElementById('btnInit');
+    const skillButtonsContainer = document.getElementById('skill-buttons');
+
+    // ── Skills config: add new skills here to auto-generate buttons ──
+    const SKILLS = [
+      { id: 'memory-practice',  label: '记忆训练',     icon: '🎮', color: 'green',   systemMsg: '🎮 正在启动记忆训练 Skill…' },
+      { id: 'find-word',        label: '找单词',       icon: '🔍', color: 'purple',  systemMsg: '🔍 正在启动找单词 Skill…' },
+      { id: 'life-quiz',        label: '时光机问答',   icon: '⏳', color: 'blue',    systemMsg: '⏳ 正在启动时光机问答 Skill…' },
+      { id: 'who-am-i',         label: '猜猜是谁',     icon: '🕵️', color: 'indigo',  systemMsg: '🕵️ 正在启动猜猜是谁 Skill…' },
+      { id: 'true-or-false',    label: '真真假假',     icon: '🎭', color: 'red',     systemMsg: '🎭 正在启动真真假假 Skill…' },
+      { id: 'hometown-tour',    label: '家乡寻宝',     icon: '🏞️', color: 'emerald', systemMsg: '🏞️ 正在启动家乡寻宝 Skill…' },
+      { id: 'story-fill-blank', label: '故事填空',     icon: '✏️', color: 'orange',  systemMsg: '✏️ 正在启动故事填空 Skill…' },
+      { id: 'family-match',     label: '亲情连连看',   icon: '💞', color: 'pink',    systemMsg: '💞 正在启动亲情连连看 Skill…' },
+      { id: 'life-timeline',    label: '人生时间线',   icon: '📜', color: 'cyan',    systemMsg: '📜 正在启动人生时间线 Skill…' },
+      { id: 'old-song-lyrics',  label: '老歌接词',     icon: '🎵', color: 'rose',    systemMsg: '🎵 正在启动老歌接词 Skill…' },
+      { id: 'read-sentence',    label: '外语跟读',     icon: '🎙️', color: 'sky',     systemMsg: '🎙️ 正在启动外语跟读 Skill…' },
+      { id: 'xiangqi',          label: '象棋对弈',     icon: '♟️', color: 'amber',   systemMsg: '♟️ 正在启动象棋对弈 Skill…' },
+    ];
+    const skillButtons = {};
+    for (const skill of SKILLS) {
+      const btn = document.createElement('button');
+      btn.id = `btnSkill-${skill.id}`;
+      btn.className = `px-4 py-1.5 bg-${skill.color}-500 text-white rounded hover:bg-${skill.color}-600 shadow-sm text-sm`;
+      btn.disabled = true;
+      btn.textContent = `${skill.icon} ${skill.label}`;
+      btn.onclick = () => startSkill(skill);
+      skillButtonsContainer.appendChild(btn);
+      skillButtons[skill.id] = btn;
+    }
+
+    async function startSkill(skill) {
+      if (!dhf) { log('请先初始化数字人'); return; }
+      const btn = skillButtons[skill.id];
+      btn.disabled = true;
+      addSystemMessage(skill.systemMsg);
+      log('发送 Skill 启动指令…');
+      const prompt = `请调用${skill.id} SKILL`;
+      try {
+        const result = await dhf.send(prompt);
+        log(`Skill 启动消息已发送 (${result?.finalText?.length || 0} chars)`);
+      } catch (err) {
+        log(`Skill 启动失败: ${err.message}`);
+        addChatMessage('启动失败: ' + err.message, false);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    const btnChat = document.getElementById('btnChat');
+    const phoneBtn = document.getElementById('phone-btn');
+    const muteBtn = document.getElementById('mute-btn');
+    const vcStatusBar = document.getElementById('vc-status-bar');
+    const btnWorkspace = document.getElementById('btn-workspace');
+    const btnResetMinigame = document.getElementById('btn-reset-minigame');
+
+    btnResetMinigame.addEventListener('click', () => {
+      try {
+        const minigameTools = window.keepwork?.__minigameTools;
+        if (!minigameTools) { log('[Minigame] no minigameTools instance'); return; }
+        minigameTools.configure({
+          left: '20px',
+          top: '50%',
+          width: 500,
+          height: 500,
+          showTitleBar: true,
+          showCloseButton: true,
+          borderRadius: '12px',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
+          zIndex: 9999,
+        });
+        // Fix vertical centering: offset by half height
+        const container = document.getElementById('keepwork-minigame-container');
+        if (container) {
+          container.style.transform = 'translateY(-50%)';
+        }
+        log('[Minigame] window reset: 500×500, left center, with title bar');
+      } catch (err) {
+        log(`[Minigame] reset failed: ${err.message}`);
+      }
+    });
+
+    // ── Workspace Viewer Panel ──
+    const wsPanel = document.getElementById('ws-panel');
+    const wsBackdrop = document.getElementById('ws-backdrop');
+    const wsPanelBody = document.getElementById('ws-panel-body');
+
+    function getWorkspaceViewerParams() {
+      const workspace = dhf?.workspace
+        || dhf?.characterConfig?.tools?.fileOps?.workspace
+        || dhf?.characterConfig?.workspace
+        || 'silvermind';
+      const mountFolder = dhf?.mountFolder
+        || dhf?.characterConfig?.tools?.fileOps?.mountFolder
+        || dhf?.characterConfig?.mountFolder
+        || '';
+      return { workspace, mountFolder };
+    }
+
+    function mountWorkspaceViewer() {
+      const { workspace, mountFolder } = getWorkspaceViewerParams();
+      if (workspaceViewer) {
+        workspaceViewer.destroy();
+        workspaceViewer = null;
+      }
+      wsPanelBody.innerHTML = '';
+      workspaceViewer = createWorkspaceViewer({
+        container: wsPanelBody,
+        sdk: ensureSDK(),
+        workspace,
+        mountFolder,
+        compact: true,
+      });
+      log(`[WorkspaceViewer] workspace=${workspace}, mountFolder=${mountFolder || '—'}`);
+    }
+
+    function openWorkspacePanel() {
+      mountWorkspaceViewer();
+      wsPanel.classList.add('open');
+      wsBackdrop.classList.add('open');
+    }
+
+    function closeWorkspacePanel() {
+      wsPanel.classList.remove('open');
+      wsBackdrop.classList.remove('open');
+      if (workspaceViewer) {
+        workspaceViewer.destroy();
+        workspaceViewer = null;
+      }
+      wsPanelBody.innerHTML = '';
+    }
+
+    btnWorkspace.addEventListener('click', () => {
+      if (wsPanel.classList.contains('open')) closeWorkspacePanel();
+      else openWorkspacePanel();
+    });
+    document.getElementById('ws-close').addEventListener('click', closeWorkspacePanel);
+    wsBackdrop.addEventListener('click', closeWorkspacePanel);
+
+    // ── Action Dropdown ──
+    const actionDropdownWrapper = document.getElementById('action-dropdown-wrapper');
+    const actionDropdownBtn = document.getElementById('action-dropdown-btn');
+    const actionDropdownMenu = document.getElementById('action-dropdown-menu');
+
+    actionDropdownBtn.addEventListener('click', (e) => { e.stopPropagation(); actionDropdownMenu.classList.toggle('open'); });
+    document.addEventListener('click', (e) => { if (!actionDropdownWrapper.contains(e.target)) actionDropdownMenu.classList.remove('open'); });
+
+    function positionDropdown() {
+      const avatarRoot = document.getElementById('avatar-root');
+      const parentRect = avatarRoot.offsetParent?.getBoundingClientRect() || { left: 0, top: 0 };
+      const rect = avatarRoot.getBoundingClientRect();
+      actionDropdownWrapper.style.left = (rect.right - parentRect.left - 36) + 'px';
+      actionDropdownWrapper.style.top = (rect.top - parentRect.top + 4) + 'px';
+      actionDropdownWrapper.style.bottom = 'auto';
+      actionDropdownWrapper.style.right = 'auto';
+    }
+
+    function buildActionButtons(videoActions) {
+      actionDropdownMenu.innerHTML = '';
+      if (!dhf || !videoActions) { actionDropdownWrapper.style.display = 'none'; return; }
+      const actions = Object.keys(videoActions);
+      if (actions.length === 0) { actionDropdownWrapper.style.display = 'none'; return; }
+      for (const actionStr of actions) {
+        const actionKey = actionStr.split('|')[0];
+        const btn = document.createElement('button');
+        btn.textContent = actionStr;
+        btn.addEventListener('click', () => {
+          if (!dhf) return;
+          dhf.playAction(actionKey, 3);
+          log(`playAction('${actionKey}', 3)`);
+          actionDropdownMenu.classList.remove('open');
+        });
+        actionDropdownMenu.appendChild(btn);
+      }
+      actionDropdownWrapper.style.display = '';
+      positionDropdown();
+    }
+
+    // ── Wire events ──
+    function wireEvents(instance) {
+      const iframeHandler = (e) => {
+        if (!e.data || e.data.type !== 'dhf:event') return;
+        const evName = e.data.event;
+        if (!['message'].includes(evName)) {
+          log(`[DHF Event] ${evName}: ${JSON.stringify(e.data.data)?.slice(0, 150) || ''}`);
+        }
+      };
+      window.addEventListener('message', iframeHandler);
+      instance._debugCleanup = () => window.removeEventListener('message', iframeHandler);
+
+      instance.on('avatarReady', (data) => log(`Event: avatarReady (${data.mode})`));
+      instance.on('message', (data) => {
+        log(`Event: message -> ${data.partialText}`, 'stream-log');
+        if (data.partialText) addChatMessage(data.partialText, false, 'streaming');
+      });
+      instance.on('userMessage', (data) => {
+        const text = data?.text || '';
+        log(`Event: userMessage -> ${text.slice(0, 80)}`);
+        if (text) addChatMessage(text, true);
+      });
+      instance.on('restartAgent', (data) => {
+        log(`Event: restartAgent -> ${JSON.stringify(data)?.slice(0, 150) || ''}`);
+        addSystemMessage(formatRestartAgentMessage(data));
+      });
+      instance.on('complete', (data) => {
+        log('Event: complete');
+        const el = logEl.querySelector('[data-log-id="stream-log"]');
+        if (el) delete el.dataset.logId;
+        finalizeStreamingMessage('streaming');
+      });
+      instance.on('toolCall', (data) => {
+        log(`Event: toolCall -> ${data.name}(${JSON.stringify(data.args || {}).slice(0, 80)})`);
+        addToolCallBubble(data.name, data.args || {});
+      });
+      instance.on('toolResult', (data) => {
+        const result = data.result ?? data.content ?? '';
+        const short = (typeof result === 'string' ? result : JSON.stringify(result)).slice(0, 80);
+        log(`Event: toolResult -> ${data.name || data.toolCallId || '?'} (${short})`);
+        if (data.name) updateToolCallResult(data.name, result);
+      });
+      instance.on('error', (err) => log(`Event: error -> ${err.message || JSON.stringify(err)}`));
+      instance.on('textSpeechStart', (data) => log(`Event: textSpeechStart`));
+      instance.on('textSpeechEnd', (data) => log(`Event: textSpeechEnd`));
+      instance.on('voiceChatState', (data) => {
+        log(`Event: voiceChatState -> ${data.label} (${data.code})`);
+        vcStatusBar.textContent = data.label;
+        vcStatusBar.className = 'vc-status ml-2 ' + (data.code === 2 ? 'active' : 'connecting');
+      });
+      instance.on('subtitle', (data) => {
+        const prefix = data.isUser ? '[用户语音]' : '[数字人语音]';
+        const suffix = data.definite ? ' (Final)' : ' ...';
+        const logKey = `vc_${data.roundId || 'vc'}_${data.isUser ? 'user' : 'ai'}`;
+        log(`${prefix}: ${data.text}${suffix}`, data.definite ? undefined : logKey);
+        if (data.definite) {
+          const el = logEl.querySelector(`[data-log-id="${logKey}"]`);
+          if (el) delete el.dataset.logId;
+        }
+        if (data.text) {
+          const key = `${data.roundId || 'vc'}_${data.isUser ? 'user' : 'ai'}`;
+          addChatMessage(data.text, data.isUser, key);
+          if (data.paragraph) finalizeStreamingMessage(key);
+        }
+      });
+      instance.on('bracketAction', (data) => {
+        const played = data.autoPlayed ? ' (auto-played)' : '';
+        log(`BracketAction: ${data.actionKey} [${data.bracketText}]${played}`);
+      });
+      instance.on('welcome', (data) => {
+        if (data?.message) addChatMessage(data.message, false, 'welcome');
+        log('Welcome: ' + (data?.message || '').slice(0, 50));
+      });
+      instance.on('command', (data) => {
+        if (data.error) {
+          addSystemMessage(`⚠️ /${data.name} ${data.error}`);
+        } else {
+          log(`Command: /${data.name}`);
+          addSystemMessage(`⚡ /${data.name}`);
+        }
+      });
+    }
+
+    // ── Voice chat config ──
+    function getVoiceChatConfig() {
+      return {
+        appId: '69883f4ae00f9e017600b901',
+        agentUserId: 'ChatBot01',
+        agentConfig: {
+          WelcomeMessage: '你好呀！我是拉拉，很高兴见到你！',
+          UserId: 'ChatBot01',
+          EnableConversationStateCallback: true,
+        },
+        config: {
+          ASRConfig: {
+            Provider: 'volcano',
+            ProviderParams: {
+              Mode: 'bigmodel',
+              AppId: '3065448513',
+              AccessToken: VOLC_ACCESS_TOKEN,
+              ApiResourceId: 'volc.bigasr.sauc.duration',
+            },
+          },
+          TTSConfig: {
+            Provider: 'volcano_bidirection',
+            ProviderParams: {
+              app: { appid: '3065448513', token: VOLC_ACCESS_TOKEN },
+              audio: { voice_type: 'zh_female_tianmeiyueyue_moon_bigtts', speech_rate: 0 },
+              ResourceId: 'volc.service_type.10029',
+            },
+          },
+          LLMConfig: {
+            Mode: 'ArkV3',
+            EndPointId: 'ep-20260315160200-s6fg7',
+            SystemMessages: ['你是拉拉，一个友善的AI陪伴助手，专门帮助老年人做记忆力训练。'],
+            VisionConfig: { Enable: false },
+            ThinkingType: 'disabled',
+            Tools: [],
+          },
+          SubtitleConfig: { SubtitleMode: 1 },
+          InterruptMode: 0,
+        },
+        enabledToolCategories: ['read', 'edit', 'search', 'execute'],
+        workspace: 'silvermind',
+      };
+    }
+
+    // ── Initialize DigitalHumanFrame ──
+    btnInit.onclick = async () => {
+      try {
+        btnInit.disabled = true;
+
+        if (dhf) {
+          if (dhf._debugCleanup) dhf._debugCleanup();
+          await dhf.destroy();
+          dhf = null;
+          actionDropdownMenu.innerHTML = '';
+          actionDropdownWrapper.style.display = 'none';
+        }
+
+        ensureSDK();
+        await refreshAuthUi({ silent: true });
+        log('SDK source: ' + window.keepwork.constructor.source);
+
+        log('初始化 DigitalHumanFrame...');
+
+        dhf = new DigitalHumanFrame({
+          sdk: window.keepwork,
+          container: document.getElementById('avatar-root'),
+        });
+
+        wireEvents(dhf);
+
+        // Load silvermindV1 config (拉拉)
+        log('加载角色配置: ./DigitalHumanConfig/testSkills.yaml');
+        await dhf.loadConfig('./DigitalHumanConfig/testSkills.yaml');
+        // Update header labels from loaded config
+        document.getElementById('label-workspace').textContent = dhf.workspace || dhf.characterConfig?.workspace || '—';
+        document.getElementById('label-mountFolder').textContent = dhf.mountFolder || dhf.characterConfig?.mountFolder || '—';
+        const videoActions = dhf.characterConfig?.videoActions;
+
+        // DigitalHumanFrame auto-registers the `minigame` copilot tool category
+        // on the parent SDK (overlay is center-positioned with a high z-index)
+        // and the default gameFinished handler restarts the agent.
+        // Hook `minigameEvent` to surface extra UI feedback.
+        dhf.on('minigameEvent', (data) => {
+          log(`[Minigame] ${JSON.stringify(data)}`);
+          if (data?.type === 'gameFinished') {
+            const d = data.data || {};
+            if (d.correct != null && d.total != null) {
+              addSystemMessage(`🎮 游戏完成！答对 ${d.correct}/${d.total}，正确率 ${d.accuracy}%`);
+            }
+          }
+        });
+
+        log('DigitalHumanFrame 初始化成功！');
+
+        btnChat.disabled = false;
+        userInput.disabled = false;
+        phoneBtn.disabled = false;
+        for (const id in skillButtons) skillButtons[id].disabled = false;
+        btnResetMinigame.disabled = false;
+
+        buildActionButtons(videoActions);
+
+        // Load existing chat history
+        try {
+          const session = await dhf.getSessionData();
+          const msgs = session?.messages;
+          let historyCount = 0;
+          if (Array.isArray(msgs)) {
+            for (const msg of msgs) {
+              if (msg.role === 'system') continue;
+              if (!msg.content || typeof msg.content !== 'string') continue;
+              addChatMessage(msg.content, msg.role === 'user', undefined, {
+                timestampLabel: formatHistoryTimestamp(msg._ts),
+              });
+              historyCount++;
+            }
+            if (historyCount > 0) {
+              addSystemMessage(`── 以上为历史对话 (${historyCount} 条) ──`);
+              log(`已加载 ${historyCount} 条历史消息。`);
+            }
+          }
+
+          // Send boot message if no history
+          if (historyCount === 0) {
+            const bootMessage = dhf.characterConfig?.initial?.bootMessage;
+            if (bootMessage) {
+              log('发送开场消息…');
+              try {
+                const result = await dhf.sendBootMessage();
+                if (result?.skipped) log(`开场消息跳过: ${result.reason}`);
+              } catch (e) { log(`开场消息失败: ${e.message}`); }
+            }
+          }
+        } catch (e) {
+          log(`加载历史失败: ${e.message}`);
+        }
+
+      } catch (err) {
+        log(`初始化失败: ${err.message}`);
+        console.error(err);
+      } finally {
+        btnInit.disabled = false;
+      }
+    };
+
+    // ── Start Skill handlers are registered via SKILLS config above ──
+
+    // ── Send message ──
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+      if (!dhf) { log('请先初始化数字人'); return; }
+
+      userInput.value = '';
+      log(`发送: ${text.slice(0, 50)}`);
+
+      btnChat.disabled = true;
+      try {
+        const result = await dhf.send(text);
+        const mode = result?.mode || 'text';
+        if (mode === 'command') {
+          log(`命令已处理: /${result.command?.name || '?'}`);
+        } else {
+          log(`发送完成 (${mode}, ${result?.finalText?.length || 0} chars)`);
+        }
+      } catch (err) {
+        log(`发送失败: ${err.message}`);
+        addChatMessage('Error: ' + err.message, false);
+      } finally {
+        btnChat.disabled = false;
+        userInput.focus();
+      }
+    }
+
+    btnChat.onclick = sendMessage;
+    userInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    // ── Voice chat ──
+    let vcActive = false;
+    let isMuted = false;
+
+    phoneBtn.onclick = async () => {
+      if (!dhf) return;
+      try {
+        phoneBtn.disabled = true;
+        if (!vcActive) {
+          log('启动语音聊天…');
+          const preset = dhf.characterConfig?.voiceChat ? {} : getVoiceChatConfig();
+          await dhf.startVoiceChat(preset);
+          vcActive = true;
+          log('语音聊天已启动');
+          phoneBtn.classList.add('calling');
+          phoneBtn.textContent = '⏹';
+          isMuted = false;
+          muteBtn.disabled = false;
+          muteBtn.classList.remove('hidden');
+          muteBtn.textContent = '🎙️';
+        } else {
+          log('停止语音聊天…');
+          await dhf.stopVoiceChat();
+          vcActive = false;
+          log('语音聊天已停止');
+          phoneBtn.classList.remove('calling');
+          phoneBtn.textContent = '📞';
+          muteBtn.classList.add('hidden');
+          muteBtn.disabled = true;
+          vcStatusBar.classList.add('hidden');
+          vcStatusBar.textContent = '';
+        }
+      } catch (e) { log(`语音聊天错误: ${e.message}`); }
+      finally { phoneBtn.disabled = false; }
+    };
+
+    muteBtn.onclick = () => {
+      if (!dhf || !vcActive) return;
+      isMuted = !isMuted;
+      muteBtn.textContent = isMuted ? '🔇' : '🎙️';
+      dhf.muteMicrophone(isMuted);
+      log(isMuted ? '麦克风已静音' : '麦克风已开启');
+    };
+
+    // ── Draggable avatar ──
+    const avatarRoot = document.getElementById('avatar-root');
+    const dragOverlay = document.getElementById('drag-overlay');
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let posStart = { x: 0, y: 0 };
+
+    dragOverlay.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      dragStart.x = e.clientX; dragStart.y = e.clientY;
+      const parentRect = avatarRoot.offsetParent?.getBoundingClientRect() || { left: 0, top: 0 };
+      const rect = avatarRoot.getBoundingClientRect();
+      posStart.x = rect.left - parentRect.left;
+      posStart.y = rect.top - parentRect.top;
+      dragOverlay.setPointerCapture(e.pointerId);
+      dragOverlay.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+    dragOverlay.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      avatarRoot.style.left = `${posStart.x + e.clientX - dragStart.x}px`;
+      avatarRoot.style.top = `${posStart.y + e.clientY - dragStart.y}px`;
+      avatarRoot.style.right = 'auto'; avatarRoot.style.bottom = 'auto';
+      positionDropdown();
+    });
+    dragOverlay.addEventListener('pointerup', (e) => {
+      isDragging = false;
+      dragOverlay.style.cursor = 'grab';
+      if (Math.abs(e.clientX - dragStart.x) < 4 && Math.abs(e.clientY - dragStart.y) < 4) {
+        dragOverlay.style.pointerEvents = 'none';
+        setTimeout(() => { dragOverlay.style.pointerEvents = ''; }, 300);
+      }
+    });
+
+    // ── Initial state ──
+    renderSignedOut();
+    refreshAuthUi({ silent: true });
+  </script>
+</body>
+</html>

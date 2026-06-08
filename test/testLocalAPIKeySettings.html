@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalAPIKeySettings Test</title>
+  <script type="module">
+    try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #111;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 16px;
+      padding-top: 56px;
+    }
+    /* ── Top-right user bar ── */
+    #userBar {
+      position: fixed; top: 0; right: 0; left: 0;
+      height: 48px; display: flex; align-items: center;
+      justify-content: flex-end; padding: 0 20px;
+      background: rgba(17,17,17,.85); backdrop-filter: blur(6px);
+      border-bottom: 1px solid #222; z-index: 900;
+    }
+    #userBar .avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: #333; object-fit: cover; margin-right: 8px; display: none;
+    }
+    #userBar .username {
+      font-size: 13px; color: #ccc; margin-right: 12px; cursor: pointer;
+    }
+    #userBar .username:hover { color: #fff; }
+    #userBar .bar-btn {
+      background: none; border: 1px solid #444; color: #aaa; font-size: 12px;
+      padding: 4px 12px; border-radius: 6px; cursor: pointer; margin-left: 6px;
+    }
+    #userBar .bar-btn:hover { background: #333; color: #fff; }
+    #userBar .bar-btn.primary { background: #6366f1; border-color: #6366f1; color: #fff; }
+    #userBar .bar-btn.primary:hover { background: #5558e6; }
+    button {
+      padding: 10px 24px;
+      font-size: 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover { background: #5558e6; }
+    .btn-secondary { background: #333; color: #ccc; }
+    .btn-secondary:hover { background: #444; }
+    .row { display: flex; gap: 12px; align-items: center; }
+    #log {
+      width: 600px; max-width: 90vw; height: 200px;
+      background: #1a1a2e; border: 1px solid #333; border-radius: 8px;
+      padding: 12px; overflow-y: auto; font-size: 12px; font-family: monospace;
+      color: #888;
+    }
+    #chatArea {
+      width: 600px; max-width: 90vw;
+      background: #1a1a2e; border: 1px solid #333; border-radius: 8px;
+      padding: 16px; display: flex; flex-direction: column; gap: 10px;
+    }
+    #chatArea input {
+      background: #2a2a3a; border: 1px solid #3a3a4a; color: #e0e0e0;
+      border-radius: 6px; padding: 8px 12px; font-size: 13px;
+    }
+    #chatArea input:focus { outline: none; border-color: #6366f1; }
+    #chatOutput {
+      min-height: 60px; max-height: 200px; overflow-y: auto;
+      font-size: 13px; white-space: pre-wrap; color: #aaa;
+    }
+    .inline-note { font-size: 12px; color: #888; line-height: 1.45; }
+    .inline-check { font-size: 12px; color: #888; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .test-section {
+      width: 600px; max-width: 90vw;
+      background: #1a1a2e; border: 1px solid #333; border-radius: 8px;
+      padding: 16px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .test-section input, .test-section textarea {
+      background: #2a2a3a; border: 1px solid #3a3a4a; color: #e0e0e0;
+      border-radius: 6px; padding: 8px 12px; font-size: 13px;
+    }
+    .test-section input:focus, .test-section textarea:focus { outline: none; border-color: #6366f1; }
+    .test-section textarea { resize: vertical; min-height: 40px; }
+    .media-preview { max-width: 100%; max-height: 300px; border-radius: 6px; display: none; margin-top: 8px; }
+    .media-output { min-height: 40px; font-size: 13px; color: #aaa; white-space: pre-wrap; word-break: break-all; }
+    /* Workspace Viewer Panel */
+    .ws-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(800px, 100vw); z-index: 900; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; background: #1a1a2e; box-shadow: -4px 0 24px rgba(0,0,0,0.4); }
+    .ws-panel.open { transform: translateX(0); }
+    .ws-panel-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: linear-gradient(135deg, #6366f1, #818cf8); color: #fff; flex-shrink: 0; }
+    .ws-panel-header span { font-size: 13px; font-weight: 700; flex: 1; }
+    .ws-panel-header button { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+    .ws-panel-header button:hover { background: rgba(255,255,255,0.35); }
+    .ws-panel-body { flex: 1; min-height: 0; overflow: hidden; }
+    .ws-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 899; display: none; }
+    .ws-backdrop.open { display: block; }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 640px) {
+      body {
+        padding: 64px 12px 24px;
+        gap: 12px;
+        justify-content: flex-start;
+      }
+      h2 { font-size: 18px; text-align: center; }
+      #userBar { padding: 0 12px; height: 44px; }
+      #userBar .username { margin-right: 8px; }
+      #userBar .bar-btn { padding: 4px 10px; margin-left: 4px; }
+
+      /* Sections expand to fill available width */
+      #log, #chatArea, .test-section {
+        width: 100%;
+        max-width: 100%;
+      }
+      #log { height: 160px; }
+
+      /* Rows wrap and stack on narrow screens */
+      .row {
+        flex-wrap: wrap;
+        width: 100%;
+      }
+      /* Inputs/selects that should take a full line */
+      .row > input[type="text"],
+      .row > textarea,
+      .test-section input[type="text"],
+      .test-section textarea,
+      #chatInput, #chatModel, #imageModel, #imagePrompt, #videoModel, #videoPrompt {
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+      }
+      /* Buttons take full width for easy tapping */
+      .row > button {
+        flex: 1 1 100%;
+        width: 100%;
+      }
+      #storageMode { flex: 1 1 100%; width: 100%; }
+
+      /* Image controls: size select full width, custom W/H side by side */
+      #imageSize { flex: 1 1 100%; width: 100%; }
+      #imageWidth, #imageHeight { flex: 1 1 calc(50% - 6px); width: auto !important; }
+
+      /* Allow checkboxes to wrap rather than overflow */
+      .inline-check { white-space: normal; flex: 1 1 auto; }
+
+      /* Workspace panel covers full screen on mobile */
+      .ws-panel { width: 100vw; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ── Top-right login / profile bar ── -->
+  <div id="userBar">
+    <img class="avatar" id="userAvatar" src="" alt="" />
+    <span class="username" id="userName" style="display:none" title="点击查看个人资料"></span>
+    <button class="bar-btn" id="profileBtn" style="display:none">个人资料</button>
+    <button class="bar-btn" id="logoutBtn" style="display:none">退出</button>
+    <button class="bar-btn primary" id="topLoginBtn">登录</button>
+  </div>
+
+  <h2>🔑 LocalAPIKeySettings Test</h2>
+  <p style="color:#888; font-size:13px; margin:0">Self-contained settings modal — any app can call <code>sdk.localAPIKeySettings.show()</code></p>
+
+  <div class="row">
+    <label class="inline-check" style="font-size:13px;color:#ccc">
+      <input type="checkbox" id="globalEnableToggle" checked />
+      <span>启用 LocalAPIKeySettings (settings.enabled)</span>
+    </label>
+  </div>
+
+  <div class="row">
+    <button class="btn-primary" id="openBtn">打开设置面板</button>
+    <select id="storageMode" style="background:#333;color:#ccc;border:1px solid #444;border-radius:6px;padding:6px 10px;font-size:13px">
+      <option value="localStorage">localStorage</option>
+      <option value="personalPageStore" selected>PersonalPageStore</option>
+    </select>
+    <button class="btn-secondary" id="wsBtn">📁 Workspace</button>
+  </div>
+
+  <div class="row inline-note" style="justify-content:center">
+    <span>语言 / Language:</span>
+    <a href="?" style="color:#818cf8">自动 (system)</a>
+    <span>·</span>
+    <a href="?lang=zhCN" style="color:#818cf8">中文 (?lang=zhCN)</a>
+    <span>·</span>
+    <a href="?lang=enUS" style="color:#818cf8">English (?lang=enUS)</a>
+  </div>
+
+  <!-- Quick chat test -->
+  <div id="chatArea">
+    <strong style="font-size:13px">Chat 测试（Keepwork 代理 / Direct）</strong>
+    <div class="inline-note">通过 <code>sdk.aiChat.chat()</code> 调用。默认走 Keepwork 代理；勾选 preferDirect / directOnly 或在 LocalAPIKeySettings 中开启 preferDirect，可直连服务商 API（OpenAI / OpenRouter / Gemini）。</div>
+    <div class="row">
+      <input id="chatModel" type="text" placeholder="留空默认 keepwork-flash；或输入 model id" style="flex:1" />
+      <label style="font-size:12px;color:#888"><input type="checkbox" id="streamToggle" checked /> Stream</label>
+    </div>
+    <div class="row" style="justify-content:flex-start">
+      <label class="inline-check"><input type="checkbox" id="chatPreferDirectToggle" /> preferDirect</label>
+      <label class="inline-check"><input type="checkbox" id="chatDirectOnlyToggle" /> directOnly</label>
+    </div>
+    <div class="row">
+      <input id="chatInput" type="text" placeholder="输入消息..." style="flex:1" />
+      <button class="btn-primary" id="chatSendBtn" style="padding:8px 16px">发送</button>
+    </div>
+    <div id="chatOutput"></div>
+  </div>
+
+  <!-- Image generation test -->
+  <div class="test-section" id="imageArea">
+    <strong style="font-size:13px">🖼️ Image 生成测试</strong>
+    <div class="row">
+      <input id="imageModel" type="text" placeholder="留空默认 keepwork-image；或输入 model name/id" style="flex:1" />
+      <select id="imageSize" style="padding:6px">
+        <option value="2048x2048">2048×2048 (1:1)</option>
+        <option value="1024x1024">1024×1024 (1:1, 小)</option>
+        <option value="2560x1440">2560×1440 (16:9)</option>
+        <option value="1440x2560">1440×2560 (9:16)</option>
+        <option value="2304x1728">2304×1728 (4:3)</option>
+        <option value="1728x2304">1728×2304 (3:4)</option>
+        <option value="custom">自定义...</option>
+      </select>
+      <input id="imageWidth" type="number" min="64" max="4096" placeholder="W" style="width:72px;display:none" />
+      <input id="imageHeight" type="number" min="64" max="4096" placeholder="H" style="width:72px;display:none" />
+    </div>
+    <div class="row">
+      <input id="imagePrompt" type="text" placeholder="描述要生成的图片..." style="flex:1" />
+      <button class="btn-primary" id="imageSendBtn" style="padding:8px 16px">生成</button>
+    </div>
+    <div class="row" style="justify-content:flex-start">
+      <label class="inline-check"><input type="checkbox" id="imagePreferDirectToggle" /> preferDirect</label>
+      <label class="inline-check"><input type="checkbox" id="imageDirectOnlyToggle" /> directOnly</label>
+      <label class="inline-check"><input type="checkbox" id="imageUploadResultToggle" checked /> 上传 data URI 结果到 Keepwork 临时 CDN（默认开启）</label>
+    </div>
+    <div class="media-output" id="imageOutput"></div>
+    <img class="media-preview" id="imagePreview" alt="generated" />
+  </div>
+
+  <!-- Video generation test -->
+  <div class="test-section" id="videoArea">
+    <strong style="font-size:13px">🎬 Video 生成测试</strong>
+    <div class="row">
+      <input id="videoModel" type="text" placeholder="留空默认 keepwork-video；或输入 model name/id" style="flex:1" />
+    </div>
+    <div class="row">
+      <input id="videoPrompt" type="text" placeholder="描述要生成的视频..." style="flex:1" />
+      <button class="btn-primary" id="videoSendBtn" style="padding:8px 16px">生成</button>
+    </div>
+    <div class="media-output" id="videoOutput"></div>
+    <video class="media-preview" id="videoPreview" controls></video>
+  </div>
+
+  <div id="log"></div>
+
+  <!-- Workspace Viewer Slide Panel -->
+  <div id="ws-backdrop" class="ws-backdrop"></div>
+  <div id="ws-panel" class="ws-panel">
+    <div class="ws-panel-header">
+      <span>📁 Workspace</span>
+      <button id="ws-close" title="Close">✕</button>
+    </div>
+    <div id="ws-panel-body" class="ws-panel-body"></div>
+  </div>
+
+  <script type="module">
+    // Wait until SDK is ready
+    while (!window.keepwork) await new Promise(r => setTimeout(r, 100));
+
+    const sdk = window.keepwork;
+    const settings = sdk.localAPIKeySettings;
+    settings.workspace = 'ws_local_api_key_settings';
+    settings.storageMode = 'personalPageStore';
+
+    // ── Language override via URL: ?lang=enUS or ?lang=zhCN ──
+    // Falls back to the system-detected language when the param is absent.
+    const urlLang = new URLSearchParams(location.search).get('lang') || null;
+
+    // ── User bar logic ──
+    const userAvatar = document.getElementById('userAvatar');
+    const userName = document.getElementById('userName');
+    const profileBtn = document.getElementById('profileBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const topLoginBtn = document.getElementById('topLoginBtn');
+
+    function showLoggedIn(profile) {
+      const name = profile.nickname || profile.username || 'User';
+      userName.textContent = name;
+      userName.style.display = '';
+      profileBtn.style.display = '';
+      logoutBtn.style.display = '';
+      topLoginBtn.style.display = 'none';
+      if (profile.portrait) {
+        userAvatar.src = profile.portrait;
+        userAvatar.style.display = '';
+      }
+    }
+    function showLoggedOut() {
+      userName.style.display = 'none';
+      profileBtn.style.display = 'none';
+      logoutBtn.style.display = 'none';
+      userAvatar.style.display = 'none';
+      topLoginBtn.style.display = '';
+    }
+
+    topLoginBtn.addEventListener('click', async () => {
+      try {
+        await sdk.loginWindow.show();
+        const p = await sdk.getUserProfile({ forceRefresh: true });
+        showLoggedIn(p);
+        log('Logged in as ' + (p.nickname || p.username));
+      } catch (e) {
+        if (e.message !== 'Login cancelled') {
+          log('Login failed: ' + e.message);
+        }
+      }
+    });
+    profileBtn.addEventListener('click', () => {
+      if (sdk.profileWindow) sdk.profileWindow.show();
+    });
+    userName.addEventListener('click', () => {
+      if (sdk.profileWindow) sdk.profileWindow.show();
+    });
+    logoutBtn.addEventListener('click', () => {
+      sdk.token = null;
+      sdk.user = null;
+      showLoggedOut();
+      log('Logged out');
+    });
+
+    // Check existing session
+    if (sdk.token) {
+      try {
+        const p = await sdk.getUserProfile();
+        showLoggedIn(p);
+      } catch (_) { /* not logged in */ }
+    }
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      el.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    // Open settings modal
+    document.getElementById('openBtn').addEventListener('click', () => {
+      settings.show({
+        lang: urlLang || undefined, // ?lang=enUS / ?lang=zhCN, else auto-detect
+        onClose: () => log('Settings modal closed'),
+      });
+    });
+
+    if (urlLang) log(`Language override from URL: lang=${urlLang}`);
+
+    // Storage mode switch
+    document.getElementById('storageMode').addEventListener('change', (e) => {
+      settings.storageMode = e.target.value;
+      settings._loaded = false;
+      settings.load().then(() => log(`Switched to ${e.target.value}, reloaded`));
+    });
+
+    // Chat test
+    document.getElementById('chatSendBtn').addEventListener('click', sendChat);
+    document.getElementById('chatInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendChat();
+    });
+
+    async function sendChat() {
+      const model = document.getElementById('chatModel').value.trim() || 'keepwork-flash';
+      const text = document.getElementById('chatInput').value.trim();
+      if (!text) return;
+      document.getElementById('chatInput').value = '';
+      const output = document.getElementById('chatOutput');
+      output.textContent = '...';
+      const stream = document.getElementById('streamToggle').checked;
+      const preferDirect = document.getElementById('chatPreferDirectToggle').checked;
+      const directOnly = document.getElementById('chatDirectOnlyToggle').checked;
+      log(`Chat: model=${model}, stream=${stream}, preferDirect=${preferDirect ? 'true' : '(default)'}, directOnly=${directOnly ? 'true' : '(default)'}`);
+
+      try {
+        const aiChat = sdk.aiChat;
+        if (!aiChat) { output.textContent = 'AIChat not loaded'; return; }
+        const chatOpts = {
+          messages: [{ role: 'user', content: text }],
+          model, stream,
+          onMessage: (r) => { output.textContent = r; },
+          onComplete: (r) => { output.textContent = (typeof r === 'string' ? r : (r?.choices?.[0]?.message?.content || '')) || '(empty)'; log('Chat complete'); },
+          onError: (e) => { output.textContent = '❌ ' + e.message; log('Error: ' + e.message); },
+        };
+        if (preferDirect) chatOpts.preferDirect = true;
+        if (directOnly) chatOpts.directOnly = true;
+        await aiChat.chat(chatOpts);
+      } catch (err) {
+        output.textContent = '❌ ' + err.message;
+        log('Error: ' + err.message);
+      }
+    }
+
+    // Image generation test (via genImage API)
+    document.getElementById('imageSendBtn').addEventListener('click', handleGenImage);
+    document.getElementById('imagePrompt').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleGenImage();
+    });
+    document.getElementById('imageSize').addEventListener('change', (e) => {
+      const isCustom = e.target.value === 'custom';
+      document.getElementById('imageWidth').style.display = isCustom ? '' : 'none';
+      document.getElementById('imageHeight').style.display = isCustom ? '' : 'none';
+    });
+
+    function getImageSize() {
+      const sel = document.getElementById('imageSize').value;
+      if (sel === 'custom') {
+        const w = parseInt(document.getElementById('imageWidth').value, 10) || 2048;
+        const h = parseInt(document.getElementById('imageHeight').value, 10) || 2048;
+        return { width: w, height: h };
+      }
+      const [w, h] = sel.split('x').map(Number);
+      return { width: w, height: h };
+    }
+
+    async function handleGenImage() {
+      const model = document.getElementById('imageModel').value.trim() || 'keepwork-image';
+      const prompt = document.getElementById('imagePrompt').value.trim();
+      if (!prompt) return;
+      const output = document.getElementById('imageOutput');
+      const preview = document.getElementById('imagePreview');
+      const preferDirectChecked = document.getElementById('imagePreferDirectToggle').checked;
+      const directOnlyChecked = document.getElementById('imageDirectOnlyToggle').checked;
+      const uploadResultToKeepwork = document.getElementById('imageUploadResultToggle').checked;
+      // SDK defaults uploadResultToKeepwork to true; only pass explicitly when user unchecks.
+      output.textContent = '⏳ 生成中...';
+      preview.style.display = 'none';
+      const preferDirectLabel = preferDirectChecked ? 'true' : '(default)';
+      const directOnlyLabel = directOnlyChecked ? 'true' : '(default)';
+      log(`Image gen: prompt="${prompt.substring(0, 40)}..." model=${model || '(default)'}, preferDirect=${preferDirectLabel}, directOnly=${directOnlyLabel}`);
+
+      try {
+        const { width, height } = getImageSize();
+        const genOpts = { model, width, height };
+        if (!uploadResultToKeepwork) genOpts.uploadResultToKeepwork = false;
+        if (preferDirectChecked) genOpts.preferDirect = true;
+        if (directOnlyChecked) genOpts.directOnly = true;
+        const url = await sdk.aiGenerators.genImage(prompt, genOpts);
+        if (url) {
+          const isDataUri = url.startsWith('data:');
+          output.textContent = isDataUri ? `${url.substring(0, 64)}... (${url.length} chars, base64 data URI)` : url;
+          preview.src = url;
+          preview.style.display = 'block';
+          log('Image generated: ' + (isDataUri ? `[base64 data URI, ${url.length} chars]` : url.substring(0, 80)));
+        } else {
+          output.textContent = '(no image URL returned)';
+          log('Image gen: no URL in response');
+        }
+      } catch (err) {
+        output.textContent = '❌ ' + err.message;
+        log('Error: ' + err.message);
+      }
+    }
+
+    // Video generation test (via genVideo + polling API)
+    document.getElementById('videoSendBtn').addEventListener('click', handleGenVideo);
+    document.getElementById('videoPrompt').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleGenVideo();
+    });
+
+    async function handleGenVideo() {
+      const model = document.getElementById('videoModel').value.trim() || 'keepwork-video';
+      const prompt = document.getElementById('videoPrompt').value.trim();
+      if (!prompt) return;
+      const output = document.getElementById('videoOutput');
+      const preview = document.getElementById('videoPreview');
+      output.textContent = '⏳ 提交生成任务...';
+      preview.style.display = 'none';
+      log(`Video gen: prompt="${prompt.substring(0, 40)}..." model=${model || '(default)'}`);
+
+      try {
+        const taskId = await sdk.aiGenerators.genVideo(prompt, {
+          model,
+          duration: 5,
+        });
+        output.textContent = `⏳ taskId: ${taskId}\n正在轮询状态...`;
+        log(`Video task submitted: ${taskId}`);
+
+        const result = await sdk.aiGenerators.pollVideoTask(taskId, {
+          interval: 5000,
+          onStatus: (status, data) => {
+            output.textContent = `⏳ taskId: ${taskId}\n状态: ${status}`;
+            log(`Video poll: ${status}`);
+          },
+        });
+
+        if (result.status === 'succeeded' && result.videoUrl) {
+          output.textContent = `✅ ${result.videoUrl}`;
+          preview.src = result.videoUrl;
+          preview.style.display = 'block';
+          log('Video generated: ' + result.videoUrl.substring(0, 80));
+        } else {
+          output.textContent = `❌ ${result.error || result.status}`;
+          log('Video gen failed: ' + (result.error || result.status));
+        }
+      } catch (err) {
+        output.textContent = '❌ ' + err.message;
+        log('Error: ' + err.message);
+      }
+    }
+
+    // ── Workspace Viewer Panel ──
+    const { createWorkspaceViewer } = await import('../src/ui/WorkspaceViewer.ts');
+    const wsPanel = document.getElementById('ws-panel');
+    const wsBackdrop = document.getElementById('ws-backdrop');
+    const wsPanelBody = document.getElementById('ws-panel-body');
+    let workspaceViewer = null;
+
+    function openWorkspacePanel() {
+      if (workspaceViewer) { workspaceViewer.destroy(); workspaceViewer = null; }
+      wsPanelBody.innerHTML = '';
+      workspaceViewer = createWorkspaceViewer({
+        container: wsPanelBody,
+        sdk,
+        workspace: settings.workspace || 'ws_local_api_key_settings',
+        compact: true,
+      });
+      wsPanel.classList.add('open');
+      wsBackdrop.classList.add('open');
+    }
+
+    function closeWorkspacePanel() {
+      wsPanel.classList.remove('open');
+      wsBackdrop.classList.remove('open');
+      if (workspaceViewer) { workspaceViewer.destroy(); workspaceViewer = null; }
+      wsPanelBody.innerHTML = '';
+    }
+
+    document.getElementById('wsBtn').addEventListener('click', () => {
+      if (wsPanel.classList.contains('open')) closeWorkspacePanel();
+      else openWorkspacePanel();
+    });
+    document.getElementById('ws-close').addEventListener('click', closeWorkspacePanel);
+    wsBackdrop.addEventListener('click', closeWorkspacePanel);
+
+    // Load saved settings on init
+    await settings.load();
+
+    // Global enable toggle (defaults to true). Forces settings.enabled on init
+    // so user-stored 'disabled' state is overridden by this test page default.
+    const globalEnableToggle = document.getElementById('globalEnableToggle');
+    settings.enabled = globalEnableToggle.checked;
+    globalEnableToggle.addEventListener('change', () => {
+      settings.enabled = globalEnableToggle.checked;
+      log(`LocalAPIKeySettings.enabled = ${settings.enabled}`);
+    });
+
+    log(`Init: ${settings._models.size} models loaded, storage=${settings.storageMode}, enabled=${settings.enabled}`);
+    log('Resolved settings: ' + JSON.stringify(settings.toJSON(), null, 0).substring(0, 100));
+  </script>
+</body>
+</html>

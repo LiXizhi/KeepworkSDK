@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenRouter Chat Test</title>
+    <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #chatArea::-webkit-scrollbar { width: 6px; }
+        #chatArea::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+
+<header class="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 flex-wrap shrink-0">
+    <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center text-base text-white">OR</div>
+        <span class="text-sm font-bold text-gray-700">OpenRouter Chat Test</span>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-gray-500">Model</span>
+        <div class="flex items-center">
+            <input type="text" id="modelInput" value="openai/gpt-4.1" list="modelPresets"
+                class="px-2 py-1 bg-gray-50 border border-gray-300 rounded-l text-sm focus:outline-none focus:border-blue-500 w-[220px]">
+            <datalist id="modelPresets"></datalist>
+            <button id="modelBrowseBtn" class="px-2 py-1 bg-gray-200 border border-l-0 border-gray-300 rounded-r text-sm hover:bg-gray-300 transition-colors" title="Browse models">LIST</button>
+        </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-gray-500">Stream</span>
+        <button id="streamToggle" class="px-2.5 py-0.5 text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 transition-colors">ON</button>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-gray-500">Tools</span>
+        <button id="toolsToggle" class="px-2.5 py-0.5 text-xs font-medium rounded text-white bg-gray-500 hover:bg-gray-600 transition-colors">OFF</button>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-gray-500">Reasoning</span>
+        <button id="reasoningToggle" class="px-2.5 py-0.5 text-xs font-medium rounded text-white bg-gray-500 hover:bg-gray-600 transition-colors">OFF</button>
+    </div>
+
+    <div class="flex items-center gap-2 min-w-[240px] flex-1">
+        <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">System</span>
+        <input type="text" id="systemPrompt" placeholder="Optional system prompt..."
+            class="flex-1 px-2 py-1 bg-gray-50 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+    </div>
+
+    <div class="flex items-center gap-2 min-w-[320px]">
+        <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">API Key</span>
+        <!-- API Key 不硬编码：留空，运行时手动填入；或由 dev server /test/env.js 注入 window.__TEST_SECRETS__.OPENROUTER_API_KEY -->
+        <input id="apiKeyInput" type="password" placeholder="sk-or-v1-..." value=""
+            class="px-2 py-1 bg-gray-50 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 w-[360px]">
+    </div>
+</header>
+
+<div id="toolBar" class="hidden bg-white border-b border-gray-200 px-4 py-2 shrink-0">
+    <div class="text-xs text-gray-600">Enabled demo tool: <span class="font-mono">get_current_time</span></div>
+</div>
+
+<div id="chatArea" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3"></div>
+
+<div id="modelSelectorModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl w-[920px] max-h-[80vh] flex flex-col">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+            <h2 class="text-base font-bold text-gray-800">Select OpenRouter Model</h2>
+            <button id="modelModalClose" class="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500">X</button>
+        </div>
+        <div class="px-5 py-2 border-b border-gray-100">
+            <input id="modelSearch" type="text" placeholder="Search model id/name/provider..." class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+        </div>
+        <div id="modelSelectorLoading" class="hidden flex items-center justify-center py-12 text-gray-400 text-sm">Loading models...</div>
+        <div id="modelSelectorContent" class="hidden flex-1 overflow-y-auto p-4">
+            <div class="mb-5">
+                <div class="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Top Models</div>
+                <div id="topModelList" class="grid grid-cols-2 gap-3"></div>
+            </div>
+            <div>
+                <div class="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">All OpenRouter Models</div>
+                <div id="modelList" class="grid grid-cols-2 gap-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white border-t border-gray-200 px-4 py-3 flex gap-2 shrink-0">
+    <textarea id="userInput" rows="1" placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+        class="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 font-[inherit]" style="min-height:42px;max-height:120px;"></textarea>
+    <button id="sendBtn" class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors whitespace-nowrap">Send</button>
+    <button id="clearBtn" class="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition-colors whitespace-nowrap" title="Clear chat">Clear</button>
+</div>
+
+<script>
+let useStream = true;
+let useTools = false;
+let useReasoning = false;
+let abortController = null;
+let allModels = [];
+let topModels = [];
+let messageHistory = [];
+let _lastModel = 'openai/gpt-4.1';
+
+const OPENROUTER_API = 'https://openrouter.ai/api/v1';
+const TOP_MODEL_IDS = [
+    'openai/gpt-4.1',
+    'openai/gpt-4.1-mini',
+    'openai/gpt-4o-mini',
+    'anthropic/claude-sonnet-4',
+    'anthropic/claude-opus-4',
+    'google/gemini-2.5-pro-preview',
+    'google/gemini-2.5-flash-preview',
+    'meta-llama/llama-4-maverick',
+    'x-ai/grok-3',
+    'deepseek/deepseek-r1',
+    'qwen/qwen3-235b-a22b',
+    'mistralai/mistral-large'
+];
+
+const chatArea = document.getElementById('chatArea');
+const userInput = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const clearBtn = document.getElementById('clearBtn');
+const modelInput = document.getElementById('modelInput');
+const modelPresets = document.getElementById('modelPresets');
+const streamToggle = document.getElementById('streamToggle');
+const toolsToggle = document.getElementById('toolsToggle');
+const reasoningToggle = document.getElementById('reasoningToggle');
+const systemPrompt = document.getElementById('systemPrompt');
+const apiKeyInput = document.getElementById('apiKeyInput');
+const toolBar = document.getElementById('toolBar');
+const modelBrowseBtn = document.getElementById('modelBrowseBtn');
+const modelSearch = document.getElementById('modelSearch');
+
+const MSG_CLASSES = {
+    user: 'self-end max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-blue-600 text-white text-sm leading-relaxed whitespace-pre-wrap break-words',
+    assistant: 'self-start max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-sm bg-white text-gray-800 border border-gray-200 text-sm leading-relaxed whitespace-pre-wrap break-words',
+    system: 'self-center px-3 py-1.5 rounded-md bg-yellow-50 text-yellow-700 text-xs',
+    reasoning: 'self-start max-w-[80%] px-3 py-2 rounded-md bg-gray-50 text-gray-500 text-xs border border-dashed border-gray-300 whitespace-pre-wrap break-words',
+    tool: 'self-start max-w-[80%] px-3 py-2 rounded-md bg-green-50 text-green-800 text-xs font-mono whitespace-pre-wrap break-words'
+};
+
+function appendMsg(role, text) {
+    const el = document.createElement('div');
+    el.className = MSG_CLASSES[role] || MSG_CLASSES.system;
+    el.textContent = text || '';
+    chatArea.appendChild(el);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return el;
+}
+
+function setToggleVisual(button, enabled, onClass) {
+    button.textContent = enabled ? 'ON' : 'OFF';
+    button.className = enabled
+        ? ('px-2.5 py-0.5 text-xs font-medium rounded text-white ' + onClass + ' transition-colors')
+        : 'px-2.5 py-0.5 text-xs font-medium rounded text-white bg-gray-500 hover:bg-gray-600 transition-colors';
+}
+
+function autoResize() {
+    userInput.style.height = 'auto';
+    userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
+}
+
+function clearChat() {
+    chatArea.innerHTML = '';
+    messageHistory = [];
+    appendMsg('system', 'Chat cleared. Model: ' + currentModel());
+}
+
+function currentModel() {
+    return (modelInput.value || '').trim() || 'openai/gpt-4.1';
+}
+
+function getApiKey() {
+    return (apiKeyInput.value || '').trim();
+}
+
+function buildHeaders() {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        throw new Error('OpenRouter API key is required');
+    }
+    return {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'testOpenRouter.html'
+    };
+}
+
+function buildToolsPayload() {
+    if (!useTools) return null;
+    return [{
+        type: 'function',
+        function: {
+            name: 'get_current_time',
+            description: 'Returns the current local datetime in ISO and local formats.',
+            parameters: {
+                type: 'object',
+                properties: {},
+                additionalProperties: false
+            }
+        }
+    }];
+}
+
+function executeDemoTool(name) {
+    if (name !== 'get_current_time') {
+        return { error: 'Unsupported demo tool: ' + name };
+    }
+    const now = new Date();
+    return {
+        iso: now.toISOString(),
+        local: now.toString(),
+        timestamp: now.getTime()
+    };
+}
+
+function buildMessages(userText) {
+    const messages = [];
+    const sys = (systemPrompt.value || '').trim();
+    if (sys) {
+        messages.push({ role: 'system', content: sys });
+    }
+    if (messageHistory.length) {
+        messages.push.apply(messages, messageHistory);
+    }
+    messages.push({ role: 'user', content: userText });
+    return messages;
+}
+
+async function chatCompletion(payload, signal) {
+    const resp = await fetch(OPENROUTER_API + '/chat/completions', {
+        method: 'POST',
+        headers: buildHeaders(),
+        body: JSON.stringify(payload),
+        signal
+    });
+
+    if (!resp.ok) {
+        let detail = '';
+        try {
+            const errJson = await resp.json();
+            detail = errJson?.error?.message || JSON.stringify(errJson);
+        } catch (_) {
+            detail = await resp.text();
+        }
+        throw new Error('OpenRouter error ' + resp.status + ': ' + detail);
+    }
+
+    return resp;
+}
+
+function extractTextFromMessage(message) {
+    if (!message) return '';
+    if (typeof message.content === 'string') return message.content;
+    if (Array.isArray(message.content)) {
+        return message.content
+            .map(part => {
+                if (typeof part === 'string') return part;
+                if (part && typeof part.text === 'string') return part.text;
+                return '';
+            })
+            .join('');
+    }
+    return '';
+}
+
+async function sendNonStreaming(userText) {
+    const model = currentModel();
+    const messages = buildMessages(userText);
+    const payload = {
+        model,
+        stream: false,
+        messages
+    };
+
+    const tools = buildToolsPayload();
+    if (tools) payload.tools = tools;
+    if (useReasoning) payload.reasoning = { effort: 'medium' };
+
+    const resp = await chatCompletion(payload, abortController.signal);
+    const json = await resp.json();
+
+    const choice = json?.choices?.[0];
+    const assistantMsg = choice?.message || {};
+    const text = extractTextFromMessage(assistantMsg);
+    const reasoning = choice?.message?.reasoning || choice?.reasoning || '';
+
+    if (reasoning) appendMsg('reasoning', 'Reasoning: ' + reasoning);
+
+    if (assistantMsg.tool_calls && assistantMsg.tool_calls.length) {
+        for (const call of assistantMsg.tool_calls) {
+            const fname = call?.function?.name || 'unknown_tool';
+            appendMsg('tool', 'Tool call: ' + fname);
+            const toolResult = executeDemoTool(fname);
+            appendMsg('tool', 'Tool result: ' + JSON.stringify(toolResult, null, 2));
+            messages.push(assistantMsg);
+            messages.push({
+                role: 'tool',
+                tool_call_id: call.id,
+                content: JSON.stringify(toolResult)
+            });
+        }
+
+        const secondPayload = {
+            model,
+            stream: false,
+            messages
+        };
+        if (useReasoning) secondPayload.reasoning = { effort: 'medium' };
+        const secondResp = await chatCompletion(secondPayload, abortController.signal);
+        const secondJson = await secondResp.json();
+        const secondChoice = secondJson?.choices?.[0];
+        const secondText = extractTextFromMessage(secondChoice?.message || {});
+        appendMsg('assistant', secondText || '(empty response)');
+        messageHistory.push({ role: 'user', content: userText });
+        messageHistory.push({ role: 'assistant', content: secondText || '' });
+        return;
+    }
+
+    appendMsg('assistant', text || '(empty response)');
+    messageHistory.push({ role: 'user', content: userText });
+    messageHistory.push({ role: 'assistant', content: text || '' });
+}
+
+async function sendStreaming(userText) {
+    const model = currentModel();
+    const messages = buildMessages(userText);
+    const payload = {
+        model,
+        stream: true,
+        messages
+    };
+
+    const tools = buildToolsPayload();
+    if (tools) payload.tools = tools;
+    if (useReasoning) payload.reasoning = { effort: 'medium' };
+
+    const resp = await chatCompletion(payload, abortController.signal);
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    let assistantEl = appendMsg('assistant', '');
+    let reasoningEl = null;
+    let fullText = '';
+    let reasoningText = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const evt of events) {
+            const lines = evt.split('\n');
+            for (const line of lines) {
+                if (!line.startsWith('data:')) continue;
+                const raw = line.slice(5).trim();
+                if (!raw || raw === '[DONE]') continue;
+
+                let chunk;
+                try {
+                    chunk = JSON.parse(raw);
+                } catch (_) {
+                    continue;
+                }
+
+                const delta = chunk?.choices?.[0]?.delta || {};
+
+                if (typeof delta.content === 'string') {
+                    fullText += delta.content;
+                    assistantEl.textContent = fullText;
+                }
+
+                if (typeof delta.reasoning === 'string') {
+                    reasoningText += delta.reasoning;
+                } else if (typeof delta.reasoning_content === 'string') {
+                    reasoningText += delta.reasoning_content;
+                }
+
+                if (reasoningText) {
+                    if (!reasoningEl) {
+                        reasoningEl = appendMsg('reasoning', '');
+                        chatArea.insertBefore(reasoningEl, assistantEl);
+                    }
+                    reasoningEl.textContent = 'Reasoning: ' + reasoningText;
+                }
+
+                const toolCalls = delta.tool_calls || [];
+                for (const tc of toolCalls) {
+                    const toolName = tc?.function?.name;
+                    if (toolName) {
+                        appendMsg('tool', 'Tool call (stream): ' + toolName + ' (demo mode)');
+                    }
+                }
+            }
+        }
+
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    if (!fullText) {
+        assistantEl.textContent = '(empty response)';
+    }
+
+    messageHistory.push({ role: 'user', content: userText });
+    messageHistory.push({ role: 'assistant', content: fullText || '' });
+}
+
+async function sendMessage() {
+    const text = (userInput.value || '').trim();
+    if (!text) return;
+
+    userInput.value = '';
+    autoResize();
+    appendMsg('user', text);
+
+    abortController = new AbortController();
+    sendBtn.textContent = 'Stop';
+    sendBtn.className = 'px-5 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors whitespace-nowrap';
+    sendBtn.onclick = stopGeneration;
+
+    try {
+        if (useStream) {
+            await sendStreaming(text);
+        } else {
+            await sendNonStreaming(text);
+        }
+    } catch (err) {
+        if (err && err.name === 'AbortError') {
+            appendMsg('system', 'Generation stopped');
+        } else {
+            appendMsg('system', 'Error: ' + (err?.message || String(err)));
+        }
+    } finally {
+        abortController = null;
+        sendBtn.textContent = 'Send';
+        sendBtn.className = 'px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors whitespace-nowrap';
+        sendBtn.onclick = sendMessage;
+    }
+}
+
+function stopGeneration() {
+    if (abortController) {
+        abortController.abort();
+    }
+}
+
+async function loadOpenRouterModels() {
+    const response = await fetch(OPENROUTER_API + '/models', {
+        method: 'GET',
+        headers: buildHeaders()
+    });
+
+    if (!response.ok) {
+        let detail = '';
+        try {
+            detail = await response.text();
+        } catch (_) {
+            detail = 'unknown error';
+        }
+        throw new Error('Failed to fetch models (' + response.status + '): ' + detail);
+    }
+
+    const json = await response.json();
+    allModels = Array.isArray(json?.data) ? json.data.slice() : [];
+
+    allModels.sort((a, b) => {
+        const aId = String(a?.id || '');
+        const bId = String(b?.id || '');
+        return aId.localeCompare(bId);
+    });
+
+    const map = new Map(allModels.map(m => [m.id, m]));
+    topModels = TOP_MODEL_IDS
+        .map(id => map.get(id))
+        .filter(Boolean);
+
+    modelPresets.innerHTML = '';
+    allModels.forEach(m => {
+        const option = document.createElement('option');
+        option.value = m.id;
+        modelPresets.appendChild(option);
+    });
+}
+
+function modelCard(model, isSelected) {
+    const div = document.createElement('div');
+    const id = model?.id || 'unknown';
+    const name = model?.name || id;
+    const contextLength = model?.context_length || 0;
+
+    const badges = [];
+    if (contextLength) badges.push('<span class="px-1.5 py-0.5 text-[10px] bg-slate-100 text-slate-700 rounded">ctx ' + Number(contextLength).toLocaleString() + '</span>');
+    if (model?.top_provider?.is_moderated) badges.push('<span class="px-1.5 py-0.5 text-[10px] bg-orange-100 text-orange-700 rounded">moderated</span>');
+
+    div.className = 'p-3 border rounded-lg cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50 ' + (isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200');
+    div.innerHTML =
+        '<div class="font-semibold text-sm text-gray-800 break-all">' + escapeHtml(name) + '</div>' +
+        '<div class="text-[11px] font-mono text-gray-400 mt-0.5 break-all">' + escapeHtml(id) + '</div>' +
+        (badges.length ? '<div class="flex flex-wrap gap-1 mt-1.5">' + badges.join('') + '</div>' : '');
+
+    div.onclick = () => {
+        modelInput.value = id;
+        _lastModel = id;
+        closeModelSelector();
+        appendMsg('system', 'Model changed to: ' + id);
+    };
+
+    return div;
+}
+
+function renderModelLists(searchText) {
+    const q = (searchText || '').toLowerCase().trim();
+    const topList = document.getElementById('topModelList');
+    const modelList = document.getElementById('modelList');
+    topList.innerHTML = '';
+    modelList.innerHTML = '';
+
+    const filterFn = (m) => {
+        if (!q) return true;
+        const text = [m?.id, m?.name, m?.description, m?.top_provider?.name].filter(Boolean).join(' ').toLowerCase();
+        return text.includes(q);
+    };
+
+    const selected = currentModel();
+
+    const topFiltered = topModels.filter(filterFn);
+    if (!topFiltered.length) {
+        const emptyTop = document.createElement('div');
+        emptyTop.className = 'col-span-2 text-gray-400 text-sm py-3';
+        emptyTop.textContent = 'No top models matched your search.';
+        topList.appendChild(emptyTop);
+    } else {
+        topFiltered.forEach(m => topList.appendChild(modelCard(m, m.id === selected)));
+    }
+
+    const allFiltered = allModels.filter(filterFn);
+    if (!allFiltered.length) {
+        const emptyAll = document.createElement('div');
+        emptyAll.className = 'col-span-2 text-center py-8 text-gray-400 text-sm';
+        emptyAll.textContent = 'No models matched your search.';
+        modelList.appendChild(emptyAll);
+    } else {
+        allFiltered.forEach(m => modelList.appendChild(modelCard(m, m.id === selected)));
+    }
+}
+
+function openModelSelector() {
+    const modal = document.getElementById('modelSelectorModal');
+    const loading = document.getElementById('modelSelectorLoading');
+    const content = document.getElementById('modelSelectorContent');
+    modal.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    content.classList.add('hidden');
+
+    loadOpenRouterModels()
+        .then(() => {
+            renderModelLists(modelSearch.value);
+            loading.classList.add('hidden');
+            content.classList.remove('hidden');
+        })
+        .catch((err) => {
+            loading.textContent = 'Failed to load models: ' + err.message;
+        });
+}
+
+function closeModelSelector() {
+    document.getElementById('modelSelectorModal').classList.add('hidden');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text || '');
+    return div.innerHTML;
+}
+
+streamToggle.addEventListener('click', () => {
+    useStream = !useStream;
+    setToggleVisual(streamToggle, useStream, 'bg-green-600 hover:bg-green-700');
+});
+
+toolsToggle.addEventListener('click', () => {
+    useTools = !useTools;
+    setToggleVisual(toolsToggle, useTools, 'bg-green-600 hover:bg-green-700');
+    toolBar.classList.toggle('hidden', !useTools);
+});
+
+reasoningToggle.addEventListener('click', () => {
+    useReasoning = !useReasoning;
+    setToggleVisual(reasoningToggle, useReasoning, 'bg-indigo-600 hover:bg-indigo-700');
+});
+
+modelBrowseBtn.addEventListener('click', openModelSelector);
+document.getElementById('modelModalClose').addEventListener('click', closeModelSelector);
+document.getElementById('modelSelectorModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeModelSelector();
+});
+
+modelSearch.addEventListener('input', () => renderModelLists(modelSearch.value));
+
+modelInput.addEventListener('focus', function() {
+    this.dataset.oldValue = this.value;
+    this.value = '';
+});
+
+modelInput.addEventListener('blur', function() {
+    if (!this.value.trim()) {
+        this.value = this.dataset.oldValue || _lastModel;
+    }
+});
+
+modelInput.addEventListener('change', () => {
+    const model = currentModel();
+    if (_lastModel !== model) {
+        _lastModel = model;
+        appendMsg('system', 'Model changed to: ' + model);
+    }
+});
+
+userInput.addEventListener('input', autoResize);
+userInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+sendBtn.onclick = sendMessage;
+clearBtn.addEventListener('click', clearChat);
+
+appendMsg('system', 'Ready. OpenRouter model: ' + currentModel());
+loadOpenRouterModels()
+    .then(() => appendMsg('system', 'Loaded ' + allModels.length + ' OpenRouter models.'))
+    .catch((err) => appendMsg('system', 'Model preload failed: ' + err.message));
+</script>
+</body>
+</html>

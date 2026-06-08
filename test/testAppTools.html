@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AppTools + DigitalHumanFrame LLM Test</title>
+    <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+    <script>tailwind.config = { theme: { extend: {} } }</script>
+</head>
+<body class="font-sans m-0 flex h-screen overflow-hidden bg-[#fafafa]">
+
+<!-- ─── Left: Playground (the page the LLM will control) ─── -->
+<div class="playground flex-1 p-6 overflow-y-auto bg-white">
+    <h1>AppTools Test Page</h1>
+
+    <nav>
+        <a href="/" class="mr-4 text-blue-600 hover:underline">Home</a>
+        <a href="/about" class="mr-4 text-blue-600 hover:underline">About</a>
+        <a href="/contact" class="mr-4 text-blue-600 hover:underline">Contact</a>
+    </nav>
+
+    <div class="test-section border border-gray-300 p-4 mb-4 rounded" id="form-section">
+        <h3 class="mt-0 font-semibold">Sample Form</h3>
+        <form onsubmit="return false;">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="Enter username">
+            <br><br>
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="you@example.com">
+            <br><br>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password">
+            <br><br>
+            <label><input type="checkbox" name="agree"> Agree to terms</label>
+            <br><br>
+            <label><input type="radio" name="plan" value="free" checked> Free</label>
+            <label><input type="radio" name="plan" value="pro"> Pro</label>
+            <br><br>
+            <label for="country">Country</label>
+            <select id="country" name="country">
+                <option>United States</option>
+                <option>China</option>
+                <option>Japan</option>
+            </select>
+            <br><br>
+            <textarea id="notes" name="notes" placeholder="Additional notes..."></textarea>
+            <br><br>
+            <button type="submit" id="submit-btn" class="px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm cursor-pointer">Submit Order</button>
+            <button type="reset" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm cursor-pointer ml-2">Reset</button>
+        </form>
+    </div>
+
+    <div class="test-section border border-gray-300 p-4 mb-4 rounded" id="interactive-section">
+        <h3 class="mt-0 font-semibold">Interactive Elements</h3>
+        <button id="action-btn" onclick="logClick('action-btn clicked')" class="px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm cursor-pointer">Action Button</button>
+        <button disabled class="px-3 py-1.5 bg-gray-100 text-gray-400 rounded text-sm cursor-not-allowed">Disabled Button</button>
+        <div role="button" tabindex="0" data-testid="custom-btn" onclick="logClick('role=button clicked')" class="inline-block px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm cursor-pointer">Custom Role Button</div>
+        <details>
+            <summary>Expandable Section</summary>
+            <p>Hidden content revealed!</p>
+        </details>
+        <div contenteditable="true" style="border:1px solid #999; padding:0.5rem; min-height:2rem; margin-top:0.5rem;">Editable content area</div>
+    </div>
+
+    <div class="test-section border border-gray-300 p-4 mb-4 rounded" id="label-section">
+        <h3 class="mt-0 font-semibold">aria-label &amp; data-ai-hint</h3>
+        <button aria-label="Close dialog" class="px-3 py-1.5 bg-red-500 text-white rounded text-sm cursor-pointer">&#x2715;</button>
+        <button aria-label="Add to cart" class="px-3 py-1.5 bg-green-500 text-white rounded text-sm cursor-pointer ml-2">&#x1F6D2;</button>
+        <div role="button" tabindex="0" aria-label="Toggle sidebar" class="inline-block px-3 py-1.5 bg-gray-200 rounded text-sm cursor-pointer ml-2">&#x2630;</div>
+        <input type="text" aria-label="Search products" placeholder="Search..." class="ml-2 px-2 py-1 border border-gray-300 rounded text-sm">
+        <br><br>
+        <button data-ai-hint="This button submits the checkout form and places the user's order" class="px-3 py-1.5 bg-blue-500 text-white rounded text-sm cursor-pointer">Place Order</button>
+        <div role="region" data-ai-hint="Order summary section showing item totals and removal controls" class="mt-2 p-2 border border-dashed border-gray-400 rounded text-sm">
+            <span>Total: $42.00</span>
+            <button data-ai-hint="Remove this item from the cart" class="ml-2 px-2 py-0.5 bg-red-100 text-red-600 rounded text-xs cursor-pointer">Remove</button>
+        </div>
+        <a href="/help" aria-label="Get help" data-ai-hint="Opens the help center in a new page" class="mt-2 inline-block text-blue-600 hover:underline">?</a>
+    </div>
+
+    <div class="test-section border border-gray-300 p-4 mb-4 rounded" id="ai-type-section">
+        <h3 class="mt-0 font-semibold">data-ai-type Elements</h3>
+        <div data-ai-hint="Game score display" data-ai-type="textbox" id="ai-score" class="inline-block px-3 py-1.5 border border-gray-300 rounded text-sm bg-gray-50 min-w-[80px]">42</div>
+        <div data-ai-hint="Start the mini-game" data-ai-type="button" id="ai-start-btn" onclick="logClick('ai-start-btn clicked')" class="inline-block px-3 py-1.5 bg-indigo-500 text-white rounded text-sm cursor-pointer ml-2">Start Game</div>
+        <div data-ai-hint="Player name field" data-ai-type="textbox" id="ai-name" class="inline-block px-3 py-1.5 border border-dashed border-gray-400 rounded text-sm min-w-[120px] ml-2">Player1</div>
+        <div data-ai-hint="Plain hint div (no ai-type)" id="ai-plain" class="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-500">This is a plain data-ai-hint div, should show as group.</div>
+    </div>
+
+    <div class="test-section border border-gray-300 p-4 mb-4 rounded hidden" id="hidden-section">
+        <button class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm">Hidden Button (should not appear)</button>
+    </div>
+
+    <div aria-hidden="true">
+        <button class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm">Aria-hidden Button (should not appear)</button>
+    </div>
+
+    <div class="test-section border border-gray-300 p-4 mb-4 rounded" id="scoped-section">
+        <h3 class="mt-0 font-semibold">Scoped Container</h3>
+        <button class="px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm cursor-pointer">Scoped Button A</button>
+        <a href="/scoped-link" class="ml-2 text-blue-600 hover:underline">Scoped Link</a>
+        <input type="text" placeholder="Scoped input" class="ml-2 px-2 py-1 border border-gray-300 rounded text-sm">
+    </div>
+
+    <div class="test-section border border-gray-300 p-4 mb-4 rounded" id="iframe-section">
+        <h3 class="mt-0 font-semibold">Iframe Content (keepworkSDK loaded inside)</h3>
+        <iframe id="app-iframe" style="width:100%; height:260px; border:1px solid #ccc; border-radius:4px;"></iframe>
+    </div>
+</div>
+
+<!-- ─── Floating Avatar ─── -->
+<div id="avatar-root" class="w-[260px] h-[340px] absolute right-[490px] bottom-2 z-50 bg-transparent overflow-hidden rounded-lg shadow-lg cursor-grab border-2 border-transparent transition-colors duration-150 box-border">
+    <div id="drag-overlay" style="position:absolute;inset:0;z-index:10;cursor:grab;"></div>
+    <button id="phone-btn" title="Voice Chat" style="position:absolute;bottom:8px;right:8px;z-index:20;width:36px;height:36px;border-radius:50%;border:none;background:#3b82f6;color:white;font-size:18px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.2);transition:background 0.2s;">&#x1F4DE;</button>
+</div>
+<style>
+    #phone-btn:hover { background: #2563eb; }
+    #phone-btn.calling { background: #ef4444; animation: phonePulse 1.2s ease-in-out infinite; }
+    #phone-btn.calling:hover { background: #dc2626; }
+    @keyframes phonePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); } 50% { box-shadow: 0 0 0 10px rgba(239,68,68,0); } }
+</style>
+
+<!-- ─── Right: Control Panel ─── -->
+<div class="panel w-[480px] flex flex-col border-l border-gray-300 bg-gray-100 overflow-hidden">
+    <!-- LLM Avatar Controls -->
+    <div class="p-3 border-b border-gray-300">
+        <h2 class="text-base font-bold mb-2">LLM Avatar Control</h2>
+        <div class="flex gap-2 items-center">
+            <input id="llm-input" type="text" class="flex-1 px-2 py-1 rounded border text-sm" placeholder="Ask LLM to interact with the page..." disabled>
+            <button id="btnSend" class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-xs" disabled>Send</button>
+        </div>
+    </div>
+
+    <!-- Manual Test Controls -->
+    <div class="p-3 border-b border-gray-300">
+        <h3 class="text-sm font-semibold mb-1">Manual Tests</h3>
+        <div class="controls flex flex-wrap gap-1">
+            <button onclick="testReadApp()" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">read_app</button>
+            <button onclick="testReadApp('all')" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">all</button>
+            <button onclick="testReadApp('forms')" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">forms</button>
+            <button onclick="testReadApp('links')" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">links</button>
+            <button onclick="testReadApp('ai-hint')" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">ai-hint</button>
+            <button onclick="testReadApp('#scoped-section')" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">#scoped</button>
+            <button onclick="testReadAppWithIframe()" class="px-2 py-1 bg-green-200 hover:bg-green-300 rounded text-xs cursor-pointer">read_app+iframe</button>
+            <button onclick="testReadAppWithIframe('all')" class="px-2 py-1 bg-green-200 hover:bg-green-300 rounded text-xs cursor-pointer">all+iframe</button>
+            <button onclick="testClickRef()" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">click ref=1</button>
+            <button onclick="testClickCSS()" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">click #action-btn</button>
+            <button onclick="testClickText()" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">click text=Submit</button>
+            <button onclick="testClickTextExact()" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">click text="About"</button>
+            <button onclick="testClickMissing()" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">click missing</button>
+            <button onclick="testClickIframeBtn()" class="px-2 py-1 bg-green-200 hover:bg-green-300 rounded text-xs cursor-pointer">click iframe btn</button>
+            <button onclick="testTypeByRef()" class="px-2 py-1 bg-purple-200 hover:bg-purple-300 rounded text-xs cursor-pointer">type ref</button>
+            <button onclick="testTypeByCSS()" class="px-2 py-1 bg-purple-200 hover:bg-purple-300 rounded text-xs cursor-pointer">type #username</button>
+            <button onclick="testTypeClear()" class="px-2 py-1 bg-purple-200 hover:bg-purple-300 rounded text-xs cursor-pointer">type clear</button>
+            <button onclick="testTypeSelect()" class="px-2 py-1 bg-purple-200 hover:bg-purple-300 rounded text-xs cursor-pointer">type select</button>
+            <button onclick="testTypeContentEditable()" class="px-2 py-1 bg-purple-200 hover:bg-purple-300 rounded text-xs cursor-pointer">type editable</button>
+            <button onclick="testTypeIframe()" class="px-2 py-1 bg-green-200 hover:bg-green-300 rounded text-xs cursor-pointer">type iframe</button>
+            <button onclick="testTypeMissing()" class="px-2 py-1 bg-purple-200 hover:bg-purple-300 rounded text-xs cursor-pointer">type missing</button>
+            <button onclick="testKeyEnter()" class="px-2 py-1 bg-orange-200 hover:bg-orange-300 rounded text-xs cursor-pointer">key Enter</button>
+            <button onclick="testKeyTab()" class="px-2 py-1 bg-orange-200 hover:bg-orange-300 rounded text-xs cursor-pointer">key Tab</button>
+            <button onclick="testKeyCombo()" class="px-2 py-1 bg-orange-200 hover:bg-orange-300 rounded text-xs cursor-pointer">key Ctrl+a</button>
+            <button onclick="testKeyFocused()" class="px-2 py-1 bg-orange-200 hover:bg-orange-300 rounded text-xs cursor-pointer">key focused</button>
+            <button onclick="testScreenshot()" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">screenshot_app</button>
+            <button onclick="testCustomHandler()" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs cursor-pointer">custom handler</button>
+            <button onclick="testReadAppWhiteList()" class="px-2 py-1 bg-yellow-200 hover:bg-yellow-300 rounded text-xs cursor-pointer">whiteList #form</button>
+            <button onclick="toggleFilters()" class="px-2 py-1 bg-yellow-200 hover:bg-yellow-300 rounded text-xs cursor-pointer">toggle filters</button>
+            <button onclick="testReadAiType()" class="px-2 py-1 bg-indigo-200 hover:bg-indigo-300 rounded text-xs cursor-pointer">ai-type section</button>
+            <button onclick="testTypeAiTextbox()" class="px-2 py-1 bg-indigo-200 hover:bg-indigo-300 rounded text-xs cursor-pointer">type ai-textbox</button>
+            <button onclick="testClickAiButton()" class="px-2 py-1 bg-indigo-200 hover:bg-indigo-300 rounded text-xs cursor-pointer">click ai-button</button>
+        </div>
+    </div>
+
+    <div class="p-3 border-b border-gray-300">
+        <h3 class="text-sm font-semibold mb-1">Click Log</h3>
+        <div id="click-log" class="bg-yellow-50 border border-yellow-300 p-2 mb-2 min-h-[1.5rem] max-h-[100px] overflow-y-auto rounded text-xs"></div>
+    </div>
+
+    <div class="flex-1 p-3 flex flex-col min-h-0">
+        <h3 class="text-sm font-semibold mb-1">Output</h3>
+        <pre id="output" class="flex-1 whitespace-pre-wrap font-mono bg-[#1e1e1e] text-[#d4d4d4] p-3 rounded overflow-y-auto text-xs min-h-0"></pre>
+    </div>
+</div>
+
+<script type="module">
+// ── SDK bootstrap ──
+try { await import('../index.ts'); } catch(e) { await import('../dist/keepworkSDK.iife.js'); }
+
+const sdk = window.keepwork;
+const appTools = sdk?.copilotTools?.appTools || null;
+const getAppTools = () => appTools;
+
+// ── Default filter: only the left playground, ignore the right panel ──
+if (appTools) {
+    appTools.setWhiteList(['.playground']);
+    appTools.setIgnoreList(['.panel', '#avatar-root']);
+}
+
+// ── Register iframe once it loads ──
+const appIframe = document.getElementById('app-iframe');
+if (appIframe) {
+    appIframe.addEventListener('load', () => {
+        if (appTools) { appTools.addIframe(appIframe); }
+        console.log('[parent] iframe registered with AppTools');
+    });
+    const sdkUrl = new URL('../index.ts', location.href).href;
+    appIframe.srcdoc = [
+        '<!DOCTYPE html><html><head><meta charset="utf-8">',
+        '<script type="module" src="' + sdkUrl + '"><\/script>',
+        '<style>body{font-family:sans-serif;margin:12px;} button{margin:4px;padding:4px 10px;cursor:pointer;} input{margin:4px;padding:4px;}</style>',
+        '</head><body>',
+        '<div class="playground">',
+        '<h3>Iframe Page</h3>',
+        '<button id="iframe-btn-a" onclick="document.getElementById(\'iframe-log\').textContent=\'Button A clicked\'">Button A</button>',
+        '<button id="iframe-btn-b" onclick="document.getElementById(\'iframe-log\').textContent=\'Button B clicked\'">Button B</button>',
+        '<button id="iframe-ai-hint-btn" data-ai-hint="Runs the primary iframe action" onclick="document.getElementById(\'iframe-log\').textContent=\'AI hint button clicked\'">AI Hint Button</button>',
+        '<a href="/iframe-link">Iframe Link</a>',
+        '<br><input type="text" id="iframe-input" placeholder="Type here...">',
+        '<p id="iframe-log"></p>',
+        '</div>',
+        '</body></html>',
+    ].join('\n');
+}
+
+// ── DOM refs ──
+const output = document.getElementById('output');
+const clickLog = document.getElementById('click-log');
+const btnSend = document.getElementById('btnSend');
+const llmInput = document.getElementById('llm-input');
+const phoneBtn = document.getElementById('phone-btn');
+
+// ── Logging ──
+function log(text) {
+    if (!output) return;
+    const str = typeof text === 'object' ? JSON.stringify(text, null, 2) : text;
+    output.textContent += str + '\n';
+    output.scrollTop = output.scrollHeight;
+    console.log(text);
+}
+
+function clearLog() { if (output) output.textContent = ''; }
+
+window.logClick = function(msg) {
+    if (clickLog) clickLog.textContent = msg + '\n' + clickLog.textContent;
+};
+
+// Track clicks on playground elements
+document.querySelectorAll('.playground button, .playground a, .playground [role="button"]').forEach(el => {
+    el.addEventListener('click', (e) => {
+        window.logClick(`Event: click on <${e.target.tagName.toLowerCase()}> "${(e.target.innerText || '').slice(0, 30)}"`);
+    });
+});
+
+// ── DigitalHumanFrame lifecycle ──
+let dhf = null;
+
+async function initAvatar() {
+    try {
+        clearLog();
+        log('Initializing DigitalHumanFrame with app tools...');
+
+        // The `app` category is already registered on sdk.copilotTools by default.
+        // We proxy it (plus fileOps/execute) to the iframe so the LLM can use read_app/click_element.
+        const proxyCategories = ['app', 'fileOps', 'execute'];
+
+        dhf = new DigitalHumanFrame({
+            sdk,
+            container: document.getElementById('avatar-root'),
+            workspace: 'testAppTools',
+            proxyCategories,
+        });
+
+        dhf.on('avatarReady', (d) => log(`[event] avatarReady (${d.mode})`));
+        dhf.on('message', (d) => log(`[avatar] ${d.partialText}`));
+        dhf.on('complete', () => log('[event] complete'));
+        dhf.on('toolCall', (d) => log(`[tool] ${d.name}(${JSON.stringify(d.args || d.arguments || {}).slice(0, 200)})`));
+        dhf.on('error', (e) => log(`[error] ${e.message || JSON.stringify(e)}`));
+
+        const system_prompt = [
+            'You are a page-interaction assistant. The user can ask you to read, inspect or click elements on the current web page.',
+            'You have these tools:',
+            '- read_app(filters): Get a structured snapshot of interactive elements on the page. Call this first to see what is on the page. filters can be "all", "forms", "links", "ai-hint", or a CSS selector.',
+            '- click_element(selector, ref, button): Click an element. Use `ref` (from a prior read_app) or `selector` (CSS / text=...).',
+            '- type_in_app(selector, ref, text, clear): Type text into an input/textarea/select/contenteditable element. Use `ref` or `selector` to identify it. Set `clear` to true to replace existing content.',
+            '- screenshot_app(): Take a screenshot of the page.',
+            'Always call read_app first before clicking or typing so you know the available refs.',
+            'Respond concisely. Describe what you see or did after each tool call.',
+            'current page content is: ${await copilot.read_app()}\n',
+        ].join('\n');
+
+        const config = {
+            character: { name: 'PageBot' },
+            system_prompt,
+            llm_model: 'keepwork-flash',
+            workspace: 'testAppTools',
+            tools: { app: { enabled: true }, fileOps: { enabled: true }, execute: { enabled: true } },
+        };
+
+        await dhf.initFromConfig(config);
+        log('Session created. LLM is ready — ask it to interact with the page!');
+
+        btnSend.disabled = false;
+        llmInput.disabled = false;
+        phoneBtn.style.display = 'flex';
+    } catch (err) {
+        log(`Init Error: ${err.message}`);
+        console.error(err);
+    }
+}
+
+btnSend.onclick = async () => {
+    if (!dhf) return;
+    const text = llmInput.value.trim();
+    if (!text) return;
+    try {
+        btnSend.disabled = true;
+        log(`\n--- User: ${text} ---`);
+        llmInput.value = '';
+        const res = await dhf.sendMessage(text);
+        log(`[done] ${res.finalText}`);
+    } catch (err) {
+        log(`Chat Error: ${err.message}`);
+    } finally {
+        btnSend.disabled = false;
+        llmInput.focus();
+    }
+};
+
+llmInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); btnSend.click(); }
+});
+
+// ── Draggable avatar with blue frame on hover/press ──
+const avatarRoot = document.getElementById('avatar-root');
+const dragOverlay = document.getElementById('drag-overlay');
+let isDragging = false, dragStart = { x: 0, y: 0 }, posStart = { x: 0, y: 0 };
+
+const showFrame = () => { avatarRoot.classList.replace('border-transparent', 'border-blue-500'); };
+const hideFrame = () => { if (!isDragging) avatarRoot.classList.replace('border-blue-500', 'border-transparent'); };
+
+avatarRoot.addEventListener('pointerenter', () => { showFrame(); });
+avatarRoot.addEventListener('pointerleave', () => { hideFrame(); });
+
+dragOverlay.addEventListener('pointerdown', (e) => {
+    isDragging = true; dragStart = { x: e.clientX, y: e.clientY };
+    const r = avatarRoot.getBoundingClientRect(); posStart = { x: r.left, y: r.top };
+    dragOverlay.style.cursor = 'grabbing';
+    dragOverlay.setPointerCapture(e.pointerId);
+    showFrame();
+    e.preventDefault();
+});
+window.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+    avatarRoot.style.left = `${posStart.x + e.clientX - dragStart.x}px`;
+    avatarRoot.style.top = `${posStart.y + e.clientY - dragStart.y}px`;
+    avatarRoot.style.right = 'auto'; avatarRoot.style.bottom = 'auto';
+});
+window.addEventListener('pointerup', () => {
+    if (!isDragging) return;
+    isDragging = false; dragOverlay.style.cursor = 'grab';
+    hideFrame();
+});
+
+// ── Voice chat toggle ──
+let voiceChatActive = false;
+phoneBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!dhf) return;
+    if (voiceChatActive) {
+        log('[voice] Stopping voice chat...');
+        phoneBtn.disabled = true;
+        try {
+            await dhf.stopVoiceChat();
+            log('[voice] Stopped.');
+        } catch (err) {
+            log(`[voice] Stop error: ${err.message}`);
+        }
+        voiceChatActive = false;
+        phoneBtn.classList.remove('calling');
+        phoneBtn.disabled = false;
+    } else {
+        log('[voice] Starting voice chat...');
+        phoneBtn.disabled = true;
+        try {
+            await dhf.startVoiceChat();
+            voiceChatActive = true;
+            phoneBtn.classList.add('calling');
+            log('[voice] Voice chat active — speak to interact!');
+        } catch (err) {
+            log(`[voice] Start error: ${err.message}`);
+        }
+        phoneBtn.disabled = false;
+    }
+});
+
+// ── Manual test helpers (same as before) ──
+window.testReadApp = async (filters) => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('read_app', { filters }));
+};
+window.testReadAppWithIframe = async (filters) => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    clearLog();
+    log('read_app (with iframe)...');
+    log(await getAppTools().execute('read_app', { filters }));
+};
+window.testClickRef = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    await getAppTools().execute('read_app', {});
+    log(await getAppTools().execute('click_element', { ref: '1' }));
+};
+window.testClickCSS = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('click_element', { selector: '#action-btn' }));
+};
+window.testClickText = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('click_element', { selector: 'text=Submit Order' }));
+};
+window.testClickTextExact = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('click_element', { selector: 'text="About"' }));
+};
+window.testClickMissing = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('click_element', { selector: '#nonexistent' }));
+};
+window.testClickIframeBtn = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('click_element', { selector: '#iframe-btn-a' }));
+};
+window.testTypeByRef = async () => {
+    const at = getAppTools();
+    if (!at) return log('Error: appTools is undefined');
+    await at.execute('read_app', {});
+    log(await at.execute('type_in_app', { ref: '4', text: 'testuser' }));
+};
+window.testTypeByCSS = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('type_in_app', { selector: '#username', text: 'hello', clear: true }));
+};
+window.testTypeClear = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('type_in_app', { selector: '#email', text: 'user@test.com', clear: true }));
+};
+window.testTypeSelect = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('type_in_app', { selector: '#country', text: 'China' }));
+};
+window.testTypeContentEditable = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('type_in_app', { selector: '[contenteditable="true"]', text: ' — appended text' }));
+};
+window.testTypeIframe = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('type_in_app', { selector: '#iframe-input', text: 'typed into iframe' }));
+};
+window.testTypeMissing = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('type_in_app', { selector: '#nonexistent', text: 'fail' }));
+};
+window.testKeyEnter = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('type_in_app', { key: 'Enter', selector: '#username' }));
+};
+window.testKeyTab = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('type_in_app', { key: 'Tab', selector: '#username' }));
+};
+window.testKeyCombo = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('type_in_app', { key: 'Control+a', selector: '#username' }));
+};
+window.testKeyFocused = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    document.getElementById('username').focus();
+    log(await getAppTools().execute('type_in_app', { key: 'Enter' }));
+};
+window.testScreenshot = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    log(await getAppTools().execute('screenshot_app', {}));
+};
+window.testCustomHandler = async () => {
+    const at = getAppTools();
+    if (!at) return log('Error: appTools is undefined');
+    at.setReadHandler(async (filters) => `Custom handler called with filters: ${filters}`);
+    log(await at.execute('read_app', { filters: 'test' }));
+    at.setReadHandler(null);
+};
+
+window.testReadAppWhiteList = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    clearLog();
+    log('read_app with whiteList: ["#form-section"]...');
+    log(await getAppTools().execute('read_app', { whiteList: ['#form-section'] }));
+};
+
+window.testReadAiType = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    clearLog();
+    log('read_app with whiteList: ["#ai-type-section"]...');
+    log(await getAppTools().execute('read_app', { whiteList: ['#ai-type-section'] }));
+};
+window.testTypeAiTextbox = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    clearLog();
+    log('type_in_app on data-ai-type="textbox" #ai-score (clear + new value)...');
+    log(await getAppTools().execute('type_in_app', { selector: '#ai-score', text: '99', clear: true }));
+    log('type_in_app on #ai-name (append)...');
+    log(await getAppTools().execute('type_in_app', { selector: '#ai-name', text: '_Pro' }));
+    log('Current values:');
+    log(`  #ai-score = "${document.getElementById('ai-score').textContent}"`);
+    log(`  #ai-name  = "${document.getElementById('ai-name').textContent}"`);
+};
+window.testClickAiButton = async () => {
+    if (!getAppTools()) return log('Error: appTools is undefined');
+    clearLog();
+    log('click_element on data-ai-type="button" #ai-start-btn...');
+    log(await getAppTools().execute('click_element', { selector: '#ai-start-btn' }));
+};
+
+let filtersEnabled = true;
+window.toggleFilters = () => {
+    const at = getAppTools();
+    if (!at) return log('Error: appTools is undefined');
+    filtersEnabled = !filtersEnabled;
+    if (filtersEnabled) {
+        at.setWhiteList(['.playground']);
+        at.setIgnoreList(['.panel', '#avatar-root']);
+        log('Filters ON — whiteList: [.playground], ignoreList: [.panel, #avatar-root]');
+    } else {
+        at.setWhiteList([]);
+        at.setIgnoreList([]);
+        log('Filters OFF — showing all elements');
+    }
+};
+
+if (!getAppTools()) log('Error: AppTools failed to initialize');
+else window.testReadApp();
+
+// Auto-init avatar on startup
+initAvatar();
+</script>
+
+</body>
+</html>

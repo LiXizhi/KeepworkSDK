@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UserWorks Test</title>
+    <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-800 antialiased">
+    <div class="mx-auto w-[min(1180px,calc(100vw-32px))] py-4">
+        <header class="flex flex-col gap-5 rounded-lg bg-gradient-to-br from-blue-500 to-purple-700 px-6 py-5 text-white shadow-xl md:flex-row md:items-center md:justify-between">
+            <div class="min-w-0 space-y-4">
+                <h1 class="text-[22px] font-bold leading-none">作品展示平台</h1>
+                <nav class="flex flex-wrap gap-3" aria-label="UserWorks views">
+                    <button class="tab-btn rounded bg-orange-500 px-5 py-2 text-sm font-semibold text-white" data-view="upload">上传作品</button>
+                    <button class="tab-btn rounded bg-white px-5 py-2 text-sm font-semibold text-slate-700" data-view="mine">我的作品</button>
+                    <button class="tab-btn rounded bg-white px-5 py-2 text-sm font-semibold text-slate-700" data-view="gallery">浏览作品</button>
+                    <button class="tab-btn rounded bg-white px-5 py-2 text-sm font-semibold text-slate-700" data-view="analytics">数据分析</button>
+                    <button class="tab-btn rounded bg-white px-5 py-2 text-sm font-semibold text-slate-700" data-view="lessons">教案库</button>
+                </nav>
+            </div>
+            <button class="flex items-center gap-3 rounded-lg px-2 py-1 text-left hover:bg-white/10" id="profileArea" type="button" title="登录或查看个人资料">
+                <div class="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-indigo-200 font-bold text-indigo-800" id="avatar">?</div>
+                <div class="min-w-0 text-xs leading-tight">
+                    <strong class="block max-w-36 truncate" id="userName">未登录</strong>
+                    <span class="opacity-80" id="userRole">Keepwork</span>
+                </div>
+            </button>
+        </header>
+
+        <main class="mt-5 overflow-hidden rounded border border-slate-200 bg-white shadow-lg">
+            <div class="flex min-h-14 items-center justify-between gap-4 border-b border-slate-200 px-4">
+                <div class="font-semibold text-slate-900" id="panelTitle">上传作品</div>
+                <button class="rounded border border-slate-300 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50" id="backBtn" type="button">返回</button>
+            </div>
+
+            <section class="view p-5 md:p-8" id="view-upload">
+                <form class="space-y-4" id="workForm">
+                    <label class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <span class="pt-2 text-sm text-slate-700 md:text-right"><span class="text-rose-500">* </span>作品网址</span>
+                        <span>
+                            <input class="w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" id="videoUrl" type="url" placeholder="请输入作品网址（视频链接、H5作品链接或项目地址）">
+                            <span class="mt-1 block text-xs text-slate-500" id="videoHint">必填。测试页会以 URL 方式提交作品。</span>
+                        </span>
+                    </label>
+
+                    <div class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <div class="pt-2 text-sm text-slate-700 md:text-right">封面图片</div>
+                        <div>
+                            <label class="grid h-36 w-36 cursor-pointer place-items-center overflow-hidden rounded border border-dashed border-slate-300 bg-slate-50 text-3xl text-slate-400" for="coverFile">
+                                <span id="coverPlus">+</span>
+                                <img class="hidden h-full w-full object-cover" id="coverPreview" alt="封面预览">
+                            </label>
+                            <input class="hidden" id="coverFile" type="file" accept="image/*">
+                            <div class="mt-1 text-xs text-slate-500" id="coverHint">可选，上传后会作为作品列表封面</div>
+                        </div>
+                    </div>
+
+                    <label class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <span class="pt-2 text-sm text-slate-700 md:text-right"><span class="text-rose-500">* </span>作品标题</span>
+                        <span class="relative">
+                            <input class="w-full rounded border border-slate-300 px-3 py-2 pr-16 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" id="title" type="text" maxlength="50" placeholder="请输入作品标题，不超过50字">
+                            <span class="pointer-events-none absolute right-3 top-2 text-xs text-slate-500"><span id="titleCount">0</span> / 50</span>
+                        </span>
+                    </label>
+
+                    <label class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <span class="pt-2 text-sm text-slate-700 md:text-right">作品分类</span>
+                        <select class="w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" id="category">
+                            <option value="">请选择</option>
+                            <option value="AI游戏">AI游戏</option>
+                            <option value="互动动画">互动动画</option>
+                            <option value="科创项目">科创项目</option>
+                            <option value="数字艺术">数字艺术</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </label>
+
+                    <label class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <span class="pt-2 text-sm text-slate-700 md:text-right">适用年级</span>
+                        <select class="w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" id="grade">
+                            <option value="">请选择</option>
+                            <option value="小学低年级">小学低年级</option>
+                            <option value="小学高年级">小学高年级</option>
+                            <option value="初中">初中</option>
+                            <option value="高中">高中</option>
+                            <option value="大学及以上">大学及以上</option>
+                        </select>
+                    </label>
+
+                    <label class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <span class="pt-2 text-sm text-slate-700 md:text-right">作品描述</span>
+                        <span class="relative">
+                            <textarea class="min-h-24 w-full resize-y rounded border border-slate-300 px-3 py-2 pb-6 text-sm leading-6 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" id="description" maxlength="500" placeholder="可选。留空时会自动使用作品标题生成描述。"></textarea>
+                            <span class="pointer-events-none absolute bottom-2 right-3 text-xs text-slate-500"><span id="descriptionCount">0</span> / 500</span>
+                        </span>
+                    </label>
+
+                    <label class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <span class="pt-2 text-sm text-slate-700 md:text-right">创作背景</span>
+                        <span class="relative">
+                            <textarea class="min-h-20 w-full resize-y rounded border border-slate-300 px-3 py-2 pb-6 text-sm leading-6 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" id="background" maxlength="300" placeholder="可选。留空时会自动使用默认创作背景。"></textarea>
+                            <span class="pointer-events-none absolute bottom-2 right-3 text-xs text-slate-500"><span id="backgroundCount">0</span> / 300</span>
+                        </span>
+                    </label>
+
+                    <label class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <span class="pt-2 text-sm text-slate-700 md:text-right">创新点</span>
+                        <span class="relative">
+                            <textarea class="min-h-20 w-full resize-y rounded border border-slate-300 px-3 py-2 pb-6 text-sm leading-6 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" id="innovation" maxlength="300" placeholder="可选。留空时会自动使用默认创新点。"></textarea>
+                            <span class="pointer-events-none absolute bottom-2 right-3 text-xs text-slate-500"><span id="innovationCount">0</span> / 300</span>
+                        </span>
+                    </label>
+
+                    <div class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <div class="pt-2 text-sm text-slate-700 md:text-right">团队成员</div>
+                        <div>
+                            <div class="mb-2 flex flex-wrap gap-2" id="teamList"></div>
+                            <div class="flex gap-2">
+                                <input class="min-w-0 flex-1 rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" id="teamMemberInput" type="text" placeholder="成员姓名">
+                                <button class="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" id="addMemberBtn" type="button">+ 添加成员</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2 md:grid-cols-[92px_minmax(0,1fr)] md:gap-5">
+                        <div></div>
+                        <div class="flex gap-2">
+                            <button class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50" id="submitBtn" type="submit">提交作品</button>
+                            <button class="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" id="resetBtn" type="button">重置</button>
+                        </div>
+                    </div>
+                </form>
+                <pre class="mt-5 max-h-64 overflow-auto whitespace-pre-wrap rounded border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700" id="uploadResult">等待操作...</pre>
+            </section>
+
+            <section class="view hidden p-5 md:p-8" id="view-mine">
+                <div class="mb-5 flex flex-wrap items-center gap-3">
+                    <select class="rounded border border-slate-300 px-3 py-2 text-sm" id="mineStatus">
+                        <option value="">全部状态</option>
+                        <option value="11">审核中</option>
+                        <option value="12">已发布</option>
+                        <option value="13">已拒绝</option>
+                    </select>
+                    <select class="rounded border border-slate-300 px-3 py-2 text-sm" id="mineSort">
+                        <option value="latest">最新更新</option>
+                        <option value="hot">访问最多</option>
+                        <option value="rating">评分最高</option>
+                    </select>
+                    <button class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50" id="loadMineBtn" type="button">刷新我的作品</button>
+                    <button class="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" id="loadStatsBtn" type="button">作品统计</button>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="mineGrid"></div>
+                <pre class="mt-5 max-h-64 overflow-auto whitespace-pre-wrap rounded border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700" id="mineResult">等待加载...</pre>
+            </section>
+
+            <section class="view hidden p-5 md:p-8" id="view-gallery">
+                <div class="mb-5 flex flex-wrap items-center gap-3">
+                    <input class="rounded border border-slate-300 px-3 py-2 text-sm" id="galleryKeyword" type="text" placeholder="作品标题精确搜索">
+                    <select class="rounded border border-slate-300 px-3 py-2 text-sm" id="galleryCategory">
+                        <option value="">全部分类</option>
+                        <option value="AI游戏">AI游戏</option>
+                        <option value="互动动画">互动动画</option>
+                        <option value="科创项目">科创项目</option>
+                        <option value="数字艺术">数字艺术</option>
+                        <option value="其他">其他</option>
+                    </select>
+                    <select class="rounded border border-slate-300 px-3 py-2 text-sm" id="galleryGrade">
+                        <option value="">全部年级</option>
+                        <option value="小学低年级">小学低年级</option>
+                        <option value="小学高年级">小学高年级</option>
+                        <option value="初中">初中</option>
+                        <option value="高中">高中</option>
+                        <option value="大学及以上">大学及以上</option>
+                    </select>
+                    <select class="rounded border border-slate-300 px-3 py-2 text-sm" id="gallerySort">
+                        <option value="latest">最新</option>
+                        <option value="hot">最热</option>
+                        <option value="rating">评分</option>
+                    </select>
+                    <button class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50" id="loadGalleryBtn" type="button">浏览作品</button>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="galleryGrid"></div>
+                <pre class="mt-5 max-h-64 overflow-auto whitespace-pre-wrap rounded border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700" id="galleryResult">等待加载...</pre>
+            </section>
+
+            <section class="view hidden bg-slate-50 p-4 md:p-5" id="view-detail">
+                <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+                    <div class="min-w-0 space-y-4" id="detailContent">
+                        <div class="rounded border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">点击作品卡片上的“详情”查看作品页面。</div>
+                    </div>
+                    <aside class="space-y-3" id="detailActions"></aside>
+                </div>
+                <pre class="mt-5 max-h-72 overflow-auto whitespace-pre-wrap rounded border border-slate-300 bg-white p-3 font-mono text-xs leading-5 text-slate-700" id="detailResult">等待加载...</pre>
+            </section>
+
+            <section class="view hidden p-5 md:p-8" id="view-analytics">
+                <div class="rounded border border-dashed border-slate-300 p-10 text-center text-slate-500">数据分析入口占位：当前测试页主要验证 UserWorks SDK 的上传、浏览和互动接口。</div>
+            </section>
+
+            <section class="view hidden p-5 md:p-8" id="view-lessons">
+                <div class="mb-5 flex flex-wrap items-center gap-3">
+                    <input class="rounded border border-slate-300 px-3 py-2 text-sm" id="lessonWorkId" type="text" placeholder="输入作品 ID">
+                    <button class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" id="analysisBtn" type="button">获取 AI 分析</button>
+                    <button class="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" id="triggerAnalysisBtn" type="button">触发分析</button>
+                    <button class="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" id="lessonPlanBtn" type="button">生成教案</button>
+                </div>
+                <pre class="max-h-64 overflow-auto whitespace-pre-wrap rounded border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700" id="lessonResult">等待操作...</pre>
+            </section>
+        </main>
+    </div>
+
+    <script type="module">
+        try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+
+        const sdk = window.keepwork;
+        const userWorks = sdk.userWorks;
+        const state = { teamMembers: [], coverFile: null, uploadedCoverUrl: '', currentDetailId: null, detailRating: 0, previousView: 'gallery' };
+
+        const $ = id => document.getElementById(id);
+        const showJson = (id, value, isError = false) => {
+            const el = $(id);
+            el.classList.toggle('border-rose-200', isError);
+            el.classList.toggle('bg-rose-50', isError);
+            el.classList.toggle('text-rose-800', isError);
+            el.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        };
+        const escapeHtml = value => String(value ?? '').replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
+        const setBusy = (button, busy, text) => {
+            if (!button) return;
+            if (busy) button.dataset.text = button.textContent;
+            button.disabled = busy;
+            button.textContent = busy ? text : (button.dataset.text || button.textContent);
+        };
+
+        async function refreshProfile() {
+            try {
+                if (!sdk.token) throw new Error('not logged in');
+                const profile = await sdk.getUserProfile({ forceRefresh: true });
+                $('userName').textContent = profile.nickname || profile.username || `用户 ${profile.id}`;
+                $('userRole').textContent = profile.username || '已登录';
+                $('avatar').innerHTML = profile.portrait
+                    ? `<img class="h-full w-full object-cover" src="${profile.portrait}" alt="avatar">`
+                    : escapeHtml((profile.nickname || profile.username || '?').slice(0, 1).toUpperCase());
+            } catch (_) {
+                $('userName').textContent = '未登录';
+                $('userRole').textContent = '点击登录';
+                $('avatar').textContent = '?';
+            }
+        }
+
+        async function openProfile() {
+            if (sdk.token && sdk.showProfileWindow) await sdk.showProfileWindow().catch(() => {});
+            else if (sdk.showLoginWindow) {
+                await sdk.showLoginWindow({ title: '登录 Keepwork' }).catch(() => {});
+                await refreshProfile();
+            }
+        }
+
+        function switchView(view) {
+            document.querySelectorAll('.view').forEach(el => el.classList.toggle('hidden', el.id !== `view-${view}`));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                const active = el.dataset.view === view;
+                el.className = active
+                    ? 'tab-btn rounded bg-orange-500 px-5 py-2 text-sm font-semibold text-white'
+                    : 'tab-btn rounded bg-white px-5 py-2 text-sm font-semibold text-slate-700';
+            });
+            const titles = { upload: '上传作品', mine: '我的作品', gallery: '浏览作品', analytics: '数据分析', lessons: '教案库' };
+            $('panelTitle').textContent = titles[view] || '作品展示平台';
+            if (view === 'mine') loadMine();
+            if (view === 'gallery') loadGallery();
+        }
+
+        function updateCounter(id, countId) { $(countId).textContent = String($(id).value.length); }
+
+        function renderTeam() {
+            $('teamList').innerHTML = state.teamMembers.map((name, index) => `
+                <span class="inline-flex items-center gap-1 rounded border border-slate-300 bg-slate-50 px-2 py-1 text-xs">
+                    ${escapeHtml(name)}<button class="text-slate-500" type="button" data-remove-member="${index}">x</button>
+                </span>
+            `).join('');
+        }
+
+        function validateWork(body) {
+            if (!body.title || !body.videoUrl) throw new Error('请填写作品网址和作品标题');
+        }
+
+        async function uploadFileIfNeeded(file, options, hintId) {
+            if (!file) return '';
+            $(hintId).textContent = '正在上传文件...';
+            const asset = await userWorks.uploadAsset(file, {
+                ...options,
+                onProgress: progress => { $(hintId).textContent = `上传中 ${progress.percent}%`; },
+            });
+            $(hintId).textContent = `上传完成: ${asset.url}`;
+            return asset.url;
+        }
+
+        async function submitWork(event) {
+            event.preventDefault();
+            setBusy($('submitBtn'), true, '提交中...');
+            try {
+                const title = $('title').value.trim();
+                const videoUrl = $('videoUrl').value.trim();
+                const coverImage = state.uploadedCoverUrl || await uploadFileIfNeeded(state.coverFile, { prefix: 'works/covers' }, 'coverHint');
+                state.uploadedCoverUrl = coverImage;
+                const body = {
+                    title,
+                    category: $('category').value || '其他',
+                    grade: $('grade').value || '未分级',
+                    description: $('description').value.trim() || title,
+                    background: $('background').value.trim() || '通过 UserWorks 测试页提交的作品。',
+                    innovation: $('innovation').value.trim() || '使用 KeepworkSDK UserWorks 接口快速提交和展示作品。',
+                    videoType: 'url',
+                    videoUrl,
+                    coverImage,
+                    teamMembers: state.teamMembers,
+                };
+                validateWork(body);
+                showJson('uploadResult', await userWorks.upload(body));
+            } catch (error) {
+                showJson('uploadResult', error.message || error, true);
+            } finally {
+                setBusy($('submitBtn'), false);
+            }
+        }
+
+        function resetForm() {
+            $('workForm').reset();
+            Object.assign(state, { teamMembers: [], coverFile: null, uploadedCoverUrl: '' });
+            $('coverPreview').classList.add('hidden');
+            $('coverPreview').removeAttribute('src');
+            $('coverPlus').classList.remove('hidden');
+            $('videoHint').textContent = '必填。测试页会以 URL 方式提交作品。';
+            $('coverHint').textContent = '可选，上传后会作为作品列表封面';
+            ['title', 'description', 'background', 'innovation'].forEach(id => updateCounter(id, `${id}Count`));
+            renderTeam();
+            showJson('uploadResult', '等待操作...');
+        }
+
+        function statusText(status) { return ({ 11: '审核中', 12: '已发布', 13: '已拒绝' })[status] || status || '未知'; }
+
+        function unwrapPayload(value) {
+            if (value && typeof value === 'object' && value.data && !Array.isArray(value.data)) return value.data;
+            return value;
+        }
+
+        function pickList(value) {
+            const payload = unwrapPayload(value);
+            if (Array.isArray(payload)) return payload;
+            if (Array.isArray(payload?.list)) return payload.list;
+            if (Array.isArray(payload?.rows)) return payload.rows;
+            if (Array.isArray(payload?.items)) return payload.items;
+            if (Array.isArray(value?.data?.list)) return value.data.list;
+            return [];
+        }
+
+        function firstValue(source, keys, fallback = '') {
+            for (const key of keys) {
+                const value = key.split('.').reduce((target, part) => target && target[part], source);
+                if (value !== undefined && value !== null && value !== '') return value;
+            }
+            return fallback;
+        }
+
+        function formatDate(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return String(value).slice(0, 10) || '-';
+            return date.toISOString().slice(0, 10);
+        }
+
+        function ratingStars(rating = 0, className = '') {
+            const score = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+            return Array.from({ length: 5 }, (_, index) => `<span class="${index < score ? 'text-amber-400' : 'text-slate-300'} ${className}">${index < score ? '★' : '☆'}</span>`).join('');
+        }
+
+        function normalizeMediaUrl(value, baseUrl = '') {
+            const url = String(value || '').trim();
+            if (!url) return '';
+            if (/^(https?:|blob:|data:)/i.test(url)) return url;
+            if (url.startsWith('//')) return `${window.location.protocol}${url}`;
+            if (/^(cdn|api)\.keepwork\.com\//i.test(url)) return `https://${url}`;
+            if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(url)) return `https://${url}`;
+            if (baseUrl) return `${baseUrl.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
+            return url;
+        }
+
+        function pickMediaUrl(work, keys, baseUrl = '') {
+            for (const key of keys) {
+                const value = key.split('.').reduce((target, part) => target && target[part], work);
+                const url = normalizeMediaUrl(value, baseUrl);
+                if (url) return url;
+            }
+            return '';
+        }
+
+        function isPlayableVideo(url, videoType) {
+            return videoType === 'video' || /\.(mp4|webm|ogg)([?#].*)?$/i.test(url);
+        }
+
+        function renderMediaFallback(url) {
+            if (url) {
+                return `<a class="inline-flex rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50" href="${escapeHtml(url)}" target="_blank" rel="noopener">打开作品</a>`;
+            }
+            return '暂无封面';
+        }
+
+        function renderWorkMedia(work) {
+            const title = escapeHtml(work.title || work.name || '作品');
+            const coverUrl = pickMediaUrl(work, ['coverImage', 'coverUrl', 'cover', 'thumbnail', 'thumbnailUrl', 'poster', 'image', 'imageUrl'], 'https://video.keepwork.com/');
+            const videoUrl = pickMediaUrl(work, ['videoUrl', 'video_url', 'url']);
+            const fallbackUrl = videoUrl || coverUrl;
+            const fallback = renderMediaFallback(fallbackUrl);
+
+            if (videoUrl && isPlayableVideo(videoUrl, work.videoType)) {
+                const poster = coverUrl ? ` poster="${escapeHtml(coverUrl)}"` : '';
+                return `<div class="grid h-36 place-items-center overflow-hidden bg-slate-100 text-sm text-slate-400" data-media-frame data-fallback="${escapeHtml(fallback)}"><video class="h-full w-full object-cover" src="${escapeHtml(videoUrl)}" controls preload="metadata" muted playsinline${poster} data-media-video></video></div>`;
+            }
+            if (coverUrl) {
+                return `<div class="grid h-36 place-items-center overflow-hidden bg-slate-100 text-sm text-slate-400" data-media-frame data-fallback="${escapeHtml(fallback)}"><img class="h-full w-full object-cover" src="${escapeHtml(coverUrl)}" alt="${title}" loading="lazy" data-media-img></div>`;
+            }
+            return `<div class="grid h-36 place-items-center overflow-hidden bg-slate-100 text-sm text-slate-400">${fallback}</div>`;
+        }
+
+        function renderDetailMedia(work) {
+            const title = escapeHtml(work.title || work.name || '作品');
+            const coverUrl = pickMediaUrl(work, ['coverImage', 'coverUrl', 'cover', 'thumbnail', 'thumbnailUrl', 'poster', 'image', 'imageUrl'], 'https://video.keepwork.com/');
+            const videoUrl = pickMediaUrl(work, ['videoUrl', 'video_url', 'url']);
+            const fallbackUrl = videoUrl || coverUrl;
+            if (videoUrl && isPlayableVideo(videoUrl, work.videoType)) {
+                const poster = coverUrl ? ` poster="${escapeHtml(coverUrl)}"` : '';
+                return `<video class="h-full w-full object-cover" src="${escapeHtml(videoUrl)}" controls preload="metadata" playsinline${poster}></video>`;
+            }
+            if (coverUrl) {
+                return `<img class="h-full w-full object-cover" src="${escapeHtml(coverUrl)}" alt="${title}">`;
+            }
+            if (fallbackUrl) {
+                return `<a class="inline-flex rounded border border-white/60 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white" href="${escapeHtml(fallbackUrl)}" target="_blank" rel="noopener">打开作品</a>`;
+            }
+            return '<span class="text-sm text-slate-400">暂无作品预览</span>';
+        }
+
+        function renderDetailActions(work, options = {}) {
+            const id = escapeHtml(work.id || state.currentDetailId || '');
+            const canEdit = options.source === 'mine' || work.isMine || work.mine;
+            const commentDisabled = !!work.commentDisabled;
+            $('detailActions').innerHTML = `
+                <div class="rounded border border-slate-200 bg-white p-3 shadow-sm">
+                    <div class="space-y-2">
+                        <button class="w-full rounded border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50" type="button" data-detail-like="${id}">☆ 点赞 (${Number(work.star || work.likeCount || 0)})</button>
+                        <button class="w-full rounded border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50" type="button" data-detail-favorite="${id}">收藏</button>
+                        <button class="w-full rounded border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50" type="button" data-detail-share="${id}">分享</button>
+                        ${canEdit ? `<button class="w-full rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100" type="button" data-detail-edit="${id}">编辑作品</button>` : ''}
+                        <button class="w-full rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500" type="button" data-detail-lesson="${id}">生成教案</button>
+                        <button class="w-full rounded bg-emerald-500 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-400" type="button" data-detail-analysis="${id}">申请 AI 评价</button>
+                        ${canEdit ? `<button class="w-full rounded bg-emerald-500 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-400" type="button" data-detail-comment-toggle="${id}" data-comment-disabled="${commentDisabled ? 'false' : 'true'}">${commentDisabled ? '允许评论' : '禁止评论'}</button>` : ''}
+                        <button class="w-full rounded bg-emerald-500 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-400" type="button" data-detail-comments="${id}">刷新评论</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderComments(comments) {
+            if (!comments.length) {
+                return '<div class="rounded bg-slate-50 p-8 text-center text-sm text-slate-500">暂无评论，来写下第一条反馈吧。</div>';
+            }
+            return comments.map(comment => {
+                const author = firstValue(comment, ['user.nickname', 'user.username', 'nickname', 'username', 'author'], '匿名用户');
+                const content = firstValue(comment, ['content', 'comment', 'text', 'body'], '');
+                const rating = firstValue(comment, ['rating', 'score'], 0);
+                const time = firstValue(comment, ['createdAt', 'created_at', 'updatedAt', 'updated_at'], '');
+                return `
+                    <article class="rounded border border-slate-200 bg-white p-3">
+                        <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                            <strong class="text-slate-700">${escapeHtml(author)}</strong>
+                            <span>${ratingStars(rating)} <span class="ml-1">${escapeHtml(formatDate(time))}</span></span>
+                        </div>
+                        <p class="whitespace-pre-wrap text-sm leading-6 text-slate-700">${escapeHtml(content || '无内容')}</p>
+                    </article>
+                `;
+            }).join('');
+        }
+
+        function renderCommentForm(workId, disabled = false) {
+            const stars = Array.from({ length: 5 }, (_, index) => {
+                const value = index + 1;
+                const active = value <= state.detailRating;
+                return `<button class="text-lg leading-none ${active ? 'text-amber-400' : 'text-slate-300'} disabled:cursor-not-allowed disabled:opacity-50" type="button" data-set-rating="${value}" ${disabled ? 'disabled' : ''}>${active ? '★' : '☆'}</button>`;
+            }).join('');
+            return `
+                <div class="rounded bg-slate-50 p-3" data-comment-form="${escapeHtml(workId)}">
+                    <div class="${disabled ? '' : 'hidden'} mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800" id="detailCommentFeedback">该作品已禁止评论，暂时不能提交新的评价。</div>
+                    <div class="hidden mb-3 rounded border px-3 py-2 text-sm" id="detailCommentFeedbackLive"></div>
+                    <div class="mb-2 flex items-center gap-2 text-sm text-slate-600">评分: <span id="detailRatingStars">${stars}</span><span id="detailRatingValue">${state.detailRating || 0}</span></div>
+                    <div class="relative">
+                        <textarea class="min-h-20 w-full resize-y rounded border border-slate-300 bg-white px-3 py-2 pb-6 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100" id="detailCommentInput" maxlength="500" placeholder="${disabled ? '该作品已禁止评论' : '请输入您的评价...'}" ${disabled ? 'disabled' : ''}></textarea>
+                        <span class="pointer-events-none absolute bottom-2 right-3 text-xs text-slate-400"><span id="detailCommentCount">0</span> / 500</span>
+                    </div>
+                    <div class="mt-2 flex justify-end">
+                        <button class="rounded bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50" type="button" data-submit-comment="${escapeHtml(workId)}" ${disabled ? 'disabled' : ''}>发表评论</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setDetailCommentFeedback(message, tone = 'error') {
+            const feedback = $('detailCommentFeedbackLive');
+            if (!feedback) return;
+            const isError = tone === 'error';
+            feedback.className = `mb-3 rounded border px-3 py-2 text-sm ${isError ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`;
+            feedback.textContent = message;
+            feedback.classList.remove('hidden');
+        }
+
+        function updateDetailRating(value) {
+            state.detailRating = Math.max(0, Math.min(5, Number(value) || 0));
+            const stars = $('detailRatingStars');
+            const label = $('detailRatingValue');
+            if (!stars || !label) return;
+            stars.querySelectorAll('[data-set-rating]').forEach(button => {
+                const active = Number(button.dataset.setRating) <= state.detailRating;
+                button.classList.toggle('text-amber-400', active);
+                button.classList.toggle('text-slate-300', !active);
+                button.textContent = active ? '★' : '☆';
+            });
+            label.textContent = String(state.detailRating);
+        }
+
+        function renderWorkDetail(work, comments = [], source = 'gallery') {
+            const workId = work.id || state.currentDetailId;
+            const author = firstValue(work, ['user.nickname', 'user.username', 'authorName', 'username', 'userName', 'author'], '-');
+            const title = work.title || work.name || `作品 ${workId}`;
+            const description = work.description || '暂无作品描述';
+            const createdAt = firstValue(work, ['createdAt', 'created_at', 'createdDate', 'created_date'], '');
+            const rating = firstValue(work, ['rating', 'avgRating', 'averageRating', 'score'], 0);
+            const aiStatus = firstValue(work, ['aiAnalysis.status', 'analysisStatus', 'aiStatus'], '未进行 AI 评价');
+            const aiSummary = firstValue(work, ['aiAnalysis.summary', 'analysis.summary', 'aiComment', 'aiReview'], '该作品暂未进行 AI 评价');
+            const commentDisabled = !!work.commentDisabled;
+            $('detailContent').innerHTML = `
+                <section class="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+                    <div class="grid h-56 place-items-center overflow-hidden bg-slate-900 text-white sm:h-72">${renderDetailMedia(work)}</div>
+                </section>
+                <section class="rounded border border-slate-200 bg-white shadow-sm">
+                    <div class="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">${escapeHtml(title)}</div>
+                    <div class="p-4">
+                        <dl class="grid overflow-hidden rounded border border-slate-200 text-xs sm:grid-cols-[minmax(140px,250px)_minmax(0,1fr)]">
+                            <dt class="border-b border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-700 sm:border-r">作者</dt><dd class="border-b border-slate-200 px-3 py-2">${escapeHtml(author)}</dd>
+                            <dt class="border-b border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-700 sm:border-r">作品分类</dt><dd class="border-b border-slate-200 px-3 py-2">${escapeHtml(work.category || '未分类')}</dd>
+                            <dt class="border-b border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-700 sm:border-r">适用年级</dt><dd class="border-b border-slate-200 px-3 py-2">${escapeHtml(work.grade || '未分级')}</dd>
+                            <dt class="bg-slate-50 px-3 py-2 font-semibold text-slate-700 sm:border-r">创建时间</dt><dd class="px-3 py-2">${escapeHtml(formatDate(createdAt))}</dd>
+                        </dl>
+                        <div class="mt-4 space-y-2 text-sm leading-6 text-slate-700">
+                            <div class="font-medium text-slate-900">作品描述</div>
+                            <p>${escapeHtml(description)}</p>
+                        </div>
+                    </div>
+                </section>
+                <section class="rounded border border-slate-200 bg-white shadow-sm">
+                    <div class="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">AI 评价</div>
+                    <div class="grid min-h-40 place-items-center p-6 text-center text-sm text-slate-500">
+                        <div>
+                            <div class="mx-auto mb-3 grid h-16 w-16 place-items-center rounded bg-slate-100 text-3xl text-slate-300">◇</div>
+                            <p>${escapeHtml(aiSummary)}</p>
+                            <p class="mt-1 text-xs">${escapeHtml(aiStatus)}</p>
+                        </div>
+                    </div>
+                </section>
+                <section class="rounded border border-slate-200 bg-white shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">
+                        <span>评论 (${comments.length || work.comment || work.commentCount || 0})</span>
+                        ${commentDisabled ? '<span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">已禁止评论</span>' : ''}
+                    </div>
+                    <div class="space-y-3 p-4">
+                        ${renderCommentForm(workId, commentDisabled)}
+                        <div class="space-y-3" id="detailCommentsList">${renderComments(comments)}</div>
+                    </div>
+                </section>
+            `;
+            renderDetailActions(work, { source });
+            const input = $('detailCommentInput');
+            if (input) input.addEventListener('input', () => { $('detailCommentCount').textContent = String(input.value.length); });
+        }
+
+        function renderWorks(containerId, works, type) {
+            if (!works || works.length === 0) {
+                $(containerId).innerHTML = '<div class="rounded border border-dashed border-slate-300 p-10 text-center text-slate-500">暂无作品</div>';
+                return;
+            }
+            $(containerId).innerHTML = works.map(work => `
+                <article class="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    ${renderWorkMedia(work)}
+                    <div class="space-y-3 p-3">
+                        <h3 class="truncate text-base font-semibold text-slate-900">${escapeHtml(work.title || work.name || `作品 ${work.id}`)}</h3>
+                        <p class="min-h-10 text-xs leading-5 text-slate-500">${escapeHtml(work.description || '暂无描述')}</p>
+                        <div class="flex flex-wrap gap-1.5 text-[11px]">
+                            <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700">${escapeHtml(work.category || '未分类')}</span>
+                            <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700">${escapeHtml(work.grade || '未分级')}</span>
+                            ${work.status ? `<span class="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700">${escapeHtml(statusText(work.status))}</span>` : ''}
+                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">赞 ${work.star || 0}</span>
+                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">评 ${work.comment || 0}</span>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button class="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" data-detail="${work.id}">详情</button>
+                            ${type === 'gallery' ? `<button class="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" data-like="${work.id}">点赞</button><button class="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" data-favorite="${work.id}">收藏</button>` : ''}
+                            ${type === 'mine' ? `<button class="rounded border border-rose-200 px-3 py-1 text-xs text-rose-700 hover:bg-rose-50" data-delete="${work.id}">删除</button>` : ''}
+                        </div>
+                    </div>
+                </article>
+            `).join('');
+            $(containerId).querySelectorAll('[data-media-img]').forEach(img => {
+                img.addEventListener('error', () => {
+                    const frame = img.closest('[data-media-frame]');
+                    if (frame) frame.innerHTML = frame.dataset.fallback || '媒体加载失败';
+                }, { once: true });
+            });
+            $(containerId).querySelectorAll('[data-media-video]').forEach(video => {
+                video.addEventListener('error', () => {
+                    const frame = video.closest('[data-media-frame]');
+                    if (frame) frame.innerHTML = frame.dataset.fallback || '媒体加载失败';
+                }, { once: true });
+            });
+        }
+
+        async function loadMine() {
+            setBusy($('loadMineBtn'), true, '加载中...');
+            try {
+                const status = $('mineStatus').value ? Number($('mineStatus').value) : undefined;
+                const result = await userWorks.my({ page: 1, pageSize: 20, status, sortBy: $('mineSort').value });
+                renderWorks('mineGrid', result.list || [], 'mine');
+                showJson('mineResult', result);
+            } catch (error) {
+                showJson('mineResult', error.message || error, true);
+            } finally {
+                setBusy($('loadMineBtn'), false);
+            }
+        }
+
+        async function loadGallery() {
+            setBusy($('loadGalleryBtn'), true, '加载中...');
+            try {
+                const result = await userWorks.list({
+                    page: 1,
+                    pageSize: 20,
+                    keyword: $('galleryKeyword').value.trim(),
+                    category: $('galleryCategory').value,
+                    grade: $('galleryGrade').value,
+                    sortBy: $('gallerySort').value,
+                });
+                renderWorks('galleryGrid', result.list || [], 'gallery');
+                showJson('galleryResult', result);
+            } catch (error) {
+                showJson('galleryResult', error.message || error, true);
+            } finally {
+                setBusy($('loadGalleryBtn'), false);
+            }
+        }
+
+        async function handleWorkAction(event) {
+            const button = event.target.closest('button');
+            if (!button) return;
+            try {
+                if (button.dataset.detail) await openWorkDetail(button.dataset.detail, document.querySelector('#view-mine:not(.hidden)') ? 'mine' : 'gallery');
+                if (button.dataset.like) { showJson('galleryResult', await userWorks.like(button.dataset.like)); await loadGallery(); }
+                if (button.dataset.favorite) showJson('galleryResult', await userWorks.favorite(button.dataset.favorite));
+                if (button.dataset.delete) {
+                    if (!confirm('确定删除这个作品吗？')) return;
+                    showJson('mineResult', await userWorks.delete(button.dataset.delete));
+                    await loadMine();
+                }
+            } catch (error) {
+                showJson(document.querySelector('#view-mine:not(.hidden)') ? 'mineResult' : 'galleryResult', error.message || error, true);
+            }
+        }
+
+        async function openWorkDetail(workId, source = 'gallery') {
+            state.previousView = source;
+            state.currentDetailId = workId;
+            state.detailRating = 0;
+            document.querySelectorAll('.view').forEach(el => el.classList.toggle('hidden', el.id !== 'view-detail'));
+            $('panelTitle').textContent = '作品详情';
+            $('detailContent').innerHTML = '<div class="rounded border border-slate-200 bg-white p-10 text-center text-slate-500">正在加载作品详情...</div>';
+            $('detailActions').innerHTML = '';
+            try {
+                const [detailResult, commentsResult] = await Promise.all([
+                    userWorks.get(workId),
+                    userWorks.listComments(workId, { page: 1, pageSize: 20 }).catch(error => ({ error: error.message || String(error), list: [] })),
+                ]);
+                const work = unwrapPayload(detailResult) || {};
+                const comments = pickList(commentsResult);
+                renderWorkDetail(work, comments, source);
+                showJson('detailResult', { detail: detailResult, comments: commentsResult });
+            } catch (error) {
+                showJson('detailResult', error.message || error, true);
+                $('detailContent').innerHTML = `<div class="rounded border border-rose-200 bg-rose-50 p-10 text-center text-rose-700">${escapeHtml(error.message || error)}</div>`;
+            }
+        }
+
+        async function reloadDetailComments() {
+            if (!state.currentDetailId) return;
+            const result = await userWorks.listComments(state.currentDetailId, { page: 1, pageSize: 20 });
+            const comments = pickList(result);
+            const list = $('detailCommentsList');
+            if (list) list.innerHTML = renderComments(comments);
+            showJson('detailResult', { comments: result });
+        }
+
+        async function handleDetailAction(event) {
+            const button = event.target.closest('button');
+            if (!button) return;
+            try {
+                if (button.dataset.setRating) {
+                    updateDetailRating(button.dataset.setRating);
+                    return;
+                }
+                if (button.dataset.submitComment) {
+                    const content = $('detailCommentInput')?.value.trim();
+                    if (!content) { setDetailCommentFeedback('请输入评论内容'); return showJson('detailResult', '请输入评论内容', true); }
+                    if (!state.detailRating) { setDetailCommentFeedback('请选择评分'); return showJson('detailResult', '请选择评分', true); }
+                    const result = await userWorks.addComment({ workId: button.dataset.submitComment, rating: state.detailRating, content });
+                    showJson('detailResult', result);
+                    setDetailCommentFeedback('评论已提交。', 'success');
+                    state.detailRating = 0;
+                    await openWorkDetail(button.dataset.submitComment, state.previousView);
+                    return;
+                }
+                if (button.dataset.detailLike) showJson('detailResult', await userWorks.like(button.dataset.detailLike));
+                if (button.dataset.detailFavorite) showJson('detailResult', await userWorks.favorite(button.dataset.detailFavorite));
+                if (button.dataset.detailComments) await reloadDetailComments();
+                if (button.dataset.detailAnalysis) showJson('detailResult', await userWorks.triggerAIAnalysis(button.dataset.detailAnalysis));
+                if (button.dataset.detailLesson) showJson('detailResult', await userWorks.generateLessonPlan(button.dataset.detailLesson));
+                if (button.dataset.detailCommentToggle) {
+                    const disabled = button.dataset.commentDisabled === 'true';
+                    showJson('detailResult', await userWorks.toggleCommentStatus(button.dataset.detailCommentToggle, disabled));
+                    await openWorkDetail(button.dataset.detailCommentToggle, state.previousView);
+                }
+                if (button.dataset.detailShare) {
+                    const url = `${location.origin}${location.pathname}?workId=${encodeURIComponent(button.dataset.detailShare)}`;
+                    await navigator.clipboard?.writeText(url).catch(() => {});
+                    showJson('detailResult', { shareUrl: url, copied: !!navigator.clipboard });
+                }
+                if (button.dataset.detailEdit) switchView('upload');
+            } catch (error) {
+                if (button.dataset.submitComment && String(error.message || error).includes('禁止评论')) {
+                    setDetailCommentFeedback('该作品已禁止评论，暂时不能提交新的评价。');
+                }
+                showJson('detailResult', error.message || error, true);
+            }
+        }
+
+        async function handleLessonAction(kind) {
+            const workId = $('lessonWorkId').value.trim();
+            if (!workId) return showJson('lessonResult', '请输入作品 ID', true);
+            try {
+                if (kind === 'get') showJson('lessonResult', await userWorks.getAIAnalysis(workId));
+                if (kind === 'trigger') showJson('lessonResult', await userWorks.triggerAIAnalysis(workId));
+                if (kind === 'lesson') showJson('lessonResult', await userWorks.generateLessonPlan(workId));
+            } catch (error) {
+                showJson('lessonResult', error.message || error, true);
+            }
+        }
+
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
+        $('profileArea').addEventListener('click', openProfile);
+        $('backBtn').addEventListener('click', () => document.querySelector('#view-detail:not(.hidden)') ? switchView(state.previousView || 'gallery') : (history.length > 1 ? history.back() : switchView('gallery')));
+        $('workForm').addEventListener('submit', submitWork);
+        $('resetBtn').addEventListener('click', resetForm);
+        $('loadMineBtn').addEventListener('click', loadMine);
+        $('loadStatsBtn').addEventListener('click', async () => showJson('mineResult', await userWorks.getStats().catch(error => error.message || error)));
+        $('loadGalleryBtn').addEventListener('click', loadGallery);
+        $('mineGrid').addEventListener('click', handleWorkAction);
+        $('galleryGrid').addEventListener('click', handleWorkAction);
+        $('detailContent').addEventListener('click', handleDetailAction);
+        $('detailActions').addEventListener('click', handleDetailAction);
+        $('analysisBtn').addEventListener('click', () => handleLessonAction('get'));
+        $('triggerAnalysisBtn').addEventListener('click', () => handleLessonAction('trigger'));
+        $('lessonPlanBtn').addEventListener('click', () => handleLessonAction('lesson'));
+        $('coverFile').addEventListener('change', event => {
+            state.coverFile = event.target.files[0] || null;
+            state.uploadedCoverUrl = '';
+            if (!state.coverFile) return;
+            $('coverPreview').src = URL.createObjectURL(state.coverFile);
+            $('coverPreview').classList.remove('hidden');
+            $('coverPlus').classList.add('hidden');
+            $('coverHint').textContent = state.coverFile.name;
+        });
+        $('addMemberBtn').addEventListener('click', () => {
+            const name = $('teamMemberInput').value.trim();
+            if (!name) return;
+            state.teamMembers.push(name);
+            $('teamMemberInput').value = '';
+            renderTeam();
+        });
+        $('teamList').addEventListener('click', event => {
+            const button = event.target.closest('[data-remove-member]');
+            if (!button) return;
+            state.teamMembers.splice(Number(button.dataset.removeMember), 1);
+            renderTeam();
+        });
+        ['title', 'description', 'background', 'innovation'].forEach(id => {
+            $(id).addEventListener('input', () => updateCounter(id, `${id}Count`));
+            updateCounter(id, `${id}Count`);
+        });
+
+        switchView('upload');
+        if (!userWorks) showJson('uploadResult', '当前 SDK 未找到 keepwork.userWorks，请确认已加载最新 index.js 或 dist bundle。', true);
+        refreshProfile();
+    </script>
+</body>
+</html>

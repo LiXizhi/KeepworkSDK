@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>选择题</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <script>
+    // Load SDK from ?sdk= param (module=1 for ES modules), fallback to CDN IIFE
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var sdkUrl = params.get('sdk') || 'https://cdn.keepwork.com/sdk/keepworkSDK.iife.js';
+      var isModule = params.get('module') === '1';
+      var s = document.createElement('script');
+      if (isModule) s.type = 'module';
+      s.src = sdkUrl;
+      document.head.appendChild(s);
+    })();
+  </script>
+  <style>
+    .choice-btn {
+      transition: all 0.15s;
+      display: flex; align-items: center; gap: 14px;
+      border: none; cursor: pointer;
+    }
+    .choice-btn:hover { filter: brightness(1.08); transform: scale(1.02); }
+    .choice-btn:active { transform: scale(0.97); }
+    .choice-selected { outline: 4px solid #fff !important; outline-offset: 2px; box-shadow: 0 0 0 8px #e21b3c, 0 0 0 10px #fff !important; filter: brightness(1.1) !important; }
+    .choice-correct-reveal { position: relative; overflow: visible; z-index: 1; }
+    .choice-correct-reveal::after {
+      content: '\2713'; position: absolute; top: 40%; left: 2rem;
+      transform: translate(-50%, -50%); font-size: 4.5rem; font-weight: 900;
+      color: #e21b3c; text-shadow: -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff, 0 0 6px rgba(0,0,0,0.15);
+      pointer-events: none; animation: checkPop 0.35s ease-out; z-index: 2;
+    }
+    @keyframes checkPop { 0% { transform: translate(-50%,-50%) scale(0); opacity:0; } 60% { transform: translate(-50%,-50%) scale(1.2); opacity:1; } 100% { transform: translate(-50%,-50%) scale(1); } }
+    .choice-dim    { opacity: 0.4 !important; }
+    .choice-disabled { pointer-events: none; }
+    .choice-shape {
+      width: 32px; height: 32px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .choice-shape svg { width: 28px; height: 28px; fill: rgba(255,255,255,0.9); }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex justify-center items-start p-5 font-sans">
+    <div class="w-full max-w-[480px] bg-white rounded-2xl shadow-lg px-6 py-7 flex flex-col gap-5"
+       aria-label="选择题游戏"
+      data-ai-hint="选择题小游戏：AI用type_in_app向隐藏文本框写入JSON（格式：{&quot;question&quot;:&quot;...&quot;,&quot;choices&quot;:[&quot;A&quot;,&quot;B&quot;,...],&quot;answer&quot;:0}），界面自动渲染问题和选项，用户点击选项后会自动判定并通过dh:context回传对错结果。直接type_in_app写入下一题JSON即可自动进入下一题，无需点击'下一题'按钮，题目数量由type_in_app调用次数决定。">
+
+    <!-- 游戏区 -->
+    <div id="gameArea" class="flex flex-col gap-5">
+
+      <!-- 隐藏的 JSON 输入框，仅供 AI 通过 type_in_app 填写（?dev=true 时可见） -->
+      <div id="inputWrapper" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">
+        <input id="questionInput" type="text"
+             aria-label="题目JSON"
+             data-ai-hint="AI用type_in_app写入JSON字符串，格式：{&quot;question&quot;:&quot;问题文本&quot;,&quot;choices&quot;:[&quot;选项A&quot;,&quot;选项B&quot;,...],&quot;answer&quot;:0}，answer为正确选项的索引（从0开始）。写入后界面自动渲染。">
+      </div>
+
+      <!-- 问题卡片 -->
+      <div class="bg-blue-50 rounded-xl px-5 py-5 min-h-[80px] flex flex-col justify-center">
+        <div id="questionText" class="text-xl text-gray-800 leading-relaxed w-full">等待出题...</div>
+      </div>
+
+      <!-- 选项列表（Kahoot 风格 2×2 网格） -->
+      <div id="choicesContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+
+      <!-- 隐藏按钮，仅供 AI 通过 click_element 点击 -->
+      <div id="showAnswerWrapper" style="opacity:0;position:absolute;pointer-events:none">
+        <button id="btnShowAnswer" aria-label="显示答案" data-ai-hint="一般无需点击：用户点击选项后已自动判定并回传结果；此按钮仅用于兼容旧流程强制揭晓">显示答案</button>
+      </div>
+      <div style="opacity:0;position:absolute;pointer-events:none">
+        <button id="btnFinish" aria-label="结束" data-ai-hint="AI点击此按钮结束训练，显示结果页">结束</button>
+      </div>
+    </div>
+
+    <!-- 结果页 -->
+    <div id="resultPage" class="hidden text-center py-8 px-2.5" data-ai-hint="训练结束后的结果展示区域">
+      <div class="text-6xl mb-5">🎉</div>
+      <h2 class="text-2xl font-bold text-blue-700 mb-4">训练完成！</h2>
+
+      <!-- 统计卡片 -->
+      <div class="flex justify-center gap-4 mb-5">
+        <div class="bg-blue-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-blue-600" id="statTotal">0</span>
+          <span class="text-sm text-gray-500 mt-1">总题数</span>
+        </div>
+        <div class="bg-green-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-green-600" id="statCorrect">0</span>
+          <span class="text-sm text-gray-500 mt-1">答对</span>
+        </div>
+        <div class="bg-amber-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-amber-600" id="statAccuracy">0%</span>
+          <span class="text-sm text-gray-500 mt-1">正确率</span>
+        </div>
+      </div>
+
+      <p id="resultSummary" class="text-lg text-gray-600 leading-relaxed mb-2" data-ai-hint="显示答题评语"></p>
+      <p class="mt-4 text-sm text-gray-400">多练习，下次会更好～</p>
+
+      <!-- 关闭按钮 -->
+      <button id="btnClose" aria-label="关闭" data-ai-hint="训练结束后AI点击此按钮关闭游戏"
+              class="mt-6 w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-2xl font-bold rounded-xl shadow-md transition-colors">
+        关闭
+      </button>
+    </div>
+  </div>
+
+  <!-- 反馈浮层 -->
+  <div id="feedback" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl opacity-0 scale-50 pointer-events-none transition-all duration-400 z-50"></div>
+
+  <script>
+    // =================== Wait for SDK ===================
+    function waitForSdkGlobals(timeoutMs) {
+      timeoutMs = timeoutMs || 10000;
+      var start = Date.now();
+      return new Promise(function(resolve) {
+        (function check() {
+          if (typeof window.KeepworkSDK === 'function') return resolve();
+          if (Date.now() - start >= timeoutMs) return resolve();
+          setTimeout(check, 30);
+        })();
+      });
+    }
+
+    (async function() {
+    await waitForSdkGlobals();
+    var token = new URLSearchParams(window.location.search).get('token');
+    if (token && window.KeepworkSDK) {
+      if (!window.keepwork) window.keepwork = new KeepworkSDK();
+      window.keepwork.setToken(token);
+    }
+
+    // =================== 状态 ===================
+    const state = {
+      currentIndex: 0,      // 每写入一道新JSON就+1
+      correctCount: 0,
+      currentAnswer: -1,   // 当前题正确答案索引
+      selectedIndex: -1,    // 用户当前选中的索引
+      answerRevealed: false, // AI 是否已揭晓答案
+      finished: false,
+    };
+
+    // =================== DOM ===================
+    const $ = (id) => document.getElementById(id);
+    const questionInput     = $('questionInput');
+    const questionText      = $('questionText');
+    const choicesContainer  = $('choicesContainer');
+    const btnFinish         = $('btnFinish');
+    const gameArea          = $('gameArea');
+    const resultPage        = $('resultPage');
+    const resultSummary     = $('resultSummary');
+    const feedbackEl        = $('feedback');
+
+    // =================== 工具函数 ===================
+    function showFeedback(emoji) {
+      feedbackEl.textContent = emoji;
+      feedbackEl.classList.remove('opacity-0', 'scale-50');
+      feedbackEl.classList.add('opacity-100', 'scale-100');
+      setTimeout(() => {
+        feedbackEl.classList.remove('opacity-100', 'scale-100');
+        feedbackEl.classList.add('opacity-0', 'scale-50');
+      }, 800);
+    }
+
+    // Kahoot-style colors & shape SVGs
+    const CHOICE_COLORS = ['#e21b3c', '#1368ce', '#d89e00', '#26890c', '#864cbf', '#0aa3a3'];
+    const CHOICE_SHAPES = [
+      '<svg viewBox="0 0 24 24"><polygon points="12,2 22,18 2,18"/></svg>',           // triangle
+      '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>', // square
+      '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>',                  // circle
+      '<svg viewBox="0 0 24 24"><polygon points="12,2 22,12 12,22 2,12"/></svg>',       // diamond
+      '<svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/></svg>', // star
+      '<svg viewBox="0 0 24 24"><polygon points="12,2 17,10 22,18 2,18 7,10"/></svg>',  // pentagon-ish
+    ];
+
+    function renderQuestion(data) {
+      // data: { question: string, choices: string[], answer: number }
+      state.currentAnswer = typeof data.answer === 'number' ? data.answer : -1;
+      state.answered = false;
+
+      questionText.textContent = data.question || '题目加载中...';
+      choicesContainer.innerHTML = '';
+
+      (data.choices || []).forEach((text, idx) => {
+        const color = CHOICE_COLORS[idx % CHOICE_COLORS.length];
+        const shape = CHOICE_SHAPES[idx % CHOICE_SHAPES.length];
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn w-full text-left px-4 py-4 rounded-xl text-white text-lg font-bold shadow-md focus:outline-none focus:ring-2 focus:ring-white/50';
+        btn.style.backgroundColor = color;
+        btn.style.minHeight = '64px';
+        btn.innerHTML = '<span class="choice-shape">' + shape + '</span><span>' + text + '</span>';
+        btn.dataset.index = idx;
+        btn.addEventListener('click', () => onChoiceClick(idx));
+        choicesContainer.appendChild(btn);
+      });
+    }
+
+    function onChoiceClick(idx) {
+      if (state.finished || state.answerRevealed) return;
+      const buttons = choicesContainer.querySelectorAll('.choice-btn');
+      // 移除之前的选中
+      buttons.forEach(b => b.classList.remove('choice-selected'));
+      // 圈住当前选择
+      buttons[idx].classList.add('choice-selected');
+      state.selectedIndex = idx;
+      state.answerRevealed = true;
+
+      const selected = state.selectedIndex;
+      const isCorrect = selected >= 0 && selected === state.currentAnswer;
+      if (isCorrect) state.correctCount++;
+
+      // 即时揭晓：禁用按钮、淡化非正确项、标记正确答案
+      buttons.forEach(b => b.classList.add('choice-disabled'));
+      buttons.forEach((b, i) => { if (i !== state.currentAnswer) b.classList.add('choice-dim'); });
+      if (state.currentAnswer >= 0 && state.currentAnswer < buttons.length) {
+        buttons[state.currentAnswer].classList.add('choice-correct-reveal');
+      }
+
+      // 通知父页面用户选择了（尚未判定对错）
+      window.parent.postMessage({
+        type: 'choiceSelected',
+        data: { selected: idx }
+      }, '*');
+
+      // dh:context — 通知 AI 用户选项和判定结果
+      const correctText = state.currentAnswer >= 0 && state.currentAnswer < buttons.length
+        ? buttons[state.currentAnswer].querySelector('span:last-child')?.textContent : '';
+      const choiceText = buttons[idx] ? buttons[idx].querySelector('span:last-child')?.textContent : '';
+      window.parent.postMessage({
+        type: 'dh:context',
+        text: isCorrect
+          ? `第${state.currentIndex}题揭晓：用户选了"${choiceText}"，回答正确！`
+          : `第${state.currentIndex}题揭晓：用户选了"${choiceText}"，回答错误，正确答案是"${correctText}"`,
+        debounce: 2000
+      }, '*');
+    }
+
+    // =================== 监听 AI 写入 JSON ===================
+    function handleQuestionInput() {
+      const raw = (questionInput.value || '').trim();
+      if (!raw) return;
+      try {
+        const data = JSON.parse(raw);
+        if (data && data.question && Array.isArray(data.choices)) {
+          // 每次写入新JSON视为一道新题
+          state.currentIndex++;
+          state.selectedIndex = -1;
+          state.answerRevealed = false;
+          renderQuestion(data);
+        }
+      } catch (e) {
+        // 非法 JSON，忽略
+      }
+    }
+    questionInput.addEventListener('input', handleQuestionInput);
+    // 兼容程序化赋值：拦截 value setter
+    const origDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    Object.defineProperty(questionInput, 'value', {
+      get() { return origDesc.get.call(this); },
+      set(v) { origDesc.set.call(this, v); handleQuestionInput(); },
+      configurable: true
+    });
+
+    // =================== 显示答案按钮 ===================
+    const btnShowAnswer = $('btnShowAnswer');
+    btnShowAnswer.addEventListener('click', () => {
+      if (state.finished || state.answerRevealed) return;
+      // 兼容旧流程：若用户未作答，强制揭晓正确项但不计分。
+      state.answerRevealed = true;
+      const buttons = choicesContainer.querySelectorAll('.choice-btn');
+      buttons.forEach(b => b.classList.add('choice-disabled'));
+      buttons.forEach((b, i) => { if (i !== state.currentAnswer) b.classList.add('choice-dim'); });
+      if (state.currentAnswer >= 0 && state.currentAnswer < buttons.length) {
+        buttons[state.currentAnswer].classList.add('choice-correct-reveal');
+      }
+
+      const correctText = state.currentAnswer >= 0 && state.currentAnswer < buttons.length
+        ? buttons[state.currentAnswer].querySelector('span:last-child')?.textContent : '';
+      window.parent.postMessage({
+        type: 'dh:context',
+        text: `第${state.currentIndex}题已揭晓：当前正确答案是"${correctText}"。`,
+        debounce: 2000
+      }, '*');
+    });
+
+    // =================== 按钮事件 ===================
+    btnFinish.addEventListener('click', () => {
+      finishGame();
+    });
+
+    let _autoFinishTimer = null;
+    function sendGameFinished() {
+      if (_autoFinishTimer) { clearTimeout(_autoFinishTimer); _autoFinishTimer = null; }
+      const total = state.currentIndex;
+      const correct = state.correctCount;
+      const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+      window.parent.postMessage({
+        type: 'gameFinished',
+        data: { total, correct, accuracy, comment: resultSummary.textContent }
+      }, '*');
+    }
+    $('btnClose').addEventListener('click', sendGameFinished);
+
+    function resetForNext() {
+      state.selectedIndex = -1;
+      state.answerRevealed = false;
+      state.currentAnswer = -1;
+      questionText.textContent = '等待出题中...';
+      choicesContainer.innerHTML = '';
+      questionInput.value = '';
+    }
+
+    function finishGame() {
+      state.finished = true;
+      gameArea.classList.add('hidden');
+      resultPage.classList.remove('hidden');
+
+      const total = state.currentIndex;
+      const correct = state.correctCount;
+      const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+      $('statTotal').textContent = total;
+      $('statCorrect').textContent = correct;
+      $('statAccuracy').textContent = accuracy + '%';
+
+      let comment = '继续加油哦！';
+      if (correct === total && total > 0) comment = '全部答对，太厉害了！';
+      else if (correct >= total * 0.7) comment = '非常不错，正确率很高！';
+      else if (correct >= total * 0.4) comment = '还不错，多练习会更好！';
+      resultSummary.textContent = comment;
+
+      // dh:context — 通知 AI 训练结束
+      window.parent.postMessage({
+        type: 'dh:context',
+        text: `选择题训练结束，共${total}题，答对${correct}题，正确率${accuracy}%。${comment}`
+      }, '*');
+
+      // 5秒后自动发送 gameFinished
+      _autoFinishTimer = setTimeout(sendGameFinished, 5000);
+    }
+
+    // =================== dev 模式：显示隐藏输入框 ===================
+    if (new URLSearchParams(window.location.search).get('dev') === 'true') {
+      const wrapper = $('inputWrapper');
+      wrapper.style.cssText = 'position:static;width:auto;height:auto;overflow:visible;';
+      questionInput.type = 'text';
+      questionInput.style.cssText = 'display:block;width:100%;border:2px dashed #94a3b8;border-radius:8px;padding:12px;min-height:40px;font-family:monospace;font-size:14px;background:#f8fafc;box-sizing:border-box;';
+      // 显示"显示答案"按钮
+      const showAnswerWrapper = $('showAnswerWrapper');
+      showAnswerWrapper.style.cssText = 'opacity:1;position:static;pointer-events:auto;margin-top:8px;';
+      btnShowAnswer.style.cssText = 'display:inline-block;padding:8px 20px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;';
+      const example = {"question":"中国的首都是哪里？","choices":["上海","北京","广州","深圳"],"answer":1};
+      questionInput.value = JSON.stringify(example);
+      renderQuestion(example);
+    }
+
+    // =================== 初始化 ===================
+    window.parent.postMessage({ type: 'gameLoaded' }, '*');
+    })();
+  </script>
+</body>
+</html>

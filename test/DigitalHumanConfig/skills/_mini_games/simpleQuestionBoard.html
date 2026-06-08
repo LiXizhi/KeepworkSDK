@@ -1,0 +1,225 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>记忆训练</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <script>
+    // Load SDK from ?sdk= param (module=1 for ES modules), fallback to CDN IIFE
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var sdkUrl = params.get('sdk') || 'https://cdn.keepwork.com/sdk/keepworkSDK.iife.js';
+      var isModule = params.get('module') === '1';
+      var s = document.createElement('script');
+      if (isModule) s.type = 'module';
+      s.src = sdkUrl;
+      document.head.appendChild(s);
+    })();
+  </script>
+  <style></style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-green-50 to-orange-50 flex justify-center items-start p-5 font-sans">
+  <div class="w-full max-w-[480px] bg-white rounded-2xl shadow-lg px-6 py-7 flex flex-col gap-5"
+       aria-label="记忆训练游戏"
+       data-ai-hint="记忆训练小游戏：AI用type_in_app填写问题，用户语音回答。每次type_in_app写入新问题即自动进入下一题（无需点击'下一题'按钮），题目数量由type_in_app调用次数决定。用户答对时可点击'答对了'计分。">
+
+    <!-- 游戏区 -->
+    <div id="gameArea" class="flex flex-col gap-5">
+      <!-- 问题卡片 -->
+      <div class="bg-green-50 rounded-xl px-5 py-5 min-h-[120px] flex flex-col justify-center">
+        <div id="questionText"
+               class="text-xl text-gray-800 leading-relaxed w-full"
+               data-ai-type="textbox"
+               aria-label="问题"
+               data-ai-hint="AI用type_in_app填写当前问题内容">等待出题...</div>
+      </div>
+
+      <!-- 按钮（用户不可见，仅供 AI 通过 click_element 点击） -->
+      <div style="opacity:0;position:absolute;pointer-events:none">
+        <button id="btnCorrect" aria-label="答对了" data-ai-hint="用户回答正确时AI点击此按钮计分（然后直接type_in_app写入下一题）">答对了</button>
+        <button id="btnFinish" aria-label="结束" data-ai-hint="AI点击此按钮结束训练，显示结果页">结束</button>
+      </div>
+    </div>
+
+    <!-- 结果页 -->
+    <div id="resultPage" class="hidden text-center py-8 px-2.5" data-ai-hint="训练结束后的结果展示区域">
+      <div class="text-6xl mb-5">🎉</div>
+      <h2 class="text-2xl font-bold text-green-700 mb-4">训练完成！</h2>
+
+      <!-- 统计卡片 -->
+      <div class="flex justify-center gap-4 mb-5">
+        <div class="bg-green-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-green-600" id="statTotal">0</span>
+          <span class="text-sm text-gray-500 mt-1">总题数</span>
+        </div>
+        <div class="bg-amber-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-amber-600" id="statCorrect">0</span>
+          <span class="text-sm text-gray-500 mt-1">答对</span>
+        </div>
+        <div class="bg-blue-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-blue-600" id="statAccuracy">0%</span>
+          <span class="text-sm text-gray-500 mt-1">正确率</span>
+        </div>
+      </div>
+
+      <p id="resultSummary" class="text-lg text-gray-600 leading-relaxed mb-2" data-ai-hint="显示答题评语"></p>
+      <p class="mt-4 text-sm text-gray-400">记忆需要经常锻炼，下次再来吧～</p>
+
+      <!-- 关闭按钮：AI 点击后发送 gameFinished -->
+      <button id="btnClose" aria-label="关闭" data-ai-hint="训练结束后AI点击此按钮关闭游戏"
+              class="mt-6 w-full py-4 bg-green-600 hover:bg-green-700 text-white text-2xl font-bold rounded-xl shadow-md transition-colors">
+        关闭
+      </button>
+    </div>
+  </div>
+
+  <!-- 反馈浮层 -->
+  <div id="feedback" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl opacity-0 scale-50 pointer-events-none transition-all duration-400 z-50"></div>
+
+  <script>
+    // =================== Wait for SDK ===================
+    function waitForSdkGlobals(timeoutMs) {
+      timeoutMs = timeoutMs || 10000;
+      var start = Date.now();
+      return new Promise(function(resolve, reject) {
+        (function check() {
+          if (typeof window.KeepworkSDK === 'function') return resolve();
+          if (Date.now() - start >= timeoutMs) return resolve(); // proceed anyway
+          setTimeout(check, 30);
+        })();
+      });
+    }
+
+    (async function() {
+    await waitForSdkGlobals();
+    // Set token from URL param if provided
+    var token = new URLSearchParams(window.location.search).get('token');
+    if (token && window.KeepworkSDK) {
+      if (!window.keepwork) window.keepwork = new KeepworkSDK();
+      window.keepwork.setToken(token);
+    }
+
+    // =================== 状态 ===================
+    const state = {
+      currentIndex: 0,
+      totalQuestions: 0,   // AI 填题后动态增长
+      correctCount: 0,
+      finished: false,
+    };
+
+    // =================== DOM ===================
+    const $ = (id) => document.getElementById(id);
+    const questionText  = $('questionText');
+    const btnCorrect    = $('btnCorrect');
+    const btnFinish     = $('btnFinish');
+    const gameArea      = $('gameArea');
+    const resultPage    = $('resultPage');
+    const resultSummary = $('resultSummary');
+    const feedbackEl    = $('feedback');
+
+    // =================== 工具函数 ===================
+    function showFeedback(emoji) {
+      feedbackEl.textContent = emoji;
+      feedbackEl.classList.remove('opacity-0', 'scale-50');
+      feedbackEl.classList.add('opacity-100', 'scale-100');
+      setTimeout(() => {
+        feedbackEl.classList.remove('opacity-100', 'scale-100');
+        feedbackEl.classList.add('opacity-0', 'scale-50');
+      }, 800);
+    }
+
+    // =================== 按钮事件 ===================
+    btnCorrect.addEventListener('click', () => {
+      if (state.finished) return;
+      state.correctCount++;
+      showFeedback('🎉');
+      // dh:context — 用户答对了
+      window.parent.postMessage({
+        type: 'dh:context',
+        text: `用户第${state.currentIndex + 1}题回答正确，已答对${state.correctCount}题`,
+        debounce: 2000
+      }, '*');
+      // 不再调用 prepareNext()，AI 直接 type_in_app 写入下一题即可自动推进
+    });
+
+    btnFinish.addEventListener('click', () => {
+      finishGame();
+    });
+
+    let _autoFinishTimer = null;
+    function sendGameFinished() {
+      if (_autoFinishTimer) { clearTimeout(_autoFinishTimer); _autoFinishTimer = null; }
+      const total = state.currentIndex;
+      const correct = state.correctCount;
+      const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+      window.parent.postMessage({
+        type: 'gameFinished',
+        data: { total, correct, accuracy, comment: resultSummary.textContent }
+      }, '*');
+    }
+    $('btnClose').addEventListener('click', sendGameFinished);
+
+    function finishGame() {
+      state.finished = true;
+      gameArea.classList.add('hidden');
+      resultPage.classList.remove('hidden');
+
+      const total = state.currentIndex;
+      const correct = state.correctCount;
+      const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+      // 更新统计卡片
+      $('statTotal').textContent = total;
+      $('statCorrect').textContent = correct;
+      $('statAccuracy').textContent = accuracy + '%';
+
+      // 评语
+      let comment = '继续加油哦！';
+      if (correct === total && total > 0) comment = '记忆力真棒，满分！';
+      else if (correct >= total * 0.7) comment = '非常不错，记忆力很好！';
+      else if (correct >= total * 0.4) comment = '还不错，多练习会更好！';
+      resultSummary.textContent = comment;
+
+      // dh:context — 通知 AI 训练结束
+      window.parent.postMessage({
+        type: 'dh:context',
+        text: `记忆训练结束，共${total}题，答对${correct}题，正确率${accuracy}%。${comment}`
+      }, '*');
+
+      // 5秒后自动发送 gameFinished
+      _autoFinishTimer = setTimeout(sendGameFinished, 5000);
+    }
+
+    // =================== dev 模式：让问题可编辑、按钮可见 ===================
+    if (new URLSearchParams(window.location.search).get('dev') === 'true') {
+      questionText.contentEditable = 'true';
+      questionText.style.cssText = 'border:2px dashed #94a3b8;border-radius:8px;padding:12px;min-height:60px;font-family:monospace;font-size:16px;white-space:pre-wrap;background:#f8fafc;outline:none;';
+      questionText.textContent = '中国的首都是哪里？';
+      const btnWrapper = btnCorrect.parentElement;
+      btnWrapper.style.cssText = 'opacity:1;position:static;pointer-events:auto;display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;';
+      const btnStyle = 'padding:8px 16px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;';
+      btnCorrect.style.cssText = btnStyle + 'background:#16a34a;';
+      btnFinish.style.cssText = btnStyle + 'background:#dc2626;';
+    }
+
+    // =================== 监听 AI 通过 type_in_app 写入新题 ===================
+    // type_in_app 会设置 textContent，通过 MutationObserver 检测内容变化自动推进题号
+    let _lastQuestionText = questionText.textContent;
+    const observer = new MutationObserver(() => {
+      const newText = questionText.textContent;
+      if (state.finished || !newText || newText === _lastQuestionText || newText === '等待出题中...') return;
+      _lastQuestionText = newText;
+      // 如果 AI 还没点 "答对了" 就直接写了新题，自动推进题号
+      state.currentIndex++;
+      state.totalQuestions = Math.max(state.totalQuestions, state.currentIndex + 1);
+    });
+    observer.observe(questionText, { childList: true, characterData: true, subtree: true });
+
+    // =================== 初始化 ===================
+    // 通知宿主页面游戏已加载就绪
+    window.parent.postMessage({ type: 'gameLoaded' }, '*');
+    })();
+  </script>
+</body>
+</html>

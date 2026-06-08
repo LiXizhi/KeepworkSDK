@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>老歌接词</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var sdkUrl = params.get('sdk') || 'https://cdn.keepwork.com/sdk/keepworkSDK.iife.js';
+      var isModule = params.get('module') === '1';
+      var s = document.createElement('script');
+      if (isModule) s.type = 'module';
+      s.src = sdkUrl;
+      document.head.appendChild(s);
+    })();
+  </script>
+  <style>
+    .lyric-line {
+      font-size: 2rem; line-height: 1.6;
+      letter-spacing: 0.05em;
+      text-align: center;
+      color: #1e293b;
+      font-weight: 600;
+    }
+    .lyric-blank {
+      display: inline-block;
+      min-width: 4em;
+      border-bottom: 4px solid #f59e0b;
+      color: transparent;
+      transition: all 0.4s ease;
+    }
+    .lyric-blank.revealed {
+      color: #d97706;
+      border-bottom-color: transparent;
+      animation: pop 0.5s ease;
+    }
+    @keyframes pop {
+      0% { transform: scale(0.5); opacity: 0; }
+      60% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); }
+    }
+    .song-title {
+      font-size: 0.95rem;
+      color: #64748b;
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+    .musical-note {
+      font-size: 2rem;
+      animation: wiggle 2s ease-in-out infinite;
+      display: inline-block;
+    }
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(-8deg); }
+      50% { transform: rotate(8deg); }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-rose-50 to-yellow-50 flex justify-center items-start p-5 font-sans">
+  <div class="w-full max-w-[480px] bg-white rounded-2xl shadow-lg px-5 py-7 flex flex-col gap-5"
+       aria-label="老歌接词游戏"
+       data-ai-hint="老歌接词小游戏：AI用type_in_app向隐藏文本框写入JSON（格式：{&quot;songTitle&quot;:&quot;歌名&quot;,&quot;line&quot;:&quot;完整歌词&quot;,&quot;blank&quot;:&quot;歌词中要被挖空的那几个字（必须是line的子串）&quot;,&quot;hint&quot;:&quot;可选提示&quot;}）。直接type_in_app写入下一首歌词JSON即可自动进入下一首，无需点击'下一首'按钮，歌曲数量由type_in_app调用次数决定。AI点'揭晓'让答案显示出来，'答对了'计分。">
+
+    <div class="text-center">
+      <span class="musical-note">🎵</span>
+    </div>
+    <div id="songTitle" class="song-title">等待出题...</div>
+
+    <!-- 隐藏 JSON 输入 -->
+    <div id="inputWrapper" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">
+      <input id="lyricInput" type="text"
+           data-ai-type="textbox"
+           aria-label="歌词JSON"
+           data-ai-hint="AI用type_in_app写入JSON：{&quot;songTitle&quot;:&quot;东方红&quot;,&quot;line&quot;:&quot;东方红，太阳升，中国出了个毛泽东&quot;,&quot;blank&quot;:&quot;毛泽东&quot;,&quot;hint&quot;:&quot;开国领袖的名字&quot;}。blank必须是line中实际出现的子串，会自动被替换成下划线让老人补全。">
+    </div>
+
+    <!-- 歌词显示 -->
+    <div class="bg-rose-50 rounded-xl px-5 py-8 min-h-[180px] flex items-center justify-center">
+      <div id="lyricDisplay" class="lyric-line">点击"出题"按钮开始</div>
+    </div>
+
+    <!-- 提示 -->
+    <div id="hintBox" class="text-center text-sm text-gray-500 italic min-h-[1.25rem]"></div>
+
+    <!-- 隐藏控制按钮 -->
+    <div style="opacity:0;position:absolute;pointer-events:none">
+      <button id="btnReveal" aria-label="揭晓" data-ai-hint="AI点击此按钮把空格里的答案显示出来">揭晓</button>
+      <button id="btnCorrect" aria-label="答对了" data-ai-hint="老人接对了，AI点击此按钮记一次答对（会先自动揭晓答案）">答对了</button>
+      <button id="btnFinish" aria-label="结束" data-ai-hint="AI点击此按钮结束游戏，显示结果页">结束</button>
+    </div>
+
+    <!-- 结果页 -->
+    <div id="resultPage" class="hidden text-center py-6 px-2.5">
+      <div class="text-6xl mb-4">🎶</div>
+      <h2 class="text-2xl font-bold text-rose-700 mb-4">唱完啦！</h2>
+      <div class="flex justify-center gap-4 mb-5">
+        <div class="bg-rose-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-rose-600" id="statTotal">0</span>
+          <span class="text-sm text-gray-500 mt-1">总歌数</span>
+        </div>
+        <div class="bg-green-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-green-600" id="statCorrect">0</span>
+          <span class="text-sm text-gray-500 mt-1">接上了</span>
+        </div>
+        <div class="bg-amber-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-amber-600" id="statAccuracy">0%</span>
+          <span class="text-sm text-gray-500 mt-1">正确率</span>
+        </div>
+      </div>
+      <p id="resultSummary" class="text-lg text-gray-600 leading-relaxed mb-2"></p>
+      <p class="mt-4 text-sm text-gray-400">老歌不老，旋律里都是您的故事～</p>
+      <button id="btnClose" aria-label="关闭" data-ai-hint="AI点击此按钮关闭游戏并发送gameFinished事件"
+              class="mt-6 w-full py-4 bg-rose-600 hover:bg-rose-700 text-white text-2xl font-bold rounded-xl shadow-md transition-colors">
+        关闭
+      </button>
+    </div>
+  </div>
+
+  <div id="feedback" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl opacity-0 scale-50 pointer-events-none transition-all duration-400 z-50"></div>
+
+  <script>
+    function waitForSdkGlobals(timeoutMs) {
+      timeoutMs = timeoutMs || 10000;
+      var start = Date.now();
+      return new Promise(function(resolve) {
+        (function check() {
+          if (typeof window.KeepworkSDK === 'function') return resolve();
+          if (Date.now() - start >= timeoutMs) return resolve();
+          setTimeout(check, 30);
+        })();
+      });
+    }
+
+    (async function() {
+      await waitForSdkGlobals();
+      var token = new URLSearchParams(window.location.search).get('token');
+      if (token && window.KeepworkSDK) {
+        if (!window.keepwork) window.keepwork = new KeepworkSDK();
+        window.keepwork.setToken(token);
+      }
+
+      if (new URLSearchParams(window.location.search).get('dev') === 'true') {
+        const w = document.getElementById('inputWrapper');
+        w.style.cssText = 'position:static;width:auto;height:auto;overflow:visible;';
+        const li = document.getElementById('lyricInput');
+        li.type = 'text';
+        li.style.cssText = 'display:block;width:100%;border:2px dashed #94a3b8;border-radius:8px;padding:10px;min-height:40px;font-family:monospace;font-size:12px;background:#f8fafc;box-sizing:border-box;';
+        ['btnReveal','btnCorrect','btnFinish'].forEach(id => {
+          const b = document.getElementById(id);
+          b.parentElement.style.opacity = '1';
+          b.parentElement.style.position = 'static';
+          b.parentElement.style.pointerEvents = 'auto';
+          b.style.cssText = 'margin:4px;padding:4px 10px;background:#e2e8f0;border-radius:6px;font-size:12px;';
+        });
+      }
+
+      const $ = (id) => document.getElementById(id);
+      const songTitle    = $('songTitle');
+      const lyricDisplay = $('lyricDisplay');
+      const hintBox      = $('hintBox');
+      const lyricInput   = $('lyricInput');
+      const btnReveal    = $('btnReveal');
+      const btnCorrect   = $('btnCorrect');
+      const btnFinish    = $('btnFinish');
+      const btnClose     = $('btnClose');
+      const resultPage   = $('resultPage');
+      const feedbackEl   = $('feedback');
+
+      const state = {
+        line: '', blank: '', hint: '', songName: '',
+        revealed: false,
+        total: 0,
+        correct: 0,
+        finished: false,
+      };
+
+      function showFeedback(emoji) {
+        feedbackEl.textContent = emoji;
+        feedbackEl.classList.remove('opacity-0', 'scale-50');
+        feedbackEl.classList.add('opacity-100', 'scale-100');
+        setTimeout(() => {
+          feedbackEl.classList.remove('opacity-100', 'scale-100');
+          feedbackEl.classList.add('opacity-0', 'scale-50');
+        }, 700);
+      }
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      }
+
+      function renderLyric(data) {
+        const line = (data.line || '').toString();
+        const blank = (data.blank || '').toString();
+        if (!line || !blank) return;
+        const idx = line.indexOf(blank);
+        if (idx === -1) {
+          // blank not found in line; just show line as-is
+          lyricDisplay.textContent = line;
+          return;
+        }
+        state.line = line;
+        state.blank = blank;
+        state.hint = data.hint || '';
+        state.songName = data.songTitle || '';
+        state.revealed = false;
+        state.total++;
+
+        songTitle.textContent = state.songName ? '《' + state.songName + '》' : '';
+        const before = escapeHtml(line.slice(0, idx));
+        const after  = escapeHtml(line.slice(idx + blank.length));
+        lyricDisplay.innerHTML = before + '<span id="blankSpan" class="lyric-blank">' + escapeHtml(blank) + '</span>' + after;
+        hintBox.textContent = state.hint ? '💡 ' + state.hint : '';
+      }
+
+      function reveal() {
+        if (state.revealed) return;
+        const span = document.getElementById('blankSpan');
+        if (span) span.classList.add('revealed');
+        state.revealed = true;
+      }
+
+      btnReveal.addEventListener('click', () => {
+        reveal();
+        // dh:context — AI 揭晓了答案
+        if (state.blank) {
+          window.parent.postMessage({
+            type: 'dh:context',
+            text: `揭晓答案：《${state.songName || '未知歌曲'}》的空白处是"${state.blank}"`,
+            debounce: 3000
+          }, '*');
+        }
+      });
+
+      btnCorrect.addEventListener('click', () => {
+        reveal();
+        state.correct++;
+        showFeedback('🌟');
+        // dh:context — 用户答对了
+        window.parent.postMessage({
+          type: 'dh:context',
+          text: `用户接对了《${state.songName || '未知歌曲'}》的歌词，已答对${state.correct}/${state.total}首`,
+          debounce: 2000
+        }, '*');
+      });
+
+      // Next song is handled by type_in_app writing new JSON (auto-detected by value setter)
+
+      function handleLyricInput() {
+        const raw = (lyricInput.value || '').trim();
+        if (!raw) return;
+        try {
+          const data = JSON.parse(raw);
+          if (data && data.line && data.blank) {
+            renderLyric(data);
+          }
+        } catch (e) { /* ignore */ }
+      }
+      lyricInput.addEventListener('input', handleLyricInput);
+      const origDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      Object.defineProperty(lyricInput, 'value', {
+        get() { return origDesc.get.call(this); },
+        set(v) { origDesc.set.call(this, v); handleLyricInput(); },
+        configurable: true
+      });
+
+      btnFinish.addEventListener('click', () => {
+        if (state.finished) return;
+        state.finished = true;
+        const total = state.total;
+        const correct = state.correct;
+        const accuracy = total === 0 ? 0 : Math.round((correct / total) * 100);
+        $('statTotal').textContent = total;
+        $('statCorrect').textContent = correct;
+        $('statAccuracy').textContent = accuracy + '%';
+        let comment = '';
+        if (total === 0) comment = '咱们听听旋律也好～';
+        else if (accuracy >= 80) comment = '哇，您真是这些歌的老粉丝！';
+        else if (accuracy >= 50) comment = '记得真清楚，您年轻时一定常唱～';
+        else comment = '听听旋律，回忆就慢慢回来啦～';
+        $('resultSummary').textContent = comment;
+        document.querySelectorAll('#songTitle, #lyricDisplay, #hintBox').forEach(el => el.parentElement.classList.add('hidden'));
+        resultPage.classList.remove('hidden');
+        state._result = { total, correct, accuracy, comment };
+
+        // dh:context — 游戏结束
+        window.parent.postMessage({
+          type: 'dh:context',
+          text: `老歌接词游戏结束，共${total}首，接上了${correct}首，正确率${accuracy}%。${comment}`
+        }, '*');
+
+        // 5秒后自动发送 gameFinished
+        _autoFinishTimer = setTimeout(sendGameFinished, 5000);
+      });
+
+      let _autoFinishTimer = null;
+      function sendGameFinished() {
+        if (_autoFinishTimer) { clearTimeout(_autoFinishTimer); _autoFinishTimer = null; }
+        const r = state._result || { total: 0, correct: 0, accuracy: 0, comment: '' };
+        window.parent.postMessage({ type: 'gameFinished', data: r }, '*');
+      }
+      btnClose.addEventListener('click', sendGameFinished);
+
+      window.parent.postMessage({ type: 'gameLoaded' }, '*');
+    })();
+  </script>
+</body>
+</html>

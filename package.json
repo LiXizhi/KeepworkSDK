@@ -1,0 +1,61 @@
+{
+  "name": "keepwork-sdk",
+  "version": "1.0.2",
+  "description": "Keepwork browser SDK — Keepwork API, page/site CRUD, personal-page storage, AI chat, sandboxed tools, agent routing, WeChat integrations and RTC voice agents.",
+  "type": "module",
+  "license": "MIT",
+  "module": "./dist-npm/keepwork-sdk.js",
+  "main": "./dist-npm/keepwork-sdk.js",
+  "types": "./dist-npm/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-npm/types/index.d.ts",
+      "import": "./dist-npm/keepwork-sdk.js",
+      "default": "./dist-npm/keepwork-sdk.js"
+    }
+  },
+  "files": [
+    "dist-npm",
+    "README.md"
+  ],
+  "sideEffects": [
+    "./dist-npm/keepwork-sdk.js",
+    "./src/ai-chat/AIChat.session.ts",
+    "./src/rtc/AIChatRTC.session.ts"
+  ],
+  "scripts": {
+    "dev": "vite --config vite.keepworkSDK.config.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build --config vite.keepworkSDK.config.ts && vite build --config vite.keepworkSDK.core.config.ts && vite build --config vite.keepworkSDK.AIChat.config.ts",
+    "build:cdn": "npm run build",
+    "build:npm": "tsc --noEmit && vite build --config vite.npm.config.ts && tsc -p tsconfig.npm.json",
+    "prepublishOnly": "npm run build:npm",
+    "localDeploy": "npm run build && node scripts/localDeploy.mjs",
+    "upload": "node scripts/uploadKeepworkSDK.mjs",
+    "build:watch": "vite build --config vite.keepworkSDK.config.ts --watch",
+    "preview": "vite preview --config vite.keepworkSDK.config.ts",
+    "speechrtc-proxy": "node scripts/speechrtc-proxy.mjs",
+    "sync:github": "node scripts/syncToGithub.mjs",
+    "sync:github:dry": "node scripts/syncToGithub.mjs --dry-run",
+    "prepare": "node scripts/patch-rollup-openharmony.mjs"
+  },
+  "devDependencies": {
+    "@rollup/wasm-node": "^4.60.3",
+    "@types/blueimp-md5": "^2.18.2",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.9.1",
+    "@types/ws": "^8.18.1",
+    "terser": "^5.30.0",
+    "typescript": "^6.0.3",
+    "vite": "^6.0.0"
+  },
+  "overrides": {
+    "@rollup/rollup-openharmony-arm64": "npm:@rollup/wasm-node@^4.60.3"
+  },
+  "dependencies": {
+    "blueimp-md5": "^2.19.0",
+    "js-yaml": "^4.1.0",
+    "qiniu": "^7.15.0",
+    "ws": "^8.18.3"
+  }
+}

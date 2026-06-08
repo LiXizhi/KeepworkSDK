@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>外语跟读</title>
+	<script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+	<script>
+		(function() {
+			var params = new URLSearchParams(window.location.search);
+			var sdkUrl = params.get('sdk') || 'https://cdn.keepwork.com/sdk/keepworkSDK.iife.js';
+			var isModule = params.get('module') === '1';
+			var s = document.createElement('script');
+			if (isModule) s.type = 'module';
+			s.src = sdkUrl;
+			document.head.appendChild(s);
+		})();
+	</script>
+	<style>
+		body {
+			background: #0f172a;
+			color: #f8fafc;
+		}
+		.movie-frame {
+			background:
+				linear-gradient(180deg, rgba(15, 23, 42, 0.15), rgba(15, 23, 42, 0.88)),
+				radial-gradient(circle at 22% 20%, rgba(250, 204, 21, 0.22), transparent 28%),
+				radial-gradient(circle at 82% 12%, rgba(14, 165, 233, 0.22), transparent 30%),
+				linear-gradient(135deg, #111827, #1e293b 52%, #020617);
+			box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+		}
+		.scanline {
+			background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px);
+			background-size: 100% 8px;
+			pointer-events: none;
+		}
+		.subtitle-panel {
+			background: #020617;
+			border-top: 1px solid rgba(255,255,255,0.1);
+		}
+		.word {
+			display: inline-block;
+			margin: 0.1rem 0.18rem;
+			transition: color 0.18s ease, text-shadow 0.18s ease, transform 0.18s ease;
+		}
+		.word-pending { color: rgba(250, 204, 21, 0.48); }
+		.word-active {
+			color: #fff;
+			text-shadow: 0 0 18px rgba(250, 204, 21, 0.95), 0 0 4px rgba(255,255,255,0.7);
+			transform: translateY(-1px);
+		}
+		.word-matched {
+			color: #bbf7d0;
+			text-shadow: 0 0 12px rgba(34, 197, 94, 0.62);
+		}
+		.word-missed {
+			color: #fca5a5;
+			text-decoration: line-through;
+			text-decoration-color: rgba(248, 113, 113, 0.8);
+			opacity: 0.86;
+		}
+		.mic-ring {
+			width: 54px;
+			height: 54px;
+			border-radius: 999px;
+			background: rgba(15, 23, 42, 0.78);
+			border: 2px solid rgba(250, 204, 21, 0.72);
+			box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.35);
+			animation: pulseMic 1.65s ease-out infinite;
+		}
+		.mic-idle {
+			animation: none;
+			border-color: rgba(148, 163, 184, 0.55);
+			box-shadow: none;
+		}
+		@keyframes pulseMic {
+			0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.36); }
+			70% { box-shadow: 0 0 0 12px rgba(250, 204, 21, 0); }
+			100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+		}
+		.stamp {
+			transform: rotate(-10deg) scale(0.92);
+			opacity: 0;
+			transition: opacity 0.18s ease, transform 0.18s ease;
+		}
+		.stamp.show {
+			opacity: 1;
+			transform: rotate(-10deg) scale(1);
+		}
+	</style>
+</head>
+<body class="min-h-screen flex justify-center items-start p-2 font-sans">
+	<div class="w-full max-w-[520px] bg-slate-950 rounded-2xl shadow-2xl overflow-hidden border border-white/10"
+			 aria-label="外语跟读小游戏"
+			 data-ai-hint="外语跟读小游戏：AI用type_in_app向隐藏文本框写入JSON（格式：{&quot;language&quot;:&quot;English&quot;,&quot;speaker&quot;:&quot;Coach&quot;,&quot;nativeText&quot;:&quot;中文提示/译文&quot;,&quot;targetText&quot;:&quot;要用户朗读的外语句子&quot;,&quot;hint&quot;:&quot;可选发音提示&quot;}），界面自动进入下一句。用户朗读后，AI根据听到的内容点击隐藏按钮'通过'或'跳过'。题目数量由type_in_app调用次数决定。">
+
+		<div id="gameArea">
+			<div class="movie-frame relative min-h-[178px] px-4 pt-3 pb-3 flex flex-col justify-between">
+				<div class="scanline absolute inset-0"></div>
+				<div class="relative flex items-start justify-between gap-3">
+					<div>
+						<div class="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">Second-language shadowing</div>
+						<h1 class="text-xl font-bold mt-0.5">外语跟读</h1>
+					</div>
+					<div class="text-right text-xs text-slate-300 leading-5">
+						<div>Score <span id="scoreText" class="text-yellow-300 font-bold">0</span></div>
+						<div><span id="progressText">0/0</span></div>
+					</div>
+				</div>
+
+				<div class="relative flex flex-col items-center justify-center gap-2 py-2">
+					<div id="micRing" class="mic-ring mic-idle flex items-center justify-center">
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-200">
+							<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+							<path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+							<path d="M12 19v3"></path>
+						</svg>
+					</div>
+					<div id="statusText" class="text-xs text-slate-200 bg-black/28 px-3 py-1.5 rounded-full border border-white/10">等待 AI 出题</div>
+					<div id="stamp" class="stamp absolute right-4 bottom-3 border-4 border-yellow-300 text-yellow-200 text-xl font-black px-3 py-1.5 rounded-lg">PASS</div>
+				</div>
+			</div>
+
+			<div class="subtitle-panel px-5 py-4 min-h-[210px] flex flex-col justify-center gap-4">
+				<div class="flex items-center gap-2 text-sm text-slate-400 min-h-[1.25rem]">
+					<span id="speakerText" class="text-sky-300 font-semibold"></span>
+					<span id="nativeText"></span>
+				</div>
+				<div id="sentenceText" class="text-center text-2xl sm:text-3xl leading-relaxed font-semibold text-white min-h-[92px] flex items-center justify-center flex-wrap">等待出题...</div>
+				<div id="hintText" class="text-center text-sm text-slate-400 min-h-[1.25rem]"></div>
+				<div class="rounded-xl bg-slate-900/90 border border-white/10 px-4 py-3 min-h-[58px]">
+					<div class="text-xs text-slate-500 mb-1">用户朗读</div>
+					<div id="transcriptText" class="text-base text-slate-200">等待朗读...</div>
+				</div>
+			</div>
+
+			<div id="inputWrapper" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">
+				<input id="sentenceInput" type="text"
+							 data-ai-type="textbox"
+							 aria-label="句子JSON"
+						 data-ai-hint="AI用type_in_app写入JSON：{&quot;language&quot;:&quot;English&quot;,&quot;speaker&quot;:&quot;Coach&quot;,&quot;nativeText&quot;:&quot;我们会成功的&quot;,&quot;targetText&quot;:&quot;We are going to make it.&quot;,&quot;hint&quot;:&quot;注意going to的连读&quot;}。targetText是用户需要朗读的第二语言句子，写入后自动开始下一句。">
+				<input id="transcriptInput" type="text"
+							 data-ai-type="textbox"
+							 aria-label="用户朗读文本"
+							 data-ai-hint="可选：AI听到用户朗读后，用type_in_app写入用户实际读出的文本，界面会显示并按词推进高亮。判定仍由AI点击'通过'或'跳过'完成。">
+			</div>
+
+			<div style="opacity:0;position:absolute;pointer-events:none">
+				<button id="btnPass" aria-label="通过" data-ai-hint="用户朗读准确时AI点击此按钮，本句通过并计分；然后AI直接type_in_app写入下一句。">通过</button>
+				<button id="btnCorrect" aria-label="答对了" data-ai-hint="兼容旧流程：用户朗读准确时AI也可以点击此按钮，效果等同于'通过'。">答对了</button>
+				<button id="btnSkip" aria-label="跳过" data-ai-hint="用户想跳过或朗读未通过时AI点击此按钮，本句计为未通过；然后AI直接type_in_app写入下一句。">跳过</button>
+				<button id="btnFinish" aria-label="结束" data-ai-hint="AI点击此按钮结束外语跟读，显示结果页。">结束</button>
+			</div>
+		</div>
+
+		<div id="resultPage" class="hidden bg-white text-slate-800 text-center py-8 px-6" data-ai-hint="外语跟读结束后的结果展示区域">
+			<div class="text-6xl mb-4">🎬</div>
+			<h2 class="text-2xl font-bold text-slate-900 mb-5">练习完成！</h2>
+			<div class="grid grid-cols-3 gap-3 mb-5">
+				<div class="bg-slate-100 rounded-xl px-3 py-4">
+					<div class="text-3xl font-bold text-slate-900" id="statTotal">0</div>
+					<div class="text-sm text-slate-500 mt-1">总句数</div>
+				</div>
+				<div class="bg-green-50 rounded-xl px-3 py-4">
+					<div class="text-3xl font-bold text-green-600" id="statPassed">0</div>
+					<div class="text-sm text-slate-500 mt-1">通过</div>
+				</div>
+				<div class="bg-yellow-50 rounded-xl px-3 py-4">
+					<div class="text-3xl font-bold text-yellow-600" id="statScore">0</div>
+					<div class="text-sm text-slate-500 mt-1">得分</div>
+				</div>
+			</div>
+			<p id="resultSummary" class="text-lg text-slate-600 leading-relaxed"></p>
+			<button id="btnClose" aria-label="关闭" data-ai-hint="AI点击此按钮关闭游戏并发送gameFinished事件"
+							class="mt-6 w-full py-4 bg-slate-900 hover:bg-slate-800 text-white text-2xl font-bold rounded-xl shadow-md transition-colors">
+				关闭
+			</button>
+		</div>
+	</div>
+
+	<div id="feedback" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl opacity-0 scale-50 pointer-events-none transition-all duration-400 z-50"></div>
+
+	<script>
+		function waitForSdkGlobals(timeoutMs) {
+			timeoutMs = timeoutMs || 10000;
+			var start = Date.now();
+			return new Promise(function(resolve) {
+				(function check() {
+					if (typeof window.KeepworkSDK === 'function') return resolve();
+					if (Date.now() - start >= timeoutMs) return resolve();
+					setTimeout(check, 30);
+				})();
+			});
+		}
+
+		(async function() {
+			await waitForSdkGlobals();
+			var params = new URLSearchParams(window.location.search);
+			var token = params.get('token');
+			if (token && window.KeepworkSDK) {
+				if (!window.keepwork) window.keepwork = new KeepworkSDK();
+				window.keepwork.setToken(token);
+			}
+
+			const $ = (id) => document.getElementById(id);
+			const sentenceInput = $('sentenceInput');
+			const transcriptInput = $('transcriptInput');
+			const sentenceText = $('sentenceText');
+			const transcriptText = $('transcriptText');
+			const speakerText = $('speakerText');
+			const nativeText = $('nativeText');
+			const hintText = $('hintText');
+			const statusText = $('statusText');
+			const micRing = $('micRing');
+			const stamp = $('stamp');
+			const scoreText = $('scoreText');
+			const progressText = $('progressText');
+			const feedbackEl = $('feedback');
+			const gameArea = $('gameArea');
+			const resultPage = $('resultPage');
+
+			const state = {
+				total: 0,
+				passed: 0,
+				skipped: 0,
+				score: 0,
+				finished: false,
+				current: null,
+				currentPassed: false,
+				currentSkipped: false,
+				wordStates: [],
+				_result: null,
+			};
+
+			function escapeHtml(value) {
+				return String(value == null ? '' : value).replace(/[&<>"']/g, function(c) {
+					return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+				});
+			}
+
+			function splitWords(text) {
+				const normalized = String(text || '').trim();
+				if (!normalized) return [];
+				if (/\s/.test(normalized)) return normalized.split(/\s+/);
+				return Array.from(normalized);
+			}
+
+			function normalizeText(text) {
+				return String(text || '').toLowerCase().replace(/[\p{P}\p{S}\s]+/gu, '');
+			}
+
+			function showFeedback(text) {
+				feedbackEl.textContent = text;
+				feedbackEl.classList.remove('opacity-0', 'scale-50');
+				feedbackEl.classList.add('opacity-100', 'scale-100');
+				setTimeout(() => {
+					feedbackEl.classList.remove('opacity-100', 'scale-100');
+					feedbackEl.classList.add('opacity-0', 'scale-50');
+				}, 850);
+			}
+
+			function updateHud() {
+				scoreText.textContent = state.score;
+				progressText.textContent = state.passed + '/' + state.total;
+			}
+
+			function renderWords() {
+				if (!state.current) {
+					sentenceText.textContent = '等待出题...';
+					return;
+				}
+				const words = state.current.words;
+				const firstPending = state.wordStates.findIndex((item) => item === 'pending');
+				sentenceText.innerHTML = words.map((word, index) => {
+					let cls = 'word ';
+					const status = state.wordStates[index];
+					if (status === 'matched') cls += 'word-matched';
+					else if (status === 'missed') cls += 'word-missed';
+					else if (index === firstPending) cls += 'word-active';
+					else cls += 'word-pending';
+					return '<span class="' + cls + '">' + escapeHtml(word) + '</span>';
+				}).join(' ');
+			}
+
+			function setRecording(active, label) {
+				micRing.classList.toggle('mic-idle', !active);
+				statusText.textContent = label || (active ? '请开始朗读' : '等待朗读');
+			}
+
+			function renderSentence(data) {
+				const targetText = String(data.targetText || data.sentence || data.text || '').trim();
+				if (!targetText || state.finished) return;
+				const words = Array.isArray(data.words) && data.words.length ? data.words.map(String) : splitWords(targetText);
+				state.current = {
+					language: String(data.language || data.targetLanguage || '').trim(),
+					speaker: String(data.speaker || '').trim(),
+					nativeText: String(data.nativeText || data.translation || '').trim(),
+					targetText,
+					hint: String(data.hint || '').trim(),
+					focus: String(data.focus || '').trim(),
+					words,
+				};
+				state.total++;
+				state.currentPassed = false;
+				state.currentSkipped = false;
+				state.wordStates = words.map(() => 'pending');
+				transcriptInput.value = '';
+				transcriptText.textContent = '等待朗读...';
+				speakerText.textContent = state.current.speaker ? state.current.speaker + ':' : (state.current.language ? state.current.language + ':' : '');
+				nativeText.textContent = state.current.nativeText;
+				hintText.textContent = state.current.hint ? '提示：' + state.current.hint : (state.current.focus ? '练习：' + state.current.focus : '');
+				stamp.classList.remove('show');
+				setRecording(true, '轮到你了，请朗读句子');
+				renderWords();
+				updateHud();
+				/* do not send, this will let AI miss interprete as user voice input. 
+                window.parent.postMessage({
+					type: 'dh:context',
+					text: `进入第${state.total}句外语跟读：${targetText}`,
+					debounce: 2000
+				}, '*');
+                */
+			}
+
+			function handleSentenceInput() {
+				const raw = (sentenceInput.value || '').trim();
+				if (!raw) return;
+				try {
+					const data = JSON.parse(raw);
+					renderSentence(data);
+				} catch (e) {
+					renderSentence({ targetText: raw });
+				}
+			}
+
+			function handleTranscriptInput() {
+				if (!state.current || state.finished) return;
+				const spoken = (transcriptInput.value || '').trim();
+				transcriptText.textContent = spoken || '等待朗读...';
+				if (!spoken) return;
+				const spokenNorm = normalizeText(spoken);
+				let matchedCount = 0;
+				state.current.words.forEach((word, index) => {
+					if (spokenNorm.includes(normalizeText(word))) {
+						state.wordStates[index] = 'matched';
+						matchedCount++;
+					} else if (index <= matchedCount) {
+						state.wordStates[index] = 'pending';
+					}
+				});
+				renderWords();
+				setRecording(true, '正在识别朗读...');
+			}
+
+			function getVoiceInputMeta(data) {
+				return data?.subtitle || data?.data?.subtitle || data?.data || data || {};
+			}
+
+			function isUserAsrInput(data) {
+				const meta = getVoiceInputMeta(data);
+				const userFlags = [data?.isUser, data?.data?.isUser, data?.subtitle?.isUser, data?.data?.subtitle?.isUser]
+					.filter((value) => typeof value === 'boolean');
+				if (userFlags.includes(false)) return false;
+				if (userFlags.includes(true)) return true;
+
+				const role = String(data?.role || data?.data?.role || meta.role || data?.speakerType || meta.speakerType || '').toLowerCase();
+				if (['assistant', 'ai', 'bot', 'agent'].includes(role)) return false;
+				if (['user', 'human'].includes(role)) return true;
+
+				return data?.type === 'dh:userVoiceInput' || data?.type === 'minigame:userVoiceInput' || data?.type === 'userVoiceInput';
+			}
+
+			function receiveVoiceInput(data) {
+				if (!state.current || state.finished) return;
+				if (!isUserAsrInput(data)) return;
+				const meta = getVoiceInputMeta(data);
+				const text = String(data?.text || data?.data?.text || meta.text || '').trim();
+				if (!text) return;
+				console.log('[readSentence] received user ASR subtitle:', {
+					text,
+					definite: !!(data.definite || data.data?.definite || meta.definite),
+					paragraph: !!(data.paragraph || data.data?.paragraph || meta.paragraph),
+					source: data.source || data.data?.source || meta.source || '',
+				});
+				transcriptInput.value = text;
+				if (data.definite || data.data?.definite || meta.definite) {
+					setRecording(false, '已收到朗读，等待判定');
+				}
+			}
+
+			function markPass() {
+				if (!state.current || state.finished || state.currentPassed || state.currentSkipped) return;
+				state.currentPassed = true;
+				state.passed++;
+				state.score += 100;
+				state.wordStates = state.wordStates.map(() => 'matched');
+				renderWords();
+				updateHud();
+				setRecording(false, '通过！等待下一句');
+				stamp.textContent = 'PASS';
+				stamp.classList.add('show');
+				showFeedback('🌟');
+				/*
+				window.parent.postMessage({
+					type: 'dh:context',
+					text: `第${state.total}句外语跟读通过：${state.current.targetText}。当前得分${state.score}`,
+					debounce: 2000
+				}, '*');
+				*/
+			}
+
+			function markSkip() {
+				if (!state.current || state.finished || state.currentPassed || state.currentSkipped) return;
+				state.currentSkipped = true;
+				state.skipped++;
+				state.wordStates = state.wordStates.map((status) => status === 'matched' ? 'matched' : 'missed');
+				renderWords();
+				updateHud();
+				setRecording(false, '已跳过，等待下一句');
+				stamp.textContent = 'SKIP';
+				stamp.classList.add('show');
+				/*
+				window.parent.postMessage({
+					type: 'dh:context',
+					text: `第${state.total}句已跳过：${state.current.targetText}`,
+					debounce: 2000
+				}, '*');
+				*/
+			}
+
+			let _autoFinishTimer = null;
+			function buildResult() {
+				const total = state.total;
+				const passed = state.passed;
+				const score = state.score;
+				const accuracy = total ? Math.round((passed / total) * 100) : 0;
+				let comment = '继续练习，下一次会更顺。';
+				if (total === 0) comment = '还没有开始跟读。';
+				else if (accuracy === 100) comment = '一次通过，节奏和准确度都很棒！';
+				else if (accuracy >= 80) comment = '表现很好，少量句子再打磨一下就更自然了。';
+				else if (accuracy >= 50) comment = '已经进入状态了，建议放慢速度再读几轮。';
+				return { total, correct: passed, passed, skipped: state.skipped, accuracy, score, comment };
+			}
+
+			function finishGame() {
+				if (state.finished) return;
+				state.finished = true;
+				const result = buildResult();
+				state._result = result;
+				$('statTotal').textContent = result.total;
+				$('statPassed').textContent = result.passed;
+				$('statScore').textContent = result.score;
+				$('resultSummary').textContent = result.comment + ' 通过率 ' + result.accuracy + '%。';
+				gameArea.classList.add('hidden');
+				resultPage.classList.remove('hidden');
+				window.parent.postMessage({
+					type: 'dh:context',
+					text: `外语跟读结束，共${result.total}句，通过${result.passed}句，通过率${result.accuracy}%，得分${result.score}。${result.comment}`
+				}, '*');
+				_autoFinishTimer = setTimeout(sendGameFinished, 5000);
+			}
+
+			function sendGameFinished() {
+				if (_autoFinishTimer) { clearTimeout(_autoFinishTimer); _autoFinishTimer = null; }
+				window.parent.postMessage({ type: 'gameFinished', data: state._result || buildResult() }, '*');
+			}
+
+			sentenceInput.addEventListener('input', handleSentenceInput);
+			transcriptInput.addEventListener('input', handleTranscriptInput);
+
+			const inputDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+			function interceptValue(el, handler) {
+				Object.defineProperty(el, 'value', {
+					get() { return inputDesc.get.call(this); },
+					set(value) { inputDesc.set.call(this, value); handler(); },
+					configurable: true
+				});
+			}
+			interceptValue(sentenceInput, handleSentenceInput);
+			interceptValue(transcriptInput, handleTranscriptInput);
+
+			$('btnPass').addEventListener('click', markPass);
+			$('btnCorrect').addEventListener('click', markPass);
+			$('btnSkip').addEventListener('click', markSkip);
+			$('btnFinish').addEventListener('click', finishGame);
+			$('btnClose').addEventListener('click', sendGameFinished);
+
+			window.addEventListener('message', (event) => {
+				const data = event.data;
+				if (!data || typeof data !== 'object') return;
+				if (data.type === 'dh:userVoiceInput' || data.type === 'minigame:userVoiceInput' || data.type === 'userVoiceInput') {
+					receiveVoiceInput(data);
+				}
+			});
+
+			if (params.get('dev') === 'true') {
+				const wrapper = $('inputWrapper');
+				wrapper.style.cssText = 'position:static;width:auto;height:auto;overflow:visible;background:#fff;color:#0f172a;padding:12px;display:flex;flex-direction:column;gap:8px;';
+				[sentenceInput, transcriptInput].forEach((input) => {
+					input.style.cssText = 'display:block;width:100%;border:2px dashed #94a3b8;border-radius:8px;padding:10px;font-family:monospace;font-size:12px;background:#f8fafc;box-sizing:border-box;';
+				});
+				sentenceInput.placeholder = '{"language":"English","speaker":"Coach","nativeText":"我们会成功的","targetText":"We are going to make it.","hint":"注意going to的连读","focus":"连读"}';
+				transcriptInput.placeholder = 'We are going to make it';
+				const btnWrap = $('btnPass').parentElement;
+				btnWrap.style.cssText = 'opacity:1;position:static;pointer-events:auto;display:flex;gap:8px;flex-wrap:wrap;background:#fff;padding:12px;';
+				['btnPass','btnCorrect','btnSkip','btnFinish'].forEach((id) => {
+					const btn = $(id);
+					btn.style.cssText = 'padding:8px 12px;border:none;border-radius:8px;background:#0f172a;color:#fff;font-weight:700;cursor:pointer;';
+				});
+			}
+
+			updateHud();
+			window.parent.postMessage({ type: 'gameLoaded' }, '*');
+		})();
+	</script>
+</body>
+</html>

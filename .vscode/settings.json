@@ -1,0 +1,9 @@
+{
+    "git.openRepositoryInParentFolders": "always",
+    "github.copilot.chat.codeGeneration.excludeFiles": [
+        "dist/**"
+    ],
+    "search.exclude": {
+        "dist": true
+    }
+}

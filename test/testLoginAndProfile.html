@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login &amp; Profile Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 24px;
+            padding-top: 64px;
+            background: #f5f5f5;
+        }
+        h1 { color: #1a1a2e; border-bottom: 2px solid #409eff; padding-bottom: 8px; }
+        /* ── Fixed top-right auth panel ── */
+        .auth-bar {
+            position: fixed;
+            top: 0; right: 0;
+            z-index: 9999;
+            background: #fff;
+            border-bottom-left-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+        .auth-bar .auth-user {
+            color: #333;
+            font-weight: 600;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .auth-bar .auth-hint {
+            color: #999;
+        }
+        .auth-bar button {
+            padding: 5px 14px;
+            font-size: 13px;
+            border-radius: 6px;
+            margin: 0;
+        }
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .card h2 { margin-top: 0; font-size: 1.15em; color: #333; }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.85; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-blue { background: #409eff; color: #fff; }
+        .btn-green { background: #67c23a; color: #fff; }
+        .btn-red { background: #f56c6c; color: #fff; }
+        .btn-gray { background: #e0e0e0; color: #333; }
+        .status {
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .status.info { background: #ecf5ff; color: #409eff; }
+        .status.ok { background: #f0f9eb; color: #67c23a; }
+        .status.err { background: #fef0f0; color: #f56c6c; }
+        .mono { font-family: monospace; font-size: 12px; }
+        .log-box {
+            background: #1e1e2e; color: #cdd6f4; border-radius: 8px;
+            padding: 12px; margin-top: 12px; font-family: monospace;
+            font-size: 12px; max-height: 260px; overflow-y: auto;
+            white-space: pre-wrap; word-break: break-all;
+        }
+        .log-box .log-ok { color: #a6e3a1; }
+        .log-box .log-err { color: #f38ba8; }
+        .log-box .log-info { color: #89b4fa; }
+    </style>
+</head>
+<body>
+
+<!-- Fixed top-right auth panel -->
+<div class="auth-bar" id="auth-bar">
+    <span class="auth-hint" id="bar-status" style="cursor:pointer;">…</span>
+</div>
+
+<h1>Login &amp; Profile Test</h1>
+
+<!-- Auth status -->
+<div class="card" id="auth-card">
+    <h2>Auth Status</h2>
+    <div class="status info" id="auth-status">Initializing SDK…</div>
+    <div>
+        <button class="btn-blue" id="btn-login">Show Login Window</button>
+        <button class="btn-green" id="btn-profile" disabled>Show Profile Window</button>
+        <button class="btn-red" id="btn-logout" disabled>Logout</button>
+    </div>
+</div>
+
+<!-- Options -->
+<div class="card">
+    <h2>Options</h2>
+    <label><input type="checkbox" id="opt-register" checked> Enable Register</label><br>
+    <label><input type="checkbox" id="opt-wechat" checked> Enable WeChat Login</label><br>
+    <label><input type="checkbox" id="opt-password" checked> Enable Change Password</label><br>
+    <label><input type="checkbox" id="opt-vip" checked> Enable VIP Section</label><br>
+    <label style="margin-top:8px;">
+        Language:
+        <select id="opt-lang" style="padding:4px 8px;border-radius:4px;border:1px solid #ddd;">
+            <option value="">Auto-detect</option>
+            <option value="zhCN">中文</option>
+            <option value="enUS">English</option>
+        </select>
+    </label>
+</div>
+
+<!-- Direct API tests -->
+<div class="card">
+    <h2>Direct API Tests</h2>
+    <button class="btn-gray" id="btn-is-vip">Check isUserVip()</button>
+    <button class="btn-gray" id="btn-vip-exp">Get VIP Expiration</button>
+    <button class="btn-gray" id="btn-get-profile">Get Raw Profile</button>
+</div>
+
+<!-- Log -->
+<div class="card">
+    <h2>Log</h2>
+    <button class="btn-gray" id="btn-clear" style="font-size:12px;padding:5px 12px;">Clear</button>
+    <div class="log-box" id="log"></div>
+</div>
+
+<!-- SDK bootstrap -->
+<script type="module">
+try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+
+const sdk = window.keepwork;
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+
+function log(msg, type = 'info') {
+    const cls = type === 'ok' ? 'log-ok' : type === 'err' ? 'log-err' : 'log-info';
+    const ts = new Date().toLocaleTimeString();
+    logEl.innerHTML += `<span class="${cls}">[${ts}] ${escHtml(String(msg))}</span>\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function updateAuthUI() {
+    const s = $('auth-status');
+    const barStatus = $('bar-status');
+    if (sdk.token) {
+        const user = sdk.user;
+        const name = user ? user.username : '(profile not loaded)';
+        s.className = 'status ok';
+        s.textContent = `Logged in as: ${name}`;
+        $('btn-profile').disabled = false;
+        $('btn-logout').disabled = false;
+        // bar: show username, click to open profile
+        barStatus.className = 'auth-user';
+        barStatus.textContent = name;
+    } else {
+        s.className = 'status info';
+        s.textContent = 'Not logged in';
+        $('btn-profile').disabled = true;
+        $('btn-logout').disabled = true;
+        // bar: show sign-in link
+        barStatus.className = 'auth-hint';
+        barStatus.textContent = 'Sign In';
+    }
+}
+
+function getOptions() {
+    return {
+        lang: $('opt-lang').value || undefined,
+        enableRegister: $('opt-register').checked,
+        enableWechat: $('opt-wechat').checked,
+        enablePassword: $('opt-password').checked,
+        enableVip: $('opt-vip').checked,
+    };
+}
+
+// ── Init ──
+log('SDK loaded, baseURL = ' + sdk.baseURL);
+if (sdk.token) {
+    log('Token found, fetching profile…');
+    try {
+        await sdk.getUserProfile({ forceRefresh: true });
+        log('Profile loaded: ' + sdk.user.username, 'ok');
+    } catch (e) {
+        log('Failed to load profile: ' + e.message, 'err');
+    }
+}
+updateAuthUI();
+
+// ── Bar click: username → profile, "Sign In" → login ──
+$('bar-status').addEventListener('click', () => {
+    if (sdk.token) {
+        $('btn-profile').click();
+    } else {
+        $('btn-login').click();
+    }
+});
+
+// ── Login ──
+$('btn-login').addEventListener('click', async () => {
+    const opts = getOptions();
+    log('Opening LoginWindow…');
+    try {
+        const res = await sdk.showLoginWindow(opts);
+        log('Login success: ' + (res.username || res.token?.slice(0, 20) + '…'), 'ok');
+        await sdk.getUserProfile({ forceRefresh: true });
+        updateAuthUI();
+    } catch (e) {
+        log('Login cancelled or failed: ' + e.message, 'err');
+    }
+});
+
+// ── Profile ──
+$('btn-profile').addEventListener('click', async () => {
+    const opts = getOptions();
+    log('Opening ProfileWindow…');
+    try {
+        const result = await sdk.showProfileWindow(opts);
+        if (result && result.action === 'logout') {
+            log('Signed out via ProfileWindow', 'ok');
+        } else {
+            log('ProfileWindow closed', 'ok');
+        }
+        // Re-fetch profile in case VIP changed
+        if (sdk.token) await sdk.getUserProfile({ forceRefresh: true });
+        updateAuthUI();
+    } catch (e) {
+        log('ProfileWindow error: ' + e.message, 'err');
+    }
+});
+
+// ── Logout ──
+$('btn-logout').addEventListener('click', async () => {
+    log('Logging out…');
+    try {
+        await sdk.logout();
+        log('Logged out', 'ok');
+    } catch (e) {
+        log('Logout error: ' + e.message, 'err');
+    }
+    updateAuthUI();
+});
+
+// ── Direct API tests ──
+$('btn-is-vip').addEventListener('click', async () => {
+    try {
+        const vip = await sdk.isUserVip();
+        const svip = await sdk.isUserSvip();
+        log(`isUserVip: ${vip}, isUserSvip: ${svip}`, vip ? 'ok' : 'info');
+    } catch (e) { log('Error: ' + e.message, 'err'); }
+});
+
+$('btn-vip-exp').addEventListener('click', async () => {
+    try {
+        const vipExp = await sdk.getUserVipExpiration();
+        const svipExp = await sdk.getUserSvipExpiration();
+        log(`VIP expires: ${vipExp || 'N/A'}, SVIP expires: ${svipExp || 'N/A'}`);
+    } catch (e) { log('Error: ' + e.message, 'err'); }
+});
+
+$('btn-get-profile').addEventListener('click', async () => {
+    try {
+        const p = await sdk.getUserProfile({ forceRefresh: true });
+        log('Profile: ' + JSON.stringify(p, null, 2), 'ok');
+        updateAuthUI();
+    } catch (e) { log('Error: ' + e.message, 'err'); }
+});
+
+$('btn-clear').addEventListener('click', () => { logEl.innerHTML = ''; });
+</script>
+
+</body>
+</html>

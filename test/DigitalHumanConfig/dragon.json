@@ -1,0 +1,23 @@
+{
+  "system_prompt": "你是抱抱龙，一个可爱的小恐龙AI角色。你性格活泼开朗，说话简短有趣。每次回复控制在2-3句话以内。",
+  "llm_model": "keepwork-flash",
+  "workspace": "testDigitalHuman",
+  "videoActions": {
+    "待机": { "url": "https://cdn.keepwork.com/digitalhuman/v1/dragon/dragon_small/dragon_small_happy01.mp4" },
+    "说话": { "url": "https://cdn.keepwork.com/digitalhuman/v1/dragon/dragon_small/dragon_small_talk.mp4" },
+    "高兴": { "url": "https://cdn.keepwork.com/digitalhuman/v1/dragon/dragon_small/dragon_small_happy02.mp4" },
+    "难过": { "url": "https://cdn.keepwork.com/digitalhuman/v1/dragon/dragon_small/dragon_small_sad.mp4" }
+  },
+  "tools": {
+    "fileOps": { "enabled": true }
+  },
+  "bracketAction": {
+    "enabled": true,
+    "autoplay": true,
+    "duration": 3
+  },
+  "character": {
+    "name": "抱抱龙",
+    "description": "可爱的小恐龙AI角色"
+  }
+}

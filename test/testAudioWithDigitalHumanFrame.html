@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Speech & RTC Overlap Test</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    #log-panel::-webkit-scrollbar { width: 6px; }
+    #log-panel::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-gray-900 text-white h-screen overflow-hidden">
+  <div class="flex flex-col h-full w-full">
+
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-xl">🔊</div>
+        <div>
+          <h1 class="text-lg font-bold leading-tight">Speech & RTC Overlap Test</h1>
+          <p class="text-xs text-gray-400">Test concurrent DHF sendTTS and AudioEngine.speak</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="usernameDisplay" class="text-sm text-gray-300 cursor-pointer hover:text-blue-400 hidden"></span>
+        <button id="signInBtn" class="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors hidden">登录</button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex flex-1 overflow-hidden">
+
+      <!-- Left: Avatar -->
+      <div class="w-80 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
+        <div class="p-4 space-y-3">
+          <h3 class="text-sm font-semibold text-gray-300">Digital Human</h3>
+          <div id="avatar-container" class="w-full h-64 bg-gray-700 rounded-lg overflow-hidden"></div>
+          <div class="flex items-center gap-2">
+            <span id="dhf-status" class="text-xs text-gray-400">Not initialized</span>
+          </div>
+        </div>
+
+        <!-- Voice Chat -->
+        <div class="p-4 border-t border-gray-700 space-y-3">
+          <h3 class="text-sm font-semibold text-gray-300">Voice Chat (RTC)</h3>
+          <div class="flex gap-2">
+            <button id="btn-vc-start" class="flex-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50" disabled>Start VC</button>
+            <button id="btn-vc-stop" class="flex-1 px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 hidden" disabled>Stop VC</button>
+          </div>
+          <span id="vc-status" class="text-xs text-gray-400">Voice chat off</span>
+        </div>
+      </div>
+
+      <!-- Center: Test Controls -->
+      <main class="flex-1 flex flex-col">
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+          <!-- DHF sendTTS Section -->
+          <section class="bg-gray-800 rounded-xl p-5 space-y-3">
+            <h2 class="text-base font-bold text-blue-400">DHF sendTTS</h2>
+            <p class="text-xs text-gray-400">Sends text to the DigitalHumanFrame's TTS pipeline. Works in both voice chat and text-mode TTS.</p>
+            <div class="flex flex-wrap gap-3">
+              <button id="btn-tts-2s" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors" disabled>
+                🔊 TTS ~2s text
+              </button>
+              <button id="btn-tts-5s" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors" disabled>
+                🔊 TTS ~5s text
+              </button>
+            </div>
+            <div id="tts-status" class="text-xs text-gray-500"></div>
+          </section>
+
+          <!-- AudioEngine speak Section -->
+          <section class="bg-gray-800 rounded-xl p-5 space-y-3">
+            <h2 class="text-base font-bold text-green-400">AudioEngine.speak (local TTS)</h2>
+            <p class="text-xs text-gray-400">Uses KeepworkSDK AudioEngine to speak text via browser TTS API. Independent of RTC.</p>
+            <div class="flex flex-wrap gap-3">
+              <button id="btn-ae-2s" class="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors" disabled>
+                🗣️ Speak ~2s text
+              </button>
+              <button id="btn-ae-5s" class="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors" disabled>
+                🗣️ Speak ~5s text
+              </button>
+            </div>
+            <div id="ae-status" class="text-xs text-gray-500"></div>
+          </section>
+
+          <!-- Combined Overlap Test -->
+          <section class="bg-gray-800 rounded-xl p-5 space-y-3">
+            <h2 class="text-base font-bold text-yellow-400">Overlap Tests</h2>
+            <p class="text-xs text-gray-400">Fire Local TTS and LLM TTS with 1s delay to test overlap behavior.</p>
+            <div class="grid grid-cols-2 gap-3">
+              <button id="btn-overlap-1" class="px-4 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors text-sm" disabled>
+                ① Local 5s → +1s LLM 2s
+              </button>
+              <button id="btn-overlap-2" class="px-4 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors text-sm" disabled>
+                ② LLM 5s → +1s Local 2s
+              </button>
+              <button id="btn-overlap-3" class="px-4 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors text-sm" disabled>
+                ③ Local 2s → +1s LLM 5s
+              </button>
+              <button id="btn-overlap-4" class="px-4 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors text-sm" disabled>
+                ④ LLM 2s → +1s Local 5s
+              </button>
+            </div>
+          </section>
+
+        </div>
+      </main>
+
+      <!-- Right: Log Panel -->
+      <aside class="w-72 bg-gray-800 border-l border-gray-700 flex flex-col shrink-0">
+        <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-gray-300">Event Log</h3>
+          <button id="btn-clear-log" class="text-xs text-gray-500 hover:text-gray-300">Clear</button>
+        </div>
+        <div id="log-panel" class="flex-1 overflow-y-auto p-3 space-y-1 text-xs font-mono"></div>
+      </aside>
+
+    </div>
+  </div>
+
+<script type="module">
+try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+// ============================================================================
+// Speech & RTC Overlap Test
+// ============================================================================
+
+// Fixed text samples (~2s and ~5s of spoken Chinese)
+const TEXT_2S = '你好，今天天气真不错，阳光明媚。';
+const TEXT_5S = '你好，欢迎来到我们的世界！今天的天气非常好，阳光明媚，微风轻拂。我们一起出去散步吧，看看街道两旁美丽的花朵和绿树。生活真是美好啊！';
+
+// ============================================================================
+// SDK & State
+// ============================================================================
+
+const hashParams = new URLSearchParams(window.location.hash.slice(1));
+const queryParams = new URLSearchParams(window.location.search);
+const urlToken = hashParams.get('token') || queryParams.get('token');
+const sdk = new KeepworkSDK({ timeout: 30000, token: urlToken });
+
+let dhf = null;
+let vcActive = false;
+
+// ============================================================================
+// Logging
+// ============================================================================
+
+function log(msg, level = 'info') {
+  const panel = document.getElementById('log-panel');
+  const colors = { info: 'text-gray-300', warn: 'text-yellow-400', error: 'text-red-400', success: 'text-green-400' };
+  const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+  const div = document.createElement('div');
+  div.className = colors[level] || colors.info;
+  div.textContent = `[${ts}] ${msg}`;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+  console.log(`[Overlap-Test][${level}] ${msg}`);
+}
+
+// ============================================================================
+// Sign-in
+// ============================================================================
+
+async function updateSignInUI() {
+  const signInBtn = document.getElementById('signInBtn');
+  const usernameDisplay = document.getElementById('usernameDisplay');
+  if (sdk.token) {
+    signInBtn.classList.add('hidden');
+    let username = sdk.user?.username;
+    if (!username) {
+      try {
+        const profile = await sdk.getUserProfile();
+        username = profile?.username;
+      } catch (_) {}
+    }
+    if (username) {
+      usernameDisplay.textContent = username;
+      usernameDisplay.classList.remove('hidden');
+    }
+  } else {
+    signInBtn.classList.remove('hidden');
+    usernameDisplay.classList.add('hidden');
+  }
+}
+
+async function handleSignIn() {
+  try {
+    await sdk.showLoginWindow({ title: '请先登录' });
+    updateSignInUI();
+  } catch (_) {}
+}
+
+document.getElementById('signInBtn').addEventListener('click', handleSignIn);
+document.getElementById('usernameDisplay').addEventListener('click', handleSignIn);
+
+// ============================================================================
+// DigitalHumanFrame
+// ============================================================================
+
+const LIVE2D_BASE = 'https://cdn.keepwork.com/digitalhuman/live2d/assets/';
+
+const VIDEO_ACTIONS = {
+  'idle': { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/idle_new.webp' },
+  'talk': { url: 'https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/talk.webp' },
+};
+
+const VOICE_PRESET = {
+  appId: '69883f4ae00f9e017600b901',
+  agentUserId: 'ChatBot01',
+  agentConfig: {
+    WelcomeMessage: '你好，我准备好了，可以开始测试了。',
+    UserId: 'ChatBot01',
+    EnableConversationStateCallback: true,
+  },
+  config: {
+    ASRConfig: {
+      Provider: 'volcano',
+      ProviderParams: {
+        Mode: 'bigmodel',
+        AppId: '3065448513',
+        ApiResourceId: 'volc.bigasr.sauc.duration',
+      },
+    },
+    TTSConfig: {
+      Provider: 'volcano_bidirection',
+      ProviderParams: {
+        app: { appid: '3065448513' },
+        audio: {
+          voice_type: 'zh_female_tianmeiyueyue_moon_bigtts',
+          speech_rate: 0,
+        },
+        ResourceId: 'volc.service_type.10029',
+      },
+      IgnoreBracketText: [1, 2],
+    },
+    LLMConfig: {
+      Mode: 'ArkV3',
+      EndPointId: 'ep-20260315160200-s6fg7',
+      SystemMessages: ['你是一个测试用AI助手。'],
+      VisionConfig: { Enable: false },
+      ThinkingType: 'disabled',
+      Tools: [],
+    },
+    SubtitleConfig: { SubtitleMode: 1 },
+    InterruptMode: 0,
+  },
+  enabledToolCategories: [],
+  workspace: 'testOverlap',
+};
+
+function wireEvents(instance) {
+  instance.on('avatarReady', () => {
+    log('Avatar ready', 'success');
+  });
+
+  instance.on('subtitle', ({ text, isUser, roundId, paragraph }) => {
+    const who = isUser ? 'You' : 'AI';
+    log(`[Subtitle][${who}] ${text}`);
+  });
+
+  instance.on('voiceChatState', ({ code, label }) => {
+    const labels = { 1: '🎧 Listening', 2: '🧠 Thinking', 3: '🔊 Speaking', 4: '⏹ Interrupted', 5: '✅ Finished' };
+    const display = labels[code] || label || `state:${code}`;
+    document.getElementById('vc-status').textContent = display;
+    log(`[VC State] ${display}`);
+  });
+
+  instance.on('welcome', ({ message }) => {
+    if (message) log(`[Welcome] ${message}`, 'success');
+  });
+
+  instance.on('voiceChatStarted', () => {
+    vcActive = true;
+    document.getElementById('vc-status').textContent = 'Voice chat active';
+    document.getElementById('btn-vc-start').classList.add('hidden');
+    document.getElementById('btn-vc-stop').classList.remove('hidden');
+    document.getElementById('btn-vc-stop').disabled = false;
+    updateButtonStates();
+    log('Voice chat started', 'success');
+  });
+
+  instance.on('voiceChatStopped', () => {
+    vcActive = false;
+    document.getElementById('vc-status').textContent = 'Voice chat off';
+    document.getElementById('btn-vc-start').classList.remove('hidden');
+    document.getElementById('btn-vc-start').disabled = false;
+    document.getElementById('btn-vc-stop').classList.add('hidden');
+    updateButtonStates();
+    log('Voice chat stopped');
+  });
+
+  instance.on('error', ({ error }) => {
+    log(`[Error] ${error}`, 'error');
+  });
+
+  instance.on('autoplayFailed', () => {
+    log('Autoplay failed — click page to enable audio', 'warn');
+    document.addEventListener('click', () => dhf?.resumeAudio?.(), { once: true });
+  });
+}
+
+// ============================================================================
+// Voice Chat Controls
+// ============================================================================
+
+async function startVoiceChat() {
+  if (!dhf) return;
+  log('Starting voice chat...');
+  document.getElementById('btn-vc-start').disabled = true;
+  try {
+    await dhf.startVoiceChat();
+  } catch (err) {
+    log(`Voice chat start failed: ${err.message}`, 'error');
+    document.getElementById('btn-vc-start').disabled = false;
+  }
+}
+
+async function stopVoiceChat() {
+  if (!dhf) return;
+  log('Stopping voice chat...');
+  document.getElementById('btn-vc-stop').disabled = true;
+  try {
+    await dhf.stopVoiceChat();
+  } catch (err) {
+    log(`Voice chat stop failed: ${err.message}`, 'error');
+    document.getElementById('btn-vc-stop').disabled = false;
+  }
+}
+
+// ============================================================================
+// DHF sendTTS
+// ============================================================================
+
+function sendTTS(text, label) {
+  if (!dhf) {
+    log('Cannot sendTTS: DHF not ready', 'warn');
+    return;
+  }
+  log(`[sendTTS] ${label}: "${text}"`);
+  document.getElementById('tts-status').textContent = `Sending: ${label}...`;
+  dhf.sendTTS(text);
+  setTimeout(() => {
+    document.getElementById('tts-status').textContent = '';
+  }, 6000);
+}
+
+// ============================================================================
+// AudioEngine speak
+// ============================================================================
+
+function speakWithAudioEngine(text, label) {
+  const engine = sdk.audioEngine;
+  if (!engine || !engine.speak) {
+    log('AudioEngine not available', 'error');
+    return;
+  }
+
+  log(`[AudioEngine.speak] ${label}: "${text}"`);
+  document.getElementById('ae-status').textContent = `Speaking: ${label}...`;
+  engine.speak(text, {
+    useCache: true,
+    onStart: () => log(`[AudioEngine.speak] ${label}: started (cached)`, 'success'),
+    onEnd: () => {
+      log(`[AudioEngine.speak] ${label}: ended`);
+      document.getElementById('ae-status').textContent = '';
+    },
+    onError: (err) => log(`[AudioEngine.speak] ${label}: error - ${err}`, 'error'),
+  });
+}
+
+// ============================================================================
+// Button State Management
+// ============================================================================
+
+function updateButtonStates() {
+  const dhfReady = !!dhf;
+
+  // DHF sendTTS works in both voice chat and text-mode TTS
+  document.getElementById('btn-tts-2s').disabled = !dhfReady;
+  document.getElementById('btn-tts-5s').disabled = !dhfReady;
+
+  // AudioEngine buttons only need the SDK loaded
+  document.getElementById('btn-ae-2s').disabled = false;
+  document.getElementById('btn-ae-5s').disabled = false;
+
+  // Overlap buttons need DHF ready
+  document.getElementById('btn-overlap-1').disabled = !dhfReady;
+  document.getElementById('btn-overlap-2').disabled = !dhfReady;
+  document.getElementById('btn-overlap-3').disabled = !dhfReady;
+  document.getElementById('btn-overlap-4').disabled = !dhfReady;
+}
+
+// ============================================================================
+// Event Binding
+// ============================================================================
+
+document.getElementById('btn-vc-start').addEventListener('click', startVoiceChat);
+document.getElementById('btn-vc-stop').addEventListener('click', stopVoiceChat);
+
+document.getElementById('btn-tts-2s').addEventListener('click', () => sendTTS(TEXT_2S, '~2s'));
+document.getElementById('btn-tts-5s').addEventListener('click', () => sendTTS(TEXT_5S, '~5s'));
+
+document.getElementById('btn-ae-2s').addEventListener('click', () => speakWithAudioEngine(TEXT_2S, '~2s'));
+document.getElementById('btn-ae-5s').addEventListener('click', () => speakWithAudioEngine(TEXT_5S, '~5s'));
+
+// Overlap combo 1: Local 5s first, then +1s LLM 2s
+document.getElementById('btn-overlap-1').addEventListener('click', () => {
+  log('=== OVERLAP ①: Local 5s → +1s LLM 2s ===', 'warn');
+  speakWithAudioEngine(TEXT_5S, 'overlap①-local-5s');
+  setTimeout(() => sendTTS(TEXT_2S, 'overlap①-llm-2s'), 1000);
+});
+
+// Overlap combo 2: LLM 5s first, then +1s Local 2s
+document.getElementById('btn-overlap-2').addEventListener('click', () => {
+  log('=== OVERLAP ②: LLM 5s → +1s Local 2s ===', 'warn');
+  sendTTS(TEXT_5S, 'overlap②-llm-5s');
+  setTimeout(() => speakWithAudioEngine(TEXT_2S, 'overlap②-local-2s'), 1000);
+});
+
+// Overlap combo 3: Local 2s first, then +1s LLM 5s
+document.getElementById('btn-overlap-3').addEventListener('click', () => {
+  log('=== OVERLAP ③: Local 2s → +1s LLM 5s ===', 'warn');
+  speakWithAudioEngine(TEXT_2S, 'overlap③-local-2s');
+  setTimeout(() => sendTTS(TEXT_5S, 'overlap③-llm-5s'), 1000);
+});
+
+// Overlap combo 4: LLM 2s first, then +1s Local 5s
+document.getElementById('btn-overlap-4').addEventListener('click', () => {
+  log('=== OVERLAP ④: LLM 2s → +1s Local 5s ===', 'warn');
+  sendTTS(TEXT_2S, 'overlap④-llm-2s');
+  setTimeout(() => speakWithAudioEngine(TEXT_5S, 'overlap④-local-5s'), 1000);
+});
+
+document.getElementById('btn-clear-log').addEventListener('click', () => {
+  document.getElementById('log-panel').innerHTML = '';
+});
+
+// ============================================================================
+// Bootstrap
+// ============================================================================
+
+updateSignInUI();
+// Enable AudioEngine buttons immediately (they have fallback)
+document.getElementById('btn-ae-2s').disabled = false;
+document.getElementById('btn-ae-5s').disabled = false;
+log('Test page ready. Auto-initializing DHF from simpleLLM.yaml...', 'success');
+
+// Preload both TTS texts into AudioEngine IndexedDB cache
+if (sdk.audioEngine) {
+  log('Preloading TTS audio into IndexedDB cache...');
+  sdk.audioEngine.preloadBatch([
+    { text: TEXT_2S },
+    { text: TEXT_5S },
+  ]).then(() => {
+    log('TTS audio preloaded (2 texts cached)', 'success');
+  }).catch(err => {
+    log(`TTS preload failed: ${err.message}`, 'warn');
+  });
+}
+
+// Auto-init DHF on startup using simpleLLM.yaml
+(async () => {
+  if (!sdk.token) {
+    log('Not signed in — opening login...', 'warn');
+    await handleSignIn();
+    if (!sdk.token) { log('Sign-in cancelled, skipping auto-init', 'error'); return; }
+  }
+
+  const status = document.getElementById('dhf-status');
+  status.textContent = 'Initializing...';
+  log('Loading config from simpleLLM.yaml...');
+
+  try {
+    dhf = new DigitalHumanFrame({
+      sdk,
+      container: document.getElementById('avatar-container'),
+      workspace: 'testOverlap',
+      proxyCategories: [],
+    });
+    wireEvents(dhf);
+    await dhf.loadConfig('./DigitalHumanConfig/simpleLLM.yaml');
+
+    status.textContent = 'Ready';
+    document.getElementById('btn-vc-start').disabled = false;
+    updateButtonStates();
+    log('DigitalHumanFrame initialized from simpleLLM.yaml', 'success');
+  } catch (err) {
+    status.textContent = 'Init failed';
+    log(`Auto-init failed: ${err.message}`, 'error');
+    console.error(err);
+  }
+})();
+</script>
+</body>
+</html>

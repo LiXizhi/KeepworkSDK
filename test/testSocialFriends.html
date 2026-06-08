@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keepwork Friends</title>
+    <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+    <style>
+        :root { color-scheme: light; }
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif; }
+        .wechat-scroll { scrollbar-width: thin; scrollbar-color: #b8b8b8 transparent; }
+        .wechat-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .wechat-scroll::-webkit-scrollbar-thumb { background: #b8b8b8; border-radius: 999px; }
+        .app-window { box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16); }
+        .nav-btn.is-active { color: #07c160; }
+        .nav-btn.is-active::before { opacity: 1; }
+        .nav-btn::before { content: ""; position: absolute; left: 0; top: 13px; width: 3px; height: 22px; background: #07c160; opacity: 0; }
+        .contact-row.is-selected { background: #d8d8d8; }
+        .tree-toggle[aria-expanded="true"] .tree-chevron { transform: rotate(90deg); }
+        .profile-label { color: #9a9a9a; width: 64px; flex: 0 0 64px; }
+        .tool-drawer[open] summary { border-bottom: 1px solid #dedede; }
+        .debug-console { box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.08); }
+        .debug-panel-body { max-height: min(360px, 42vh); overflow: auto; }
+        .chat-bubble { max-width: min(74%, 520px); word-break: break-word; overflow-wrap: anywhere; }
+        .chat-bubble.is-mine { background: #95ec69; }
+        .chat-bubble.is-peer { background: #ffffff; }
+        .mail-claimed-stamp { border: 2px solid rgba(185, 28, 28, .72); color: #991b1b; background: #fff7ed; transform: rotate(8deg); box-shadow: inset 0 0 0 1px rgba(255,255,255,.75), 0 2px 5px rgba(185,28,28,.14); }
+        .mail-claimed-stamp::before { content: ''; position: absolute; inset: 3px; border: 1px dashed rgba(185,28,28,.5); border-radius: 3px; }
+        [data-lucide] { display: inline-block; flex-shrink: 0; }
+        [data-lucide] svg { display: block; width: 100%; height: 100%; }
+    </style>
+</head>
+<body class="min-h-screen overflow-y-auto bg-[#d7d7d7] text-[#1f1f1f] antialiased">
+    <div class="flex min-h-[70vh] items-center justify-center p-0 md:p-4">
+        <main class="app-window grid h-[70vh] min-h-[70vh] w-full overflow-hidden bg-[#f7f7f7] md:w-[min(1040px,calc(100vw-32px))] md:grid-cols-[56px_246px_minmax(0,1fr)] md:rounded-sm">
+            <aside class="hidden bg-[#e8e8e8] text-[#6d6d6d] md:flex md:flex-col md:items-center md:py-3">
+                <button class="mb-5 grid h-14 w-full place-items-start px-2 pt-2" id="profileBtn" type="button" title="个人资料">
+                    <span class="grid h-9 w-9 place-items-center rounded-sm bg-[#07c160] text-sm font-semibold text-white" id="avatar">?</span>
+                </button>
+                <nav class="flex w-full flex-1 flex-col items-center" aria-label="好友应用导航">
+                    <button class="tab-btn nav-btn is-active relative grid h-12 w-full place-items-center hover:text-[#07c160]" data-view="chat" type="button" title="私聊"><i data-lucide="message-circle" class="h-5 w-5"></i></button>
+                    <button class="tab-btn nav-btn relative grid h-12 w-full place-items-center hover:text-[#07c160]" data-view="friends" type="button" title="联系人"><i data-lucide="users-round" class="h-5 w-5"></i></button>
+                    <button class="tab-btn nav-btn relative grid h-12 w-full place-items-center hover:text-[#07c160]" data-view="email" type="button" title="邮箱"><i data-lucide="aperture" class="h-5 w-5"></i></button>
+                    <button class="tab-btn nav-btn relative grid h-12 w-full place-items-center hover:text-[#07c160]" data-view="advanced" type="button" title="设置"><i data-lucide="sparkles" class="h-5 w-5"></i></button>
+                </nav>
+                <div class="flex w-full flex-col items-center pb-2">
+                    <button class="grid h-10 w-full place-items-center hover:text-[#07c160]" id="loginBtn" type="button" title="登录"><i data-lucide="log-in" class="h-5 w-5"></i></button>
+                    <button class="grid h-10 w-full place-items-center hover:text-[#07c160]" id="logoutBtn" type="button" title="退出"><i data-lucide="log-out" class="h-5 w-5"></i></button>
+                </div>
+            </aside>
+
+            <section class="flex min-h-0 flex-col border-r border-[#d6d6d6] bg-[#f2f2f2]">
+                <header class="flex h-16 items-center gap-3 border-b border-[#dedede] px-4 md:hidden">
+                    <button class="grid h-10 w-10 place-items-center rounded-sm bg-[#07c160] text-sm font-semibold text-white" id="mobileProfileBtn" type="button"><span id="mobileAvatar">?</span></button>
+                    <div class="min-w-0 flex-1">
+                        <strong class="block truncate text-sm" id="mobileUserName">未登录</strong>
+                        <span class="block truncate text-xs text-[#8a8a8a]" id="mobileUserMeta">Keepwork</span>
+                    </div>
+                    <button class="grid h-9 w-9 place-items-center rounded-sm bg-white text-[#555]" id="mobileLoginBtn" type="button"><i data-lucide="log-in" class="h-4 w-4"></i></button>
+                    <button class="grid h-9 w-9 place-items-center rounded-sm bg-white text-[#555]" id="mobileLogoutBtn" type="button"><i data-lucide="log-out" class="h-4 w-4"></i></button>
+                </header>
+
+                <div class="border-b border-[#dedede] px-3 py-3">
+                    <form class="flex h-8 items-center gap-2 rounded-sm bg-[#e6e6e6] px-2 text-[#7a7a7a]" id="friendSearchForm">
+                        <i data-lucide="search" class="h-4 w-4"></i>
+                        <input class="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-[#8b8b8b]" id="friendSearchName" type="text" placeholder="搜索">
+                    </form>
+                </div>
+
+                <nav class="grid grid-cols-4 border-b border-[#dedede] bg-[#fbfbfb] text-xs md:hidden" aria-label="移动导航">
+                    <button class="tab-btn flex h-12 flex-col items-center justify-center gap-1 text-[#07c160]" data-view="chat" type="button"><i data-lucide="message-circle" class="h-4 w-4"></i><span>私聊</span></button>
+                    <button class="tab-btn flex h-12 flex-col items-center justify-center gap-1 text-[#666]" data-view="friends" type="button"><i data-lucide="users-round" class="h-4 w-4"></i><span>联系人</span></button>
+                    <button class="tab-btn flex h-12 flex-col items-center justify-center gap-1 text-[#666]" data-view="email" type="button"><i data-lucide="aperture" class="h-4 w-4"></i><span>邮箱</span></button>
+                    <button class="tab-btn flex h-12 flex-col items-center justify-center gap-1 text-[#666]" data-view="advanced" type="button"><i data-lucide="sparkles" class="h-4 w-4"></i><span>工具</span></button>
+                </nav>
+
+                <div class="flex h-8 items-center justify-between px-4 text-xs text-[#969696]">
+                    <span id="leftPaneTitle">私聊</span>
+                    <span id="friendCount">0</span>
+                </div>
+                <div class="wechat-scroll min-h-0 flex-1 overflow-auto" id="leftPane">
+                    <section class="view hidden" id="view-friends">
+                        <div id="contactTree">
+                            <button class="tree-toggle flex h-9 w-full items-center gap-2 px-4 text-left text-sm hover:bg-[#e6e6e6]" id="friendRequestFolderBtn" type="button" aria-expanded="true">
+                                <span class="tree-chevron text-[#666] transition-transform">&gt;</span>
+                                <span class="min-w-0 flex-1 truncate">新的朋友</span>
+                                <span class="hidden min-w-5 rounded-full bg-[#fa5151] px-1.5 py-0.5 text-center text-[10px] leading-4 text-white" id="recentApplyBadge">0</span>
+                            </button>
+                            <div id="applyList"><div class="px-4 py-8 text-center text-sm text-[#8a8a8a]">正在同步申请</div></div>
+                            <button class="tree-toggle flex h-9 w-full items-center gap-2 px-4 text-left text-sm hover:bg-[#e6e6e6]" id="friendFolderBtn" type="button" aria-expanded="true">
+                                <span class="tree-chevron text-[#666] transition-transform">&gt;</span>
+                                <span class="min-w-0 flex-1 truncate">联系人</span>
+                                <span class="text-xs text-[#969696]" id="friendFolderCount">0</span>
+                            </button>
+                            <div id="friendList"><div class="px-4 py-8 text-center text-sm text-[#8a8a8a]">正在同步联系人</div></div>
+                        </div>
+                    </section>
+                    <section class="view hidden" id="view-apply">
+                        <div class="px-3 pb-2"><button class="h-8 w-full rounded-sm bg-white text-xs text-[#07c160] hover:bg-[#f7f7f7]" id="loadAppliesBtn" type="button">刷新新的朋友</button></div>
+                        <div class="hidden grid-cols-2 gap-2 pb-3"><input id="applyPage" type="number" min="1" value="1"><input id="applyPageSize" type="number" min="1" value="20"></div>
+                    </section>
+                    <section class="view" id="view-chat">
+                        <div id="chatList"><div class="px-4 py-8 text-center text-sm text-[#8a8a8a]">选择联系人后开始私聊</div></div>
+                    </section>
+                    <section class="view hidden" id="view-email">
+                        <button class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[#e6e6e6]" id="loadMailsBtn" type="button"><span class="grid h-9 w-9 place-items-center rounded-sm bg-[#07c160] text-white"><i data-lucide="inbox" class="h-5 w-5"></i></span><span class="min-w-0 flex-1"><strong class="block truncate text-sm">邮件列表</strong><span class="block truncate text-xs text-[#8a8a8a]">站内邮件</span></span></button>
+                        <div id="mailList"><div class="px-4 py-8 text-center text-sm text-[#8a8a8a]">点击加载邮件列表</div></div>
+                        <button class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[#e6e6e6]" type="button"><span class="grid h-9 w-9 place-items-center rounded-sm bg-[#5b8def] text-white"><i data-lucide="badge-check" class="h-5 w-5"></i></span><span class="min-w-0 flex-1"><strong class="block truncate text-sm">邮箱验证</strong><span class="block truncate text-xs text-[#8a8a8a]">账号邮箱</span></span></button>
+                        <button class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[#e6e6e6]" type="button"><span class="grid h-9 w-9 place-items-center rounded-sm bg-[#f5a623] text-white"><i data-lucide="send" class="h-5 w-5"></i></span><span class="min-w-0 flex-1"><strong class="block truncate text-sm">发送邮件</strong><span class="block truncate text-xs text-[#8a8a8a]">好友通知</span></span></button>
+                    </section>
+                    <section class="view hidden" id="view-advanced">
+                        <button class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[#e6e6e6]" id="loadBlacklistBtn" type="button"><span class="grid h-9 w-9 place-items-center rounded-sm bg-[#6f7782] text-white"><i data-lucide="ban" class="h-5 w-5"></i></span><span class="min-w-0 flex-1"><strong class="block truncate text-sm">黑名单</strong><span class="block truncate text-xs text-[#8a8a8a]">屏蔽用户</span></span></button>
+                        <button class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[#e6e6e6]" type="button"><span class="grid h-9 w-9 place-items-center rounded-sm bg-[#07c160] text-white"><i data-lucide="radio" class="h-5 w-5"></i></span><span class="min-w-0 flex-1"><strong class="block truncate text-sm">在线状态</strong><span class="block truncate text-xs text-[#8a8a8a]">好友在线标记</span></span></button>
+                    </section>
+                </div>
+            </section>
+
+            <section class="flex min-h-0 flex-col bg-[#f7f7f7]">
+                <header class="flex h-10 shrink-0 items-center justify-between border-b border-[#e7e7e7] bg-[#f7f7f7] px-5">
+                    <div class="min-w-0 text-sm font-medium" id="panelTitle">联系人</div>
+                    <div class="flex items-center gap-4 text-[#8a8a8a]">
+                        <button class="hover:text-[#222]" id="refreshBtn" type="button" title="刷新"><i data-lucide="refresh-cw" class="h-4 w-4"></i></button>
+                        <button class="hover:text-[#222]" type="button" title="更多"><i data-lucide="more-horizontal" class="h-5 w-5"></i></button>
+                    </div>
+                </header>
+
+                <div class="wechat-scroll min-h-0 flex-1 overflow-auto px-6 py-8" id="profilePanelBody">
+                    <div class="mx-auto w-full max-w-[440px]" id="contactProfile">
+                        <div class="flex items-start gap-4 border-b border-[#e6e6e6] pb-7">
+                            <span class="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-sm bg-[#07c160] text-xl font-semibold text-white" id="selectedAvatar">K</span>
+                            <div class="min-w-0 flex-1 pt-1">
+                                <div class="flex items-center gap-2">
+                                    <h1 class="truncate text-xl font-medium leading-7" id="selectedName">Keepwork 好友</h1>
+                                    <i data-lucide="user" class="h-4 w-4 text-[#4b8bff]"></i>
+                                    <i data-lucide="star" class="h-4 w-4 text-[#f6b000]"></i>
+                                </div>
+                                <p class="mt-1 truncate text-sm text-[#7b7b7b]" id="selectedUsername">微信号: keepwork</p>
+                                <p class="mt-1 truncate text-sm text-[#7b7b7b]" id="selectedRegion">地区: Keepwork</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-5 border-b border-[#e6e6e6] py-5 text-sm">
+                            <div class="flex"><span class="profile-label">备注</span><span class="min-w-0 flex-1 truncate" id="selectedRemark">Keepwork 好友</span></div>
+                            <div class="flex"><span class="profile-label">电话</span><span class="min-w-0 flex-1 truncate" id="selectedPhone">-</span></div>
+                            <div class="flex"><span class="profile-label">描述</span><span class="min-w-0 flex-1 leading-5" id="selectedDescription">选择联系人后查看 Keepwork 好友资料。</span></div>
+                            <div class="flex items-start"><span class="profile-label pt-1">朋友圈</span><div class="flex min-w-0 flex-1 gap-2" id="selectedMoments"><span class="h-10 w-10 rounded-sm bg-[#dcdcdc]"></span><span class="h-10 w-10 rounded-sm bg-[#cfd7e3]"></span><span class="h-10 w-10 rounded-sm bg-[#d7d2c6]"></span><span class="h-10 w-10 rounded-sm bg-[#c9d9cf]"></span></div></div>
+                        </div>
+
+                        <div class="space-y-5 border-b border-[#e6e6e6] py-5 text-sm">
+                            <div class="flex"><span class="profile-label">共同群聊</span><span class="min-w-0 flex-1 truncate" id="selectedGroups">0 个</span></div>
+                            <div class="flex"><span class="profile-label">个性签名</span><span class="min-w-0 flex-1 truncate" id="selectedSignature">Keepwork</span></div>
+                            <div class="flex"><span class="profile-label">来源</span><span class="min-w-0 flex-1 truncate" id="selectedSource">好友列表</span></div>
+                        </div>
+
+                        <div class="flex justify-center gap-14 py-9 text-[#576b95]">
+                            <button class="flex flex-col items-center gap-2 text-xs hover:text-[#07c160]" id="profileMessageBtn" type="button"><i data-lucide="message-circle" class="h-6 w-6"></i><span>发消息</span></button>
+                            <button class="flex flex-col items-center gap-2 text-xs hover:text-[#07c160]" id="profileCallBtn" type="button"><i data-lucide="phone" class="h-6 w-6"></i><span>语音聊天</span></button>
+                            <button class="flex flex-col items-center gap-2 text-xs hover:text-[#07c160]" id="profileVideoBtn" type="button"><i data-lucide="video" class="h-6 w-6"></i><span>视频聊天</span></button>
+                        </div>
+                    </div>
+
+                    <div class="mx-auto hidden w-full max-w-[560px]" id="mailDetailPanel">
+                        <div class="border-b border-[#e6e6e6] pb-5">
+                            <div class="flex items-start gap-4">
+                                <span class="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-sm bg-[#07c160] text-xl font-semibold text-white" id="mailDetailIcon">邮</span>
+                                <div class="min-w-0 flex-1 pt-1">
+                                    <h1 class="break-words text-xl font-medium leading-7" id="mailDetailTitle">选择一封邮件</h1>
+                                    <p class="mt-1 truncate text-sm text-[#7b7b7b]" id="mailDetailMeta">邮件详情</p>
+                                    <p class="mt-1 truncate text-sm text-[#7b7b7b]" id="mailDetailStatus">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-4 py-5 text-sm">
+                            <div class="flex"><span class="profile-label">编号</span><span class="min-w-0 flex-1 truncate" id="mailDetailId">-</span></div>
+                            <div class="flex"><span class="profile-label">时间</span><span class="min-w-0 flex-1 truncate" id="mailDetailTime">-</span></div>
+                            <div class="flex items-start"><span class="profile-label pt-1">奖励</span><span class="min-w-0 flex-1" id="mailDetailReward">-</span></div>
+                        </div>
+                        <div class="border-t border-[#e6e6e6] pt-5">
+                            <div class="mb-3 text-sm text-[#7b7b7b]">内容</div>
+                            <div class="h-72 overflow-auto rounded-sm border border-[#dedede] bg-white p-4 text-sm leading-7" id="mailContentBox"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="hidden min-h-0 flex-1 flex-col bg-[#f7f7f7]" id="chatPanel">
+                    <div class="wechat-scroll min-h-0 flex-1 overflow-auto px-5 py-5" id="chatMessages"></div>
+                    <form class="shrink-0 border-t border-[#e2e2e2] bg-[#fbfbfb]" id="p2pMessageForm">
+                        <textarea class="block h-28 w-full resize-none bg-white px-5 py-3 text-sm leading-6 outline-none placeholder:text-[#9a9a9a]" id="p2pMessageInput" placeholder=""></textarea>
+                        <div class="flex h-12 items-center justify-between px-5 text-[#666]">
+                            <div class="flex items-center gap-4">
+                                <button class="hover:text-[#07c160]" id="chatEmojiBtn" type="button" title="表情"><i data-lucide="smile" class="h-5 w-5"></i></button>
+                                <button class="hover:text-[#07c160]" id="chatFileBtn" type="button" title="文件"><i data-lucide="folder" class="h-5 w-5"></i></button>
+                                <button class="hover:text-[#07c160]" id="chatReportBtn" type="button" title="举报"><i data-lucide="shield-alert" class="h-5 w-5"></i></button>
+                            </div>
+                            <button class="rounded-sm bg-[#07c160] px-5 py-1.5 text-sm text-white disabled:bg-[#e6e6e6] disabled:text-[#b8b8b8]" id="p2pSendBtn" type="submit" disabled>发送</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <section class="debug-console border-t border-[#cfcfcf] bg-[#f2f2f2] px-3 py-2">
+        <details class="tool-drawer mx-auto h-[min(430px,48vh)] w-full max-w-[1180px] overflow-hidden rounded-sm border border-[#d0d0d0] bg-white" open>
+            <summary class="cursor-pointer list-none px-4 py-2 text-sm font-medium text-[#555]">SDK 调试工具</summary>
+            <div class="debug-panel-body wechat-scroll space-y-3 p-4">
+                <p class="hidden truncate text-xs text-[#888]" id="panelSubtitle">Contacts</p>
+                <p class="hidden text-sm" id="welcomeMessage">联系人已同步。</p>
+                <div class="flex flex-wrap items-center gap-2 border-b border-[#e8e8e8] pb-3 text-xs text-[#666]">
+                    <button class="rounded-sm bg-[#07c160] px-3 py-1.5 text-white" id="loadFriendshipsBtn" type="button">好友列表</button>
+                    <button class="rounded-sm border border-[#d6d6d6] px-3 py-1.5 hover:bg-[#f5f5f5]" id="showWorkspaceViewerBtn" type="button">工作区文件</button>
+                    <button class="rounded-sm border border-[#d6d6d6] px-3 py-1.5 hover:bg-[#f5f5f5]" id="profileRemarkBtn" type="button">修改备注</button>
+                    <button class="rounded-sm border border-[#f4b2b2] px-3 py-1.5 text-[#fa5151] hover:bg-[#fff1f0]" id="profileDeleteBtn" type="button">删除好友</button>
+                    <button class="rounded-sm border border-[#d6d6d6] px-3 py-1.5 hover:bg-[#f5f5f5]" id="clearLogBtn" type="button">清空日志</button>
+                    <span class="truncate" id="userName">未登录</span>
+                    <span class="truncate" id="userMeta">Keepwork</span>
+                    <span class="hidden" id="desktopUserMeta">Keepwork</span>
+                    <span class="hidden" id="rightUserName">未登录</span>
+                    <span class="hidden" id="rightUserMeta">Keepwork</span>
+                    <span class="hidden" id="desktopAvatar">?</span>
+                    <span class="hidden" id="rightAvatar">?</span>
+                </div>
+
+                <section id="quickAddPanel">
+                    <h3 class="mb-2 text-sm font-medium">添加好友</h3>
+                    <form class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto]" id="friendApplyForm">
+                        <input class="h-9 rounded-sm border border-[#d6d6d6] bg-white px-3 text-sm outline-none focus:border-[#07c160]" id="applyFriendId" type="number" min="1" placeholder="好友 ID">
+                        <input class="h-9 rounded-sm border border-[#d6d6d6] bg-white px-3 text-sm outline-none focus:border-[#07c160]" id="applyRemark" type="text" placeholder="验证信息">
+                        <button class="h-9 rounded-sm bg-[#07c160] px-4 text-sm text-white disabled:opacity-50" type="submit">发送</button>
+                    </form>
+                </section>
+
+                <section class="hidden" id="applyActionPanel">
+                    <h3 class="mb-2 text-sm font-medium">处理申请</h3>
+                    <form class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px_auto]" id="processApplyForm"><input class="h-9 rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="processApplyId" type="number" min="1" placeholder="申请 ID"><select class="h-9 rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="processStatus"><option value="AGREE">同意</option><option value="REFUSE">拒绝</option><option value="BLOCK">拉黑</option></select><button class="h-9 rounded-sm bg-[#07c160] px-4 text-sm text-white disabled:opacity-50" type="submit">确定</button></form>
+                </section>
+
+                <section class="hidden" id="chatActionPanel">
+                    <div class="grid gap-4 xl:grid-cols-2">
+                        <form class="space-y-2" id="chatRoomForm"><h3 class="text-sm font-medium">创建私聊</h3><input class="h-9 w-full rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="chatTargetId" type="number" min="1" placeholder="好友用户 ID"><button class="h-9 rounded-sm bg-[#07c160] px-4 text-sm text-white disabled:opacity-50" type="submit">创建</button></form>
+                        <form class="space-y-2" id="chatReportForm"><h3 class="text-sm font-medium">举报内容</h3><input class="h-9 w-full rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="reportUserId" type="number" min="1" placeholder="被举报用户 ID"><textarea class="min-h-20 w-full resize-y rounded-sm border border-[#d6d6d6] px-3 py-2 text-sm outline-none focus:border-[#07c160]" id="reportContent" placeholder="举报内容"></textarea><button class="h-9 rounded-sm bg-[#fa5151] px-4 text-sm text-white disabled:opacity-50" type="submit">提交</button></form>
+                    </div>
+                </section>
+
+                <section class="hidden" id="emailActionPanel">
+                    <div class="grid gap-4 xl:grid-cols-2">
+                        <form class="space-y-2 xl:col-span-2" id="mailListForm"><h3 class="text-sm font-medium">邮件列表</h3><div class="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"><input class="h-9 rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="mailPage" type="number" min="1" value="1" placeholder="页码"><input class="h-9 rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="mailPageSize" type="number" min="1" value="20" placeholder="每页数量"><button class="h-9 rounded-sm bg-[#07c160] px-4 text-sm text-white disabled:opacity-50" type="submit">加载邮件</button></div></form>
+                        <form class="space-y-2" id="emailCaptchaForm"><h3 class="text-sm font-medium">邮箱验证码</h3><input class="h-9 w-full rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="emailAddress" type="email" placeholder="name@example.com"><div class="flex flex-wrap gap-2"><button class="h-9 rounded-sm bg-[#07c160] px-4 text-sm text-white disabled:opacity-50" type="submit">发送验证码</button><button class="h-9 rounded-sm border border-[#d6d6d6] px-4 text-sm hover:bg-[#f5f5f5]" id="fillEmailBtn" type="button">当前邮箱</button></div></form>
+                        <form class="space-y-2" id="emailVerifyForm"><h3 class="text-sm font-medium">绑定邮箱</h3><input class="h-9 w-full rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="emailCaptcha" type="text" placeholder="验证码或密码"><select class="h-9 w-full rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="emailAction"><option value="bind">绑定邮箱</option><option value="unbind">解绑邮箱</option></select><button class="h-9 rounded-sm bg-[#07c160] px-4 text-sm text-white disabled:opacity-50" type="submit">提交</button></form>
+                        <form class="space-y-2 xl:col-span-2" id="sendMailForm"><h3 class="text-sm font-medium">发送站内邮件</h3><div class="grid gap-2 md:grid-cols-2"><input class="h-9 rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="sendMailTo" type="text" placeholder="好友用户名"><input class="h-9 rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="sendMailSubject" type="text" value="Keepwork 好友通知"></div><textarea class="min-h-20 w-full resize-y rounded-sm border border-[#d6d6d6] px-3 py-2 text-sm outline-none focus:border-[#07c160]" id="sendMailContent"><p>这是一封来自 Keepwork 好友的通知。</p></textarea><button class="h-9 rounded-sm bg-[#07c160] px-4 text-sm text-white disabled:opacity-50" type="submit">发送站内邮件</button></form>
+                    </div>
+                </section>
+
+                <section class="hidden" id="advancedActionPanel">
+                    <div class="grid gap-4 xl:grid-cols-2">
+                        <form class="space-y-2" id="blacklistForm"><h3 class="text-sm font-medium">黑名单</h3><input class="h-9 w-full rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="blacklistUserId" type="number" min="1" placeholder="用户 ID"><div class="flex flex-wrap gap-2"><button class="h-9 rounded-sm bg-[#fa5151] px-4 text-sm text-white disabled:opacity-50" data-action="add" type="submit">加入</button><button class="h-9 rounded-sm border border-[#d6d6d6] px-4 text-sm hover:bg-[#f5f5f5]" data-action="remove" type="submit">移出</button></div></form>
+                        <form class="space-y-2" id="followingForm"><h3 class="text-sm font-medium">关注关系</h3><input class="h-9 w-full rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="followQuery" type="text" placeholder="用户名或用户 ID"><div class="flex flex-wrap gap-2"><button class="h-9 rounded-sm bg-[#07c160] px-4 text-sm text-white disabled:opacity-50" data-action="following" type="submit">关注的人</button><button class="h-9 rounded-sm border border-[#d6d6d6] px-4 text-sm hover:bg-[#f5f5f5]" data-action="followers" type="submit">粉丝</button></div></form>
+                        <form class="space-y-2 xl:col-span-2" id="onlineForm"><h3 class="text-sm font-medium">在线状态</h3><div class="grid gap-2 md:grid-cols-[minmax(0,1fr)_160px]"><input class="h-9 rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="onlineUserId" type="number" min="1" placeholder="userId"><select class="h-9 rounded-sm border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#07c160]" id="onlineStatus"><option value="true">在线</option><option value="false">离线</option></select></div><div class="flex flex-wrap gap-2"><button class="h-9 rounded-sm bg-[#07c160] px-4 text-sm text-white disabled:opacity-50" type="submit">设置</button><button class="h-9 rounded-sm border border-[#d6d6d6] px-4 text-sm hover:bg-[#f5f5f5]" id="clearOnlineBtn" type="button">清空</button></div></form>
+                    </div>
+                </section>
+
+                <div class="grid gap-3 lg:grid-cols-2">
+                    <pre class="max-h-56 overflow-auto whitespace-pre-wrap rounded-sm bg-[#f6f6f6] p-3 font-mono text-xs leading-5 text-[#555]" id="resultBox">等待操作...</pre>
+                    <div class="wechat-scroll max-h-56 overflow-auto rounded-sm bg-[#f6f6f6] p-3 text-xs leading-5" id="logBox"></div>
+                </div>
+            </div>
+        </details>
+    </section>
+
+    <script type="module">
+        try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+
+        const sdk = window.keepwork;
+        const social = sdk.socialFriends;
+        const socialMessageStore = sdk.personalPageStore.withWorkspace('SocialMessages');
+        const CHAT_SESSION_LIST_FILE = 'chatSessionList';
+        const MAX_CHAT_SESSIONS = 200;
+        const views = ['chat', 'friends', 'apply', 'email', 'advanced'];
+        let currentView = 'chat';
+        let currentProfile = null;
+        let selectedFriend = null;
+        let selectedMail = null;
+        let selectedMailDetail = null;
+        let currentChat = null;
+        const chatRooms = new Map();
+        const chatMessages = new Map();
+        let chatSessionListLoaded = false;
+        let chatSessionListPromise = null;
+        const autoLoaded = { friends: false, apply: false, email: false };
+        const contactTreeState = { applies: true, friends: true, showAllApplies: false };
+        const RECENT_APPLY_MS = 7 * 24 * 60 * 60 * 1000;
+        let friendshipRows = [];
+        let applyRows = [];
+        let mailRows = [];
+
+        const $ = id => document.getElementById(id);
+        const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+        const toArray = value => Array.isArray(value) ? value : (value?.rows || value?.data?.rows || value?.data || value?.list || []);
+        const pretty = value => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        const readNested = (value, keys) => {
+            for (const key of keys) {
+                const found = key.split('.').reduce((object, part) => object?.[part], value);
+                if (found !== undefined && found !== null && found !== '') return found;
+            }
+            return '';
+        };
+        const ICONS = {
+            'users-round': '<circle cx="9" cy="8" r="3"></circle><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5"></path><path d="M16 11a3 3 0 1 0 0-6"></path><path d="M17 14c2.3.4 4 2.2 4 5"></path>',
+            'message-circle': '<path d="M21 11.5a8.5 8.5 0 0 1-12.8 7.3L3 20l1.2-5.1A8.5 8.5 0 1 1 21 11.5Z"></path>',
+            'box': '<path d="M21 8 12 3 3 8l9 5 9-5Z"></path><path d="M3 8v8l9 5 9-5V8"></path><path d="M12 13v8"></path>',
+            'aperture': '<circle cx="12" cy="12" r="10"></circle><path d="m14.3 3.7 3.6 6.2"></path><path d="M9.7 20.3 6.1 14"></path><path d="M3.7 9.7h7.1"></path><path d="M13.2 14.3h7.1"></path><path d="m20.3 9.7-3.6 6.2"></path><path d="m3.7 14.3 3.6-6.2"></path>',
+            'sparkles': '<path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"></path><path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"></path>',
+            'log-in': '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path>',
+            'log-out': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path>',
+            'refresh-cw': '<path d="M21 12a9 9 0 0 1-15 6.7"></path><path d="M3 12a9 9 0 0 1 15-6.7"></path><path d="M18 3v4h-4"></path><path d="M6 21v-4h4"></path>',
+            'more-horizontal': '<circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle>',
+            'search': '<circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path>',
+            'send': '<path d="M22 2 11 13"></path><path d="m22 2-7 20-4-9-9-4 20-7Z"></path>',
+            'shield-alert': '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="M12 8v5"></path><path d="M12 17h.01"></path>',
+            'badge-check': '<path d="M8 3.5 12 2l4 1.5 2.5 3.3L18 11l.5 4.2L16 18.5 12 20l-4-1.5-2.5-3.3L6 11 5.5 6.8 8 3.5Z"></path><path d="m8.8 11.8 2.2 2.2 4.5-5"></path>',
+            'ban': '<circle cx="12" cy="12" r="9"></circle><path d="m5.7 5.7 12.6 12.6"></path>',
+            'radio': '<circle cx="12" cy="12" r="2"></circle><path d="M16.2 7.8a6 6 0 0 1 0 8.4"></path><path d="M7.8 16.2a6 6 0 0 1 0-8.4"></path><path d="M19.1 4.9a10 10 0 0 1 0 14.2"></path><path d="M4.9 19.1a10 10 0 0 1 0-14.2"></path>',
+            'user': '<path d="M19 21a7 7 0 0 0-14 0"></path><circle cx="12" cy="7" r="4"></circle>',
+            'star': '<path d="m12 2 3 6 6.5.9-4.7 4.6 1.1 6.5L12 17l-5.9 3 1.1-6.5L2.5 8.9 9 8l3-6Z"></path>',
+            'phone': '<path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 5.2 2 2 0 0 1 5 3h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8 11.8a16 16 0 0 0 4.2 4.2l2.2-2.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7A2 2 0 0 1 22 16.9Z"></path>',
+            'video': '<path d="m22 8-6 4 6 4V8Z"></path><rect x="2" y="6" width="14" height="12" rx="2"></rect>',
+            'smile': '<circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><path d="M9 9h.01"></path><path d="M15 9h.01"></path>',
+            'folder': '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.6 4A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>'
+        };
+
+        function syncIconState() {
+            document.querySelectorAll('[data-lucide]').forEach(icon => {
+                const name = icon.dataset.lucide;
+                const body = ICONS[name];
+                if (!body || icon.dataset.renderedIcon === name) return;
+                icon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+                icon.dataset.renderedIcon = name;
+            });
+        }
+
+        function setBusy(button, busy, text = '请求中...') {
+            if (!button) return;
+            if (busy) button.dataset.originHtml = button.innerHTML;
+            button.disabled = busy;
+            button.innerHTML = busy ? text : (button.dataset.originHtml || button.innerHTML);
+        }
+
+        function showResult(value, target = 'resultBox', isError = false) {
+            const el = $(target) || $('resultBox');
+            if (!el) return;
+            el.textContent = pretty(value);
+            el.classList.toggle('text-[#fa5151]', isError);
+            el.classList.toggle('bg-[#fff1f0]', isError);
+        }
+
+        function log(message, kind = 'info') {
+            const line = document.createElement('div');
+            const color = kind === 'error' ? 'text-[#fa5151]' : kind === 'ok' ? 'text-[#07c160]' : 'text-[#666]';
+            line.className = `${color} border-b border-[#e5e5e5] py-1.5 last:border-0`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            $('logBox').prepend(line);
+        }
+
+        async function runAction(label, target, button, fn) {
+            setBusy(button, true);
+            try {
+                log(`${label} ...`);
+                const result = await fn();
+                showResult(result, target);
+                log(`${label} 成功`, 'ok');
+                return result;
+            } catch (error) {
+                const message = error?.message || String(error);
+                showResult(message, target, true);
+                log(`${label} 失败: ${message}`, 'error');
+                return null;
+            } finally {
+                setBusy(button, false);
+                syncIconState();
+            }
+        }
+
+        function setPanelVisibility(view) {
+            const panels = { friends: ['quickAddPanel', 'applyActionPanel'], apply: ['applyActionPanel'], chat: ['chatActionPanel'], email: ['emailActionPanel'], advanced: ['advancedActionPanel'] };
+            ['quickAddPanel', 'applyActionPanel', 'chatActionPanel', 'emailActionPanel', 'advancedActionPanel'].forEach(id => $(id).classList.toggle('hidden', !(panels[view] || []).includes(id)));
+        }
+
+        function setMainPanelMode(view) {
+            const isChat = view === 'chat';
+            const isEmail = view === 'email';
+            $('profilePanelBody').classList.toggle('hidden', isChat);
+            $('chatPanel').classList.toggle('hidden', !isChat);
+            $('chatPanel').classList.toggle('flex', isChat);
+            $('contactProfile').classList.toggle('hidden', isEmail);
+            $('mailDetailPanel').classList.toggle('hidden', !isEmail);
+            if (isEmail) renderMailDetail(selectedMail, selectedMailDetail);
+        }
+
+        function switchView(view) {
+            currentView = view;
+            views.forEach(name => $('view-' + name).classList.toggle('hidden', name !== view));
+            document.querySelectorAll('.tab-btn').forEach(button => {
+                const active = button.dataset.view === view;
+                if (button.classList.contains('nav-btn')) {
+                    button.classList.toggle('is-active', active);
+                    return;
+                }
+                button.className = active ? 'tab-btn flex h-12 flex-col items-center justify-center gap-1 text-[#07c160]' : 'tab-btn flex h-12 flex-col items-center justify-center gap-1 text-[#666]';
+            });
+            const titles = { friends: ['联系人', 'Contacts'], apply: ['新的朋友', 'Friend requests'], chat: ['私聊', 'Private chat'], email: ['邮箱', 'Account email'], advanced: ['设置', 'Friend tools'] };
+            $('panelTitle').textContent = titles[view][0];
+            $('leftPaneTitle').textContent = titles[view][0];
+            $('panelSubtitle').textContent = titles[view][1];
+            $('welcomeMessage').textContent = { friends: '联系人已同步。', apply: '新的好友申请正在等待处理。', chat: '私聊连接保持就绪。', email: '账号邮箱状态保持更新。', advanced: '好友关系设置已打开。' }[view];
+            setPanelVisibility(view);
+            setMainPanelMode(view);
+            if (view === 'friends' && !autoLoaded.friends) { autoLoaded.friends = true; loadFriendships(); }
+            if (view === 'friends' && !autoLoaded.apply) { autoLoaded.apply = true; loadApplies(); }
+            if (view === 'apply' && !autoLoaded.apply) { autoLoaded.apply = true; loadApplies(); }
+            if (view === 'email' && !autoLoaded.email) { autoLoaded.email = true; loadMails(); }
+            if (view === 'chat') { loadChatSessionList().then(() => { renderChatList(); renderChatPanel(); }); renderChatList(); renderChatPanel(); }
+            syncIconState();
+        }
+
+        function updateProfileUi(name, meta, avatarText) {
+            ['userName', 'mobileUserName', 'rightUserName'].forEach(id => { const el = $(id); if (el) el.textContent = name; });
+            ['userMeta', 'desktopUserMeta', 'mobileUserMeta', 'rightUserMeta'].forEach(id => { const el = $(id); if (el) el.textContent = meta; });
+            ['avatar', 'desktopAvatar', 'mobileAvatar', 'rightAvatar'].forEach(id => { const el = $(id); if (el) el.textContent = avatarText; });
+        }
+
+        async function refreshProfile(forceRefresh = false) {
+            const previousOwner = chatOwnerKey();
+            try {
+                if (!sdk.token) throw new Error('not logged in');
+                const profile = await sdk.getUserProfile({ forceRefresh });
+                currentProfile = profile;
+                if (chatOwnerKey() !== previousOwner) resetChatHistoryCache();
+                const name = profile.nickname || profile.username || `用户 ${profile.id}`;
+                const meta = profile.id ? `ID ${profile.id}` : '已登录';
+                updateProfileUi(name, meta, name.slice(0, 1).toUpperCase());
+                $('emailAddress').value ||= profile.email || '';
+                return profile;
+            } catch (_) {
+                currentProfile = null;
+                if (chatOwnerKey() !== previousOwner) resetChatHistoryCache();
+                updateProfileUi('未登录', 'Keepwork', '?');
+                return null;
+            }
+        }
+
+        async function doLogin() {
+            await runAction('登录', 'resultBox', $('loginBtn'), async () => {
+                const result = await sdk.showLoginWindow({ title: 'Keepwork Friends' });
+                await refreshProfile(true);
+                return result;
+            });
+        }
+
+        function doLogout() {
+            sdk.setToken(null);
+            sdk.clearUserCache?.();
+            document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            refreshProfile();
+            showResult('已退出登录');
+            log('已退出登录');
+        }
+
+        function normalizeFriend(item) {
+            const user = item?.friend || item?.user || item || {};
+            const id = item?.friendId || user.id || item?.userId || item?.id || '';
+            const name = user.nickname || user.username || item?.nickname || item?.username || `用户 ${id}`;
+            return { item, user, id, name, username: user.username || item?.username || `id_${id}`, remark: item?.comment || user.remark || name, phone: user.mobile || user.phone || item?.phone || '-', description: user.description || item?.description || '这个联系人来自 Keepwork 好友列表。', signature: user.signature || user.description || 'Keepwork', source: item?.source || '好友列表', isOnline: Boolean(item?.isOnline) };
+        }
+
+        function avatarFor(name) { return escapeHtml(String(name || '?').slice(0, 1).toUpperCase()); }
+
+        function roomIdFromResult(result) {
+            return readNested(result, ['id', 'roomId', 'chatRoomId', 'room.id', 'data.id', 'data.roomId', 'data.chatRoomId']) || '';
+        }
+
+        function chatOwnerKey() {
+            return currentProfile?.id || currentProfile?.username || 'guest';
+        }
+
+        function resetChatHistoryCache() {
+            currentChat = null;
+            chatRooms.clear();
+            chatMessages.clear();
+            chatSessionListLoaded = false;
+            chatSessionListPromise = null;
+            renderChatList();
+        }
+
+        function fileToken(value) {
+            return String(value || 'unknown').replace(/[^a-zA-Z0-9_.-]/g, '_');
+        }
+
+        function chatStorageKey(chat) {
+            return `${chatOwnerKey()}:${chat.targetId}`;
+        }
+
+        function chatSessionFile(chat) {
+            return `sessions/${fileToken(chatOwnerKey())}_${fileToken(chat.targetId)}`;
+        }
+
+        function parseJsonContent(content, fallback) {
+            if (!content) return fallback;
+            try {
+                return JSON.parse(content);
+            } catch (_) {
+                return fallback;
+            }
+        }
+
+        function getCachedMessages(chat) {
+            return chatMessages.get(chatStorageKey(chat)) || [];
+        }
+
+        function normalizeMessageRows(value) {
+            const rows = Array.isArray(value) ? value : value?.messages;
+            return Array.isArray(rows) ? rows : [];
+        }
+
+        function normalizeSessionEntries(value) {
+            const rows = Array.isArray(value) ? value : value?.sessions;
+            if (!Array.isArray(rows)) return [];
+            return rows.map(item => {
+                if (typeof item === 'string') return { file: item };
+                if (!item || typeof item !== 'object') return null;
+                return { ...item, file: item.file || (item.targetId ? `sessions/${fileToken(chatOwnerKey())}_${fileToken(item.targetId)}` : '') };
+            }).filter(item => item?.file || item?.targetId);
+        }
+
+        function targetIdFromSessionFile(file) {
+            const name = String(file || '').split('/').pop() || '';
+            const prefix = `${fileToken(chatOwnerKey())}_`;
+            return name.startsWith(prefix) ? name.slice(prefix.length) : '';
+        }
+
+        function chatSessionSummary(chat, rows = getCachedMessages(chat)) {
+            const last = rows[rows.length - 1] || chat.lastMessage || null;
+            return {
+                targetId: String(chat.targetId),
+                title: chat.title,
+                username: chat.username,
+                avatar: chat.avatar,
+                roomId: chat.roomId,
+                room: chat.room || null,
+                openedAt: chat.openedAt || Date.now(),
+                file: chat.file || chatSessionFile(chat),
+                lastMessage: last,
+                messageCount: rows.length,
+            };
+        }
+
+        async function writeChatJson(file, value) {
+            await socialMessageStore.createFile(file, JSON.stringify(value, null, 2));
+        }
+
+        async function loadChatSessionList(force = false) {
+            if (chatSessionListLoaded && !force) return Array.from(chatRooms.values());
+            if (chatSessionListPromise && !force) return chatSessionListPromise;
+            chatSessionListPromise = (async () => {
+                const content = await socialMessageStore.readFile(CHAT_SESSION_LIST_FILE);
+                const entries = normalizeSessionEntries(parseJsonContent(content, []));
+                const rows = [];
+                for (const entry of entries) {
+                    const file = entry.file || `sessions/${fileToken(chatOwnerKey())}_${fileToken(entry.targetId)}`;
+                    const sessionContent = await socialMessageStore.readFile(file);
+                    const parsed = parseJsonContent(sessionContent, null);
+                    const messages = normalizeMessageRows(parsed);
+                    const storedSession = parsed?.session || {};
+                    const targetId = String(storedSession.targetId || entry.targetId || targetIdFromSessionFile(file));
+                    if (!targetId) continue;
+                    rows.push({ ...entry, ...storedSession, targetId, file, lastMessage: messages[messages.length - 1] || storedSession.lastMessage || entry.lastMessage || null, messageCount: messages.length || storedSession.messageCount || entry.messageCount || 0 });
+                }
+                rows.sort((a, b) => (b.openedAt || 0) - (a.openedAt || 0)).slice(0, MAX_CHAT_SESSIONS).forEach(item => {
+                    const chat = {
+                        ...item,
+                        targetId: String(item.targetId),
+                        title: item.title || `用户 ${item.targetId}`,
+                        username: item.username || `id_${item.targetId}`,
+                        avatar: item.avatar || String(item.title || '?').slice(0, 1).toUpperCase(),
+                        file: item.file || `sessions/${fileToken(chatOwnerKey())}_${fileToken(item.targetId)}`,
+                    };
+                    chatRooms.set(chat.targetId, chat);
+                });
+                chatSessionListLoaded = true;
+                chatSessionListPromise = null;
+                return Array.from(chatRooms.values());
+            })();
+            return chatSessionListPromise;
+        }
+
+        async function saveChatSessionList() {
+            const rows = Array.from(chatRooms.values())
+                .map(chat => chatSessionSummary(chat))
+                .sort((a, b) => (b.openedAt || 0) - (a.openedAt || 0))
+                .slice(0, MAX_CHAT_SESSIONS);
+            chatRooms.clear();
+            rows.forEach(item => chatRooms.set(item.targetId, item));
+            const sessionFiles = [...new Set(rows.map(item => item.file || chatSessionFile(item)))];
+            await writeChatJson(CHAT_SESSION_LIST_FILE, { workspace: 'SocialMessages', updatedAt: Date.now(), sessions: sessionFiles });
+            return rows;
+        }
+
+        async function loadStoredMessages(chat) {
+            const key = chatStorageKey(chat);
+            if (chatMessages.has(key)) return chatMessages.get(key);
+            const file = chat.file || chatSessionFile(chat);
+            chat.file = file;
+            const content = await socialMessageStore.readFile(file);
+            const parsed = parseJsonContent(content, null);
+            const rows = normalizeMessageRows(parsed);
+            chatMessages.set(key, rows);
+            if (!content) {
+                await writeChatJson(file, { session: chatSessionSummary(chat, rows), messages: rows });
+            }
+            const summary = chatSessionSummary(chat, rows);
+            Object.assign(chat, summary);
+            chatRooms.set(chat.targetId, chat);
+            return rows;
+        }
+
+        async function saveStoredMessages(chat, rows) {
+            const key = chatStorageKey(chat);
+            chatMessages.set(key, rows);
+            Object.assign(chat, chatSessionSummary(chat, rows));
+            chatRooms.set(chat.targetId, chat);
+            await writeChatJson(chat.file || chatSessionFile(chat), { session: chatSessionSummary(chat, rows), messages: rows });
+            await saveChatSessionList();
+        }
+
+        function normalizeChatRoom(targetFriend, roomResult = null) {
+            const data = normalizeFriend(targetFriend);
+            const cached = chatRooms.get(String(data.id)) || {};
+            return {
+                ...cached,
+                targetId: String(data.id),
+                title: data.name,
+                username: data.username,
+                avatar: String(data.name || '?').slice(0, 1).toUpperCase(),
+                friend: targetFriend,
+                room: roomResult || cached.room || null,
+                roomId: roomIdFromResult(roomResult) || cached.roomId || `p2p-${data.id}`,
+                openedAt: Date.now(),
+            };
+        }
+
+        function chatHasServerRoom(chat) {
+            return Boolean(chat?.room || (chat?.roomId && !String(chat.roomId).startsWith('p2p-')));
+        }
+
+        function renderChatList() {
+            if (!chatSessionListLoaded) {
+                $('chatList').innerHTML = '<div class="px-4 py-8 text-center text-sm text-[#8a8a8a]">正在同步私聊记录</div>';
+            }
+            const rooms = Array.from(chatRooms.values()).sort((a, b) => b.openedAt - a.openedAt);
+            if (!rooms.length) {
+                if (chatSessionListLoaded) $('chatList').innerHTML = '<div class="px-4 py-8 text-center text-sm text-[#8a8a8a]">选择联系人后开始私聊</div>';
+                return;
+            }
+            $('chatList').innerHTML = rooms.map(chat => {
+                const rows = getCachedMessages(chat);
+                const last = rows[rows.length - 1];
+                const selected = currentChat?.targetId === chat.targetId;
+                const preview = last || chat.lastMessage;
+                const time = preview ? new Date(preview.time || chat.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                return `<button class="contact-row ${selected ? 'is-selected' : ''} flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[#e6e6e6]" data-chat-target="${escapeHtml(chat.targetId)}" type="button"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-sm bg-[#dfe6ee] text-sm font-medium text-[#333]">${escapeHtml(chat.avatar)}</span><span class="min-w-0 flex-1"><span class="flex items-center gap-2"><strong class="truncate text-sm font-normal">${escapeHtml(chat.title)}</strong><span class="ml-auto shrink-0 text-[10px] text-[#999]">${escapeHtml(time)}</span></span><span class="mt-0.5 block truncate text-xs text-[#8a8a8a]">${escapeHtml(preview?.text || chat.roomId || '好友对话')}</span></span></button>`;
+            }).join('');
+        }
+
+        async function renderChatPanel() {
+            if (!currentChat) {
+                $('chatMessages').innerHTML = '<div class="flex h-full items-center justify-center text-sm text-[#9a9a9a]">选择一个好友开始聊天</div>';
+                $('p2pMessageInput').disabled = true;
+                $('p2pSendBtn').disabled = true;
+                return;
+            }
+            $('panelTitle').textContent = currentChat.title;
+            $('p2pMessageInput').disabled = false;
+            let rows = getCachedMessages(currentChat);
+            if (!chatMessages.has(chatStorageKey(currentChat))) {
+                $('chatMessages').innerHTML = '<div class="flex h-full items-center justify-center text-sm text-[#9a9a9a]">正在同步消息</div>';
+                rows = await loadStoredMessages(currentChat);
+                renderChatList();
+            }
+            $('chatMessages').innerHTML = rows.length ? rows.map(message => {
+                const isMine = message.from === 'me';
+                const avatar = isMine ? (currentProfile?.nickname || currentProfile?.username || '我').slice(0, 1).toUpperCase() : currentChat.avatar;
+                return `<div class="mb-4 flex ${isMine ? 'justify-end' : 'justify-start'}"><div class="flex max-w-full ${isMine ? 'flex-row-reverse' : ''} items-start gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-sm ${isMine ? 'bg-[#dfe6ee] text-[#333]' : 'bg-[#cfd7e3] text-[#333]'} text-sm font-medium">${escapeHtml(avatar)}</span><div class="chat-bubble ${isMine ? 'is-mine' : 'is-peer'} rounded-sm px-3 py-2 text-sm leading-6 text-[#1f1f1f] shadow-sm">${escapeHtml(message.text)}</div></div></div>`;
+            }).join('') : '<div class="flex h-full items-center justify-center text-sm text-[#9a9a9a]">暂无消息</div>';
+            $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+            $('p2pSendBtn').disabled = !$('p2pMessageInput').value.trim();
+        }
+
+        async function openChatForFriend(friend = selectedFriend, button = null) {
+            if (!friend) {
+                switchView('chat');
+                showResult('请先选择联系人', 'resultBox', true);
+                log('打开私聊失败: 请先选择联系人', 'error');
+                return null;
+            }
+            const data = normalizeFriend(friend);
+            if (!data.id) {
+                switchView('chat');
+                showResult('联系人缺少用户 ID，无法打开私聊', 'resultBox', true);
+                log('打开私聊失败: 联系人缺少用户 ID', 'error');
+                return null;
+            }
+            selectedFriend = friend;
+            switchView('chat');
+            await loadChatSessionList();
+            const cachedChat = chatRooms.get(String(data.id));
+            if (cachedChat && chatHasServerRoom(cachedChat)) {
+                currentChat = normalizeChatRoom(friend, cachedChat.room || { roomId: cachedChat.roomId });
+                showResult({ action: 'resumeChatRoom', targetId: currentChat.targetId, roomId: currentChat.roomId, messageCount: currentChat.messageCount || 0 });
+                log(`恢复与 ${data.name} 的私聊`, 'ok');
+            } else {
+                const result = await runAction('打开私聊房间', 'resultBox', button, () => social.createChatRoom(data.id));
+                if (!result) {
+                    if (!cachedChat) return null;
+                    currentChat = normalizeChatRoom(friend, cachedChat.room || null);
+                    showResult({ action: 'resumeLocalChat', targetId: currentChat.targetId, roomId: currentChat.roomId, messageCount: currentChat.messageCount || 0 });
+                    log(`已恢复与 ${data.name} 的本地私聊`, 'ok');
+                } else {
+                    currentChat = normalizeChatRoom(friend, result);
+                }
+            }
+            chatRooms.set(currentChat.targetId, currentChat);
+            await loadStoredMessages(currentChat);
+            await saveChatSessionList();
+            $('chatTargetId').value = currentChat.targetId;
+            renderChatList();
+            await renderChatPanel();
+            return currentChat;
+        }
+
+        async function appendChatMessage(from, text) {
+            if (!currentChat) throw new Error('请先打开私聊');
+            const rows = await loadStoredMessages(currentChat);
+            rows.push({ from, text, time: Date.now() });
+            currentChat.openedAt = Date.now();
+            chatRooms.set(currentChat.targetId, currentChat);
+            await saveStoredMessages(currentChat, rows);
+            renderChatList();
+            await renderChatPanel();
+        }
+
+        function renderContactProfile(friend) {
+            const data = friend ? normalizeFriend(friend) : null;
+            const name = data?.name || 'Keepwork 好友';
+            const id = data?.id || '-';
+            $('selectedAvatar').textContent = String(name).slice(0, 1).toUpperCase();
+            $('selectedName').textContent = name;
+            $('selectedUsername').textContent = `微信号: ${data?.username || 'keepwork'}`;
+            $('selectedRegion').textContent = `地区: ${data?.user?.region || data?.user?.city || 'Keepwork'}`;
+            $('selectedRemark').textContent = data?.remark || name;
+            $('selectedPhone').textContent = data?.phone || '-';
+            $('selectedDescription').textContent = data?.description || '选择联系人后查看 Keepwork 好友资料。';
+            $('selectedGroups').textContent = data ? `${data.item?.groupCount || 0} 个` : '0 个';
+            $('selectedSignature').textContent = data?.signature || 'Keepwork';
+            $('selectedSource').textContent = data?.source || '好友列表';
+            $('chatTargetId').value = id === '-' ? '' : id;
+            $('reportUserId').value = id === '-' ? '' : id;
+        }
+
+        function renderUserItem(item) {
+            const data = normalizeFriend(item);
+            const selected = selectedFriend && normalizeFriend(selectedFriend).id === data.id;
+            const online = data.isOnline ? '<span class="h-2 w-2 rounded-full bg-[#07c160]"></span>' : '<span class="h-2 w-2 rounded-full bg-[#c8c8c8]"></span>';
+            return `<button class="contact-row ${selected ? 'is-selected' : ''} flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[#e6e6e6]" data-select="${escapeHtml(data.id)}" type="button"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-sm bg-[#dfe6ee] text-sm font-medium text-[#333]">${avatarFor(data.name)}</span><span class="min-w-0 flex-1"><span class="flex items-center gap-2"><strong class="truncate text-sm font-normal">${escapeHtml(data.name)}</strong>${online}</span><span class="mt-0.5 block truncate text-xs text-[#8a8a8a]">${escapeHtml(data.remark || `ID ${data.id}`)}</span></span></button>`;
+        }
+
+        function renderApplyItem(item) {
+            const user = item.user || {};
+            const name = user.nickname || user.username || `用户 ${item.userId || ''}`;
+            return `<div class="border-b border-[#dedede] bg-[#f7f7f7] px-4 py-3"><div class="flex items-center gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-sm bg-[#dfe6ee] text-sm font-medium text-[#333]">${avatarFor(name)}</span><div class="min-w-0 flex-1"><strong class="block truncate text-sm font-normal">${escapeHtml(name)}</strong><span class="block truncate text-xs text-[#8a8a8a]">申请 ${escapeHtml(item.id)} · ${escapeHtml(item.remark || '等待验证')}</span></div></div><div class="mt-3 grid grid-cols-3 gap-2"><button class="rounded-sm bg-[#07c160] px-3 py-1.5 text-xs text-white" data-accept="${escapeHtml(item.id)}" type="button">同意</button><button class="rounded-sm border border-[#d6d6d6] px-3 py-1.5 text-xs" data-reject="${escapeHtml(item.id)}" type="button">拒绝</button><button class="rounded-sm border border-[#f4b2b2] px-3 py-1.5 text-xs text-[#fa5151]" data-block="${escapeHtml(item.id)}" type="button">拉黑</button></div></div>`;
+        }
+
+        function applyCreatedTime(item) {
+            const value = readNested(item, ['createdAt', 'created_at', 'createTime', 'created', 'updatedAt', 'updated_at']);
+            if (!value) return 0;
+            const time = typeof value === 'number' ? value : Date.parse(value);
+            return Number.isFinite(time) ? (time < 10000000000 ? time * 1000 : time) : 0;
+        }
+
+        function isPendingApply(item) {
+            const status = item?.status ?? item?.state;
+            return status === undefined || status === null || status === '' || Number(status) === 1 || String(status).toUpperCase() === 'PENDING';
+        }
+
+        function recentApplyRows() {
+            const cutoff = Date.now() - RECENT_APPLY_MS;
+            return applyRows.filter(item => {
+                const time = applyCreatedTime(item);
+                return isPendingApply(item) && (!time || time >= cutoff);
+            });
+        }
+
+        function renderContactTree() {
+            const recentRows = recentApplyRows();
+            const visibleApplyRows = contactTreeState.showAllApplies ? applyRows : recentRows;
+            const hasMoreApplies = !contactTreeState.showAllApplies && applyRows.length > recentRows.length;
+            $('recentApplyBadge').textContent = `${recentRows.length}`;
+            $('recentApplyBadge').classList.toggle('hidden', !recentRows.length);
+            $('friendFolderCount').textContent = `${friendshipRows.length}`;
+            $('friendCount').textContent = `${friendshipRows.length}`;
+            $('friendRequestFolderBtn').setAttribute('aria-expanded', String(contactTreeState.applies));
+            $('friendFolderBtn').setAttribute('aria-expanded', String(contactTreeState.friends));
+            $('applyList').classList.toggle('hidden', !contactTreeState.applies);
+            $('friendList').classList.toggle('hidden', !contactTreeState.friends);
+            const emptyApplyText = contactTreeState.showAllApplies ? '暂无申请' : '最近 7 天暂无申请';
+            const moreApplyButton = hasMoreApplies ? `<button class="flex h-8 w-full items-center justify-center border-b border-[#dedede] bg-[#f7f7f7] text-xs text-[#576b95] hover:bg-[#e6e6e6]" id="showAllAppliesBtn" type="button">更多...</button>` : '';
+            $('applyList').innerHTML = (visibleApplyRows.length ? visibleApplyRows.map(renderApplyItem).join('') : `<div class="px-4 py-5 text-center text-sm text-[#8a8a8a]">${emptyApplyText}</div>`) + moreApplyButton;
+            $('friendList').innerHTML = friendshipRows.length ? friendshipRows.map(renderUserItem).join('') : '<div class="px-4 py-8 text-center text-sm text-[#8a8a8a]">暂无好友</div>';
+        }
+
+        function selectedFriendId() {
+            const data = selectedFriend ? normalizeFriend(selectedFriend) : null;
+            if (!data?.id) throw new Error('请先选择联系人');
+            return data.id;
+        }
+
+        function unwrapMailPayload(value) {
+            if (!value || typeof value !== 'object') return value;
+            if (Array.isArray(value)) return value[0] || {};
+            if (Array.isArray(value.data)) return value.data[0] || {};
+            if (value.data && !Array.isArray(value.data) && typeof value.data === 'object') return value.data;
+            if (value.email && typeof value.email === 'object') return value.email;
+            if (value.mail && typeof value.mail === 'object') return value.mail;
+            return value;
+        }
+
+        function pickMailContent(value) {
+            const raw = unwrapMailPayload(value);
+            if (!raw || typeof raw !== 'object') return raw || '';
+            const candidates = [
+                raw.content, raw.html, raw.body, raw.text, raw.desc, raw.description,
+                raw.details, raw.detail, raw.data?.content, raw.data?.html, raw.data?.body,
+                raw.message?.content, raw.message?.html, raw.message?.body,
+            ];
+            return candidates.find(item => item !== undefined && item !== null && item !== '') || '';
+        }
+
+        function normalizeRewardRows(value, fallback = []) {
+            const raw = unwrapMailPayload(value);
+            const direct = raw?.rewards;
+            const received = raw?.receivedRewards;
+            const candidates = [direct, received, raw?.rewardList, raw?.items, raw?.data?.rewards, fallback].filter(Boolean);
+            const rows = [];
+            candidates.forEach(candidate => {
+                const list = Array.isArray(candidate) ? candidate : (typeof candidate === 'object' ? [candidate] : []);
+                list.forEach(item => {
+                    if (!item || typeof item !== 'object') return;
+                    const goods = item.goods || item.good || item.item || null;
+                    const id = item.gsId || item.gsid || item.id || item.itemId || item.goodsId || item.rewardId || goods?.gsId || goods?.id;
+                    const amount = item.amount || item.count || item.num || item.quantity || 1;
+                    const name = item.name || item.title || goods?.name || '';
+                    const desc = item.desc || item.description || goods?.desc || goods?.description || '';
+                    if (id !== undefined && id !== null && id !== '') rows.push({ id, amount, name, desc, goods });
+                });
+            });
+            return rows;
+        }
+
+        function rewardLabel(item) {
+            return item.name || `ID ${item.id}`;
+        }
+
+        function rewardTitle(item) {
+            return [item.name || `ID ${item.id}`, item.desc].filter(Boolean).join('：');
+        }
+
+        function renderRewardChips(rewards, hasRewardFlag) {
+            if (rewards.length) {
+                return `<span class="flex flex-wrap gap-2">${rewards.map(item => `<span class="inline-flex items-center gap-1 rounded-sm border border-[#f4d49b] bg-[#fff7e6] px-2 py-1 text-xs text-[#8a5a00]" title="${escapeHtml(rewardTitle(item))}"><span class="grid h-5 w-5 place-items-center rounded-sm bg-[#f5a623] text-white">奖</span><span>${escapeHtml(rewardLabel(item))}</span><strong class="font-semibold">x${escapeHtml(item.amount)}</strong></span>`).join('')}</span>`;
+            }
+            return hasRewardFlag ? '<span class="text-[#ad6800]">有奖励</span>' : '<span class="text-[#8a8a8a]">无奖励</span>';
+        }
+
+        function normalizeMail(item, fallback = {}) {
+            const raw = unwrapMailPayload(item) || {};
+            const base = fallback && typeof fallback === 'object' ? fallback : {};
+            const id = raw.id || raw.mailId || raw.emailId || base.id || '';
+            const title = raw.title || raw.subject || base.title || `邮件 ${id}`;
+            const username = raw.username || raw.fromUsername || raw.senderUsername || base.username || '';
+            const type = raw.type ?? base.type ?? '';
+            const createdAt = raw.createdAt || raw.created_at || raw.createTime || raw.updatedAt || base.createdAt || '';
+            const rawRead = raw.read ?? raw.isRead ?? base.read ?? 0;
+            const rawRewards = raw.rewards ?? raw.reward ?? base.rewards ?? 0;
+            const rawRewardReceived = raw.receivedRewards ?? raw.rewardReceived ?? raw.rewardsReceived ?? base.rewardReceived ?? 0;
+            const read = Number(rawRead) === 1 || rawRead === true;
+            const rewardReceived = Number(rawRewardReceived) === 1 || rawRewardReceived === true;
+            const rewardRows = normalizeRewardRows(raw, base.rewardRows || []);
+            const rewards = Number(rawRewards) === 1 || rawRewards === true || rewardRows.length > 0;
+            const content = pickMailContent(raw) || base.content || '';
+            return { item: raw, id, title, username, type, createdAt, read, rewards, rewardRows, rewardReceived, content };
+        }
+
+        function renderMailContent(content) {
+            const value = typeof content === 'string' ? content : (content ? JSON.stringify(content, null, 2) : '暂无邮件正文');
+            const looksLikeHtml = /<([a-z][\w:-]*)(\s|>|\/)/i.test(value);
+            $('mailContentBox').innerHTML = looksLikeHtml
+                ? value
+                : `<pre class="m-0 whitespace-pre-wrap break-words font-sans text-sm leading-7 text-[#1f1f1f]">${escapeHtml(value)}</pre>`;
+        }
+
+        function renderMailDetail(mail, detail = null) {
+            const base = normalizeMail(mail || {});
+            const data = detail ? normalizeMail(detail, base) : base;
+            const hasMail = Boolean(mail || detail);
+            const time = data.createdAt ? new Date(data.createdAt).toLocaleString() : '-';
+            $('mailDetailIcon').textContent = data.read ? '邮' : '新';
+            $('mailDetailIcon').className = `grid h-[60px] w-[60px] shrink-0 place-items-center rounded-sm ${data.read ? 'bg-[#dfe6ee] text-[#333]' : 'bg-[#07c160] text-white'} text-xl font-semibold`;
+            $('mailDetailTitle').textContent = hasMail ? data.title : '选择一封邮件';
+            $('mailDetailMeta').textContent = hasMail ? [`ID ${data.id || '-'}`, data.type === 4 || String(data.type) === '4' ? '个人消息' : '', data.username ? `来自 ${data.username}` : ''].filter(Boolean).join(' · ') : '邮件详情';
+            $('mailDetailStatus').textContent = hasMail ? `${data.read ? '已读' : '未读'} · ${data.rewards ? '有奖励' : '无奖励'}${data.rewardReceived ? ' · 已领取' : ''}` : '-';
+            $('mailDetailId').textContent = hasMail ? (data.id || '-') : '-';
+            $('mailDetailTime').textContent = hasMail ? time : '-';
+            $('mailDetailReward').innerHTML = hasMail ? `${renderRewardChips(data.rewardRows, data.rewards)}${data.rewardReceived ? '<span class="mail-claimed-stamp relative ml-3 inline-flex h-8 min-w-[64px] items-center justify-center rounded-sm px-2 text-sm font-bold">已领取</span>' : ''}` : '-';
+            renderMailContent(hasMail ? data.content : '');
+        }
+
+        function renderMailItem(item) {
+            const data = normalizeMail(item);
+            const selected = selectedMail && String(normalizeMail(selectedMail).id) === String(data.id);
+            const time = data.createdAt ? new Date(data.createdAt).toLocaleDateString() : '';
+            const readText = data.read ? '已读' : '未读';
+            const rewardText = data.rewardReceived ? '奖励已领取' : (data.rewards ? '有奖励' : '无奖励');
+            const unread = data.read ? '' : '<span class="h-2 w-2 shrink-0 rounded-full bg-[#fa5151]"></span>';
+            const rewardBadge = data.rewards ? '<span class="rounded-sm bg-[#fff7e6] px-1.5 py-0.5 text-[10px] text-[#ad6800]">奖励</span>' : '';
+            const claimedBadge = data.rewardReceived ? '<span class="rounded-sm bg-[#fff7ed] px-1.5 py-0.5 text-[10px] text-[#991b1b]">已领取</span>' : '';
+            const personalBadge = data.type === 4 || String(data.type) === '4' ? '<span class="rounded-sm bg-[#e6f4ff] px-1.5 py-0.5 text-[10px] text-[#0958d9]">个人</span>' : '';
+            const senderText = data.username ? ` · ${data.username}` : '';
+            return `<button class="contact-row ${selected ? 'is-selected' : ''} flex w-full items-center gap-3 border-t border-[#dedede] px-4 py-3 text-left hover:bg-[#e6e6e6]" data-mail-id="${escapeHtml(data.id)}" type="button"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-sm ${data.read ? 'bg-[#dfe6ee]' : 'bg-[#07c160] text-white'} text-sm font-medium">${data.read ? '邮' : '新'}</span><span class="min-w-0 flex-1"><span class="flex items-center gap-2"><strong class="truncate text-sm font-normal">${escapeHtml(data.title)}</strong>${unread}${personalBadge}${rewardBadge}${claimedBadge}</span><span class="mt-0.5 block truncate text-xs text-[#8a8a8a]">${escapeHtml(time)} · ${readText} · ${rewardText}${escapeHtml(senderText)} · ID ${escapeHtml(data.id)}</span></span></button>`;
+        }
+
+        function renderMailList() {
+            $('friendCount').textContent = `${mailRows.length}`;
+            $('mailList').innerHTML = mailRows.length ? mailRows.map(renderMailItem).join('') : '<div class="px-4 py-8 text-center text-sm text-[#8a8a8a]">暂无邮件</div>';
+        }
+
+        async function loadMails(button = $('loadMailsBtn')) {
+            const page = $('mailPage').value || 1;
+            const pageSize = $('mailPageSize').value || 20;
+            const result = await runAction('加载邮件列表', 'resultBox', button, () => social.listMails({ page, pageSize }));
+            mailRows = toArray(result);
+            if (!selectedMail && mailRows.length) {
+                selectedMail = mailRows[0];
+                selectedMailDetail = null;
+                renderMailDetail(selectedMail);
+            }
+            renderMailList();
+        }
+
+        async function openMail(mailId, button = null) {
+            const mail = mailRows.find(item => String(normalizeMail(item).id) === String(mailId));
+            if (!mail) return null;
+            selectedMail = mail;
+            selectedMailDetail = null;
+            renderMailList();
+            renderMailDetail(selectedMail);
+            const result = await runAction('打开邮件', 'resultBox', button, () => social.readEmail(mailId));
+            if (result) {
+                selectedMailDetail = result;
+                renderMailDetail(selectedMail, result);
+            } else {
+                renderMailDetail(selectedMail);
+            }
+            return result;
+        }
+
+        async function loadFriendships(button = $('loadFriendshipsBtn')) {
+            const result = await runAction('加载好友列表', 'resultBox', button, () => social.list());
+            const rows = toArray(result);
+            friendshipRows = rows;
+            if (!selectedFriend && rows.length) selectedFriend = rows[0];
+            renderContactProfile(selectedFriend);
+            renderContactTree();
+            syncIconState();
+        }
+
+        async function loadApplies(button = $('loadAppliesBtn')) {
+            const page = $('applyPage').value || 1;
+            const pageSize = $('applyPageSize').value || 20;
+            const result = await runAction('加载好友申请', 'resultBox', button, () => social.listApplies({ page, pageSize }));
+            const rows = toArray(result);
+            applyRows = rows;
+            renderContactTree();
+        }
+
+        function currentEmail() {
+            const email = $('emailAddress').value.trim();
+            if (!email) throw new Error('请输入邮箱地址');
+            return email;
+        }
+
+        function showWorkspaceViewer() {
+            const workspace = socialMessageStore.workspace || 'SocialMessages';
+            const url = new URL('./WorkspaceViewer.html', window.location.href);
+            url.searchParams.set('workspace', workspace);
+            url.searchParams.set('compact', '1');
+            const popup = window.open(url.toString(), 'KeepworkWorkspaceViewer', 'popup=yes,width=1180,height=760,resizable=yes,scrollbars=yes');
+            if (popup) {
+                popup.focus();
+                showResult({ workspace, viewer: url.toString(), message: '已打开 WorkspaceViewer 弹窗' });
+                log('已打开 WorkspaceViewer 弹窗', 'ok');
+            } else {
+                showResult('浏览器阻止了弹窗，请允许此页面打开弹窗后重试。', 'resultBox', true);
+                log('WorkspaceViewer 弹窗被浏览器阻止', 'error');
+            }
+        }
+
+        document.querySelectorAll('.tab-btn').forEach(button => button.addEventListener('click', () => switchView(button.dataset.view)));
+        $('loginBtn').addEventListener('click', doLogin);
+        $('logoutBtn').addEventListener('click', doLogout);
+        $('mobileLoginBtn').addEventListener('click', doLogin);
+        $('mobileLogoutBtn').addEventListener('click', doLogout);
+        $('mobileProfileBtn').addEventListener('click', () => refreshProfile(true).then(profile => showResult(profile || '未登录')));
+        $('profileBtn').addEventListener('click', () => refreshProfile(true).then(profile => showResult(profile || '未登录')));
+        $('showWorkspaceViewerBtn').addEventListener('click', showWorkspaceViewer);
+        $('clearLogBtn').addEventListener('click', () => { $('logBox').textContent = ''; });
+        $('refreshBtn').addEventListener('click', () => {
+            if (currentView === 'friends') return (async () => { await loadFriendships($('refreshBtn')); await loadApplies(); })();
+            if (currentView === 'apply') return loadApplies($('refreshBtn'));
+            if (currentView === 'email') return $('loadMailsBtn').click();
+            if (currentView === 'advanced') return $('loadBlacklistBtn').click();
+            showResult('当前页没有默认刷新动作');
+        });
+
+        $('friendApplyForm').addEventListener('submit', event => {
+            event.preventDefault();
+            runAction('发送好友申请', 'resultBox', event.submitter, () => social.applyFriend({ friendId: $('applyFriendId').value, remark: $('applyRemark').value.trim() }));
+        });
+
+        $('friendSearchForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            switchView('friends');
+            const result = await runAction('搜索好友', 'resultBox', event.submitter, () => social.searchFriends({ username: $('friendSearchName').value.trim() }));
+            const rows = toArray(result);
+            selectedFriend = rows[0] || null;
+            renderContactProfile(selectedFriend);
+            friendshipRows = rows;
+            renderContactTree();
+            if (!rows.length) $('friendList').innerHTML = '<div class="px-4 py-8 text-center text-sm text-[#8a8a8a]">没有搜索结果</div>';
+        });
+
+        $('loadFriendshipsBtn').addEventListener('click', () => loadFriendships());
+        $('friendRequestFolderBtn').addEventListener('click', () => {
+            contactTreeState.applies = !contactTreeState.applies;
+            renderContactTree();
+            if (contactTreeState.applies && !autoLoaded.apply) { autoLoaded.apply = true; loadApplies(); }
+        });
+        $('friendFolderBtn').addEventListener('click', () => {
+            contactTreeState.friends = !contactTreeState.friends;
+            renderContactTree();
+            if (contactTreeState.friends && !autoLoaded.friends) { autoLoaded.friends = true; loadFriendships(); }
+        });
+        $('friendList').addEventListener('click', event => {
+            const row = event.target.closest('[data-select]');
+            if (!row) return;
+            const rows = Array.from(document.querySelectorAll('#friendList [data-select]'));
+            rows.forEach(item => item.classList.toggle('is-selected', item === row));
+            selectedFriend = friendshipRows.find(item => String(normalizeFriend(item).id) === String(row.dataset.select)) || { friendId: row.dataset.select, friend: { id: row.dataset.select, nickname: row.querySelector('strong')?.textContent || `用户 ${row.dataset.select}` } };
+            renderContactProfile(selectedFriend);
+        });
+
+        $('profileMessageBtn').addEventListener('click', event => { openChatForFriend(selectedFriend, event.currentTarget); });
+        $('profileCallBtn').addEventListener('click', () => showResult('语音聊天入口已选中，可在 SDK 工具区接入真实通话能力。'));
+        $('profileVideoBtn').addEventListener('click', () => showResult('视频聊天入口已选中，可在 SDK 工具区接入真实通话能力。'));
+        $('profileRemarkBtn').addEventListener('click', event => {
+            const comment = window.prompt('输入新的好友备注', '');
+            if (comment === null) return;
+            runAction('更新好友备注', 'resultBox', event.currentTarget, async () => { const result = await social.updateRemark(selectedFriendId(), comment); await loadFriendships(); return result; });
+        });
+        $('profileDeleteBtn').addEventListener('click', event => {
+            runAction('删除好友', 'resultBox', event.currentTarget, async () => { const result = await social.removeFriend(selectedFriendId()); selectedFriend = null; await loadFriendships(); return result; });
+        });
+
+        $('processApplyForm').addEventListener('submit', event => {
+            event.preventDefault();
+            runAction('处理好友申请', 'resultBox', event.submitter, async () => { const result = await social.processApply($('processApplyId').value, $('processStatus').value); await loadApplies(); await loadFriendships(); return result; });
+        });
+
+        $('loadAppliesBtn').addEventListener('click', () => loadApplies());
+        $('applyList').addEventListener('click', event => {
+            const moreButton = event.target.closest('#showAllAppliesBtn');
+            if (moreButton) {
+                contactTreeState.showAllApplies = true;
+                renderContactTree();
+                return;
+            }
+            const button = event.target.closest('button');
+            if (!button) return;
+            const applyId = button.dataset.accept || button.dataset.reject || button.dataset.block;
+            const action = button.dataset.accept ? 'AGREE' : button.dataset.reject ? 'REFUSE' : 'BLOCK';
+            runAction('处理好友申请', 'resultBox', button, async () => { const result = await social.processApply(applyId, action); await loadApplies(); await loadFriendships(); return result; });
+        });
+
+        $('chatRoomForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            const targetId = $('chatTargetId').value;
+            const friend = selectedFriend && normalizeFriend(selectedFriend).id == targetId ? selectedFriend : { friendId: targetId, friend: { id: targetId, nickname: `用户 ${targetId}` } };
+            await openChatForFriend(friend, event.submitter);
+        });
+        $('chatList').addEventListener('click', async event => {
+            const row = event.target.closest('[data-chat-target]');
+            if (!row) return;
+            currentChat = chatRooms.get(row.dataset.chatTarget) || currentChat;
+            renderChatList();
+            await renderChatPanel();
+        });
+        $('p2pMessageInput').addEventListener('input', () => { $('p2pSendBtn').disabled = !$('p2pMessageInput').value.trim() || !currentChat; });
+        $('p2pMessageInput').addEventListener('keydown', event => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                $('p2pMessageForm').requestSubmit();
+            }
+        });
+        $('p2pMessageForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            const text = $('p2pMessageInput').value.trim();
+            if (!text) return;
+            await appendChatMessage('me', text);
+            $('p2pMessageInput').value = '';
+            $('p2pSendBtn').disabled = true;
+            showResult({ roomId: currentChat.roomId, targetId: currentChat.targetId, text, localPreview: true });
+        });
+        $('chatEmojiBtn').addEventListener('click', () => { $('p2pMessageInput').value += '👍'; $('p2pMessageInput').dispatchEvent(new Event('input')); $('p2pMessageInput').focus(); });
+        $('chatFileBtn').addEventListener('click', () => showResult('文件入口已选中'));
+        $('chatReportBtn').addEventListener('click', () => { if (currentChat) { $('reportUserId').value = currentChat.targetId; $('reportContent').focus(); } });
+        $('chatReportForm').addEventListener('submit', event => { event.preventDefault(); runAction('提交私聊举报', 'resultBox', event.submitter, () => social.reportChat({ reportUserId: $('reportUserId').value, content: $('reportContent').value.trim() })); });
+        $('fillEmailBtn').addEventListener('click', () => { $('emailAddress').value = currentProfile?.email || $('emailAddress').value; });
+        $('loadMailsBtn').addEventListener('click', event => { switchView('email'); loadMails(event.currentTarget); });
+        $('mailListForm').addEventListener('submit', event => { event.preventDefault(); loadMails(event.submitter); });
+        $('mailList').addEventListener('click', event => {
+            const row = event.target.closest('[data-mail-id]');
+            if (!row) return;
+            openMail(row.dataset.mailId, row);
+        });
+        $('emailCaptchaForm').addEventListener('submit', event => { event.preventDefault(); runAction('发送邮箱验证码', 'resultBox', event.submitter, () => social.sendEmailCaptcha(currentEmail())); });
+        $('emailVerifyForm').addEventListener('submit', event => {
+            event.preventDefault();
+            const email = currentEmail();
+            const value = $('emailCaptcha').value.trim();
+            const action = $('emailAction').value;
+            runAction(action === 'bind' ? '绑定邮箱' : '解绑邮箱', 'resultBox', event.submitter, () => action === 'bind' ? social.bindEmail(email, value) : social.unbindEmail(email, value));
+        });
+        $('sendMailForm').addEventListener('submit', event => { event.preventDefault(); runAction('发送站内邮件', 'resultBox', event.submitter, () => social.sendMail({ toUsername: $('sendMailTo').value.trim(), subject: $('sendMailSubject').value.trim(), title: $('sendMailSubject').value.trim(), content: $('sendMailContent').value, html: $('sendMailContent').value })); });
+        $('blacklistForm').addEventListener('submit', event => {
+            event.preventDefault();
+            const action = event.submitter?.dataset.action;
+            const userId = $('blacklistUserId').value;
+            runAction(action === 'add' ? '加入黑名单' : '移出黑名单', 'resultBox', event.submitter, () => action === 'add' ? social.addToBlacklist(userId) : social.removeFromBlacklist(userId));
+        });
+        $('loadBlacklistBtn').addEventListener('click', event => { switchView('advanced'); runAction('加载黑名单', 'resultBox', event.currentTarget, () => social.listBlacklist()); });
+        $('followingForm').addEventListener('submit', event => {
+            event.preventDefault();
+            const action = event.submitter?.dataset.action;
+            const query = $('followQuery').value.trim();
+            const options = /^\d+$/.test(query) ? { userId: query } : (query ? { username: query } : {});
+            runAction(action === 'following' ? '加载关注的人' : '加载粉丝', 'resultBox', event.submitter, () => action === 'following' ? social.getFollowing(options) : social.getFollowers(options));
+        });
+        $('onlineForm').addEventListener('submit', event => { event.preventDefault(); runAction('设置在线状态', 'resultBox', event.submitter, () => social.setOnlineStatus($('onlineUserId').value, $('onlineStatus').value === 'true')); });
+        $('clearOnlineBtn').addEventListener('click', event => { runAction('清空在线状态', 'resultBox', event.currentTarget, () => social.clearAllOnlineStatus()); });
+
+        if (!social) {
+            showResult('当前 SDK 未找到 keepwork.socialFriends，请确认已加载最新 index.js 或 dist bundle。', 'resultBox', true);
+        } else {
+            showResult('Keepwork Friends 已就绪');
+            log('SocialFriends ready', 'ok');
+        }
+        await refreshProfile();
+        renderContactProfile(null);
+        switchView('chat');
+        if (social) { autoLoaded.friends = true; autoLoaded.apply = true; loadFriendships(); loadApplies(); }
+        syncIconState();
+    </script>
+</body>
+</html>

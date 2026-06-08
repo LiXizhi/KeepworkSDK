@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Translation (i18n) Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e293b; color: #e2e8f0; }
+    .container { max-width: 800px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    .subtitle { color: #94a3b8; font-size: 0.85rem; margin-bottom: 24px; }
+    .card { background: #334155; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .card h2 { font-size: 1rem; margin: 0 0 12px; color: #93c5fd; }
+    label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px; }
+    select, input, textarea { width: 100%; padding: 8px 10px; border: 1px solid #475569; border-radius: 6px; background: #1e293b; color: #e2e8f0; font-size: 0.9rem; margin-bottom: 12px; }
+    button { padding: 8px 16px; border: none; border-radius: 6px; background: #3b82f6; color: #fff; font-size: 0.85rem; cursor: pointer; margin-right: 8px; margin-bottom: 8px; }
+    button:hover { background: #2563eb; }
+    button.secondary { background: #475569; }
+    button.secondary:hover { background: #64748b; }
+    .result { background: #1e293b; border: 1px solid #475569; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; min-height: 40px; margin-top: 8px; }
+    .demo-text { font-size: 1.1rem; padding: 8px 0; }
+    .status { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 8px; }
+    .badge-ok { background: #166534; color: #86efac; }
+    .badge-wait { background: #854d0e; color: #fde68a; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Translation (i18n) Test</h1>
+  <p class="subtitle">Tests window.t(), window.i18n, window.GetDisplayLanguage(), data-i18n DOM translation</p>
+
+  <!-- Status -->
+  <div class="card">
+    <h2>Status</h2>
+    <div>Current language: <strong id="currentLang">—</strong> <span id="readyBadge" class="badge badge-wait">loading</span></div>
+    <div class="status" id="statusLine"></div>
+  </div>
+
+  <!-- window.t() -->
+  <div class="card">
+    <h2>window.t() — Translate a key</h2>
+    <label for="tKey">Chinese key</label>
+    <input id="tKey" value="你好" placeholder="Enter Chinese text key" />
+    <label for="tVars">Variables (JSON, optional)</label>
+    <input id="tVars" placeholder='e.g. {"name":"Alice"}' />
+    <button id="btnTranslate">Translate</button>
+    <div class="result" id="tResult"></div>
+  </div>
+
+  <!-- data-i18n DOM demo -->
+  <div class="card">
+    <h2>data-i18n DOM Translation</h2>
+    <p class="status">Elements below have data-i18n attributes. Click "Apply" to run applyTranslations().</p>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;">
+      <span class="demo-text" data-i18n="你好">你好</span>
+      <span class="demo-text" data-i18n="设置">设置</span>
+      <span class="demo-text" data-i18n="登录">登录</span>
+      <span class="demo-text" data-i18n="注册">注册</span>
+    </div>
+    <button id="btnApply">Apply Translations</button>
+    <button id="btnReset" class="secondary">Reset to Chinese</button>
+  </div>
+
+  <!-- mergeTranslations -->
+  <div class="card">
+    <h2>mergeTranslations()</h2>
+    <label for="mergeJson">Flat translation JSON to merge</label>
+    <textarea id="mergeJson" rows="3">{"你好": "Hello!", "设置": "Settings", "登录": "Log In", "注册": "Sign Up"}</textarea>
+    <button id="btnMerge">Merge</button>
+    <div class="result" id="mergeResult"></div>
+  </div>
+
+  <!-- addLocaleFiles -->
+  <div class="card">
+    <h2>addLocaleFiles() + setLang()</h2>
+    <label for="localeUrl">Locale JSON URL</label>
+    <input id="localeUrl" placeholder="/path/to/jaJP.json" />
+    <label for="localeLang">Language code</label>
+    <input id="localeLang" value="enUS" placeholder="e.g. jaJP" />
+    <button id="btnAddLocale">Add Locale File</button>
+    <button id="btnSetLang">Set Language (reloads page)</button>
+    <div class="result" id="localeResult"></div>
+  </div>
+</div>
+
+<script type="module">
+try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+
+// Wait for i18n to be ready
+await window.i18n.ready();
+
+// --- Status ---
+function updateStatus() {
+  document.getElementById('currentLang').textContent = window.GetDisplayLanguage();
+  const badge = document.getElementById('readyBadge');
+  if (window.i18n.isReady()) {
+    badge.textContent = 'ready';
+    badge.className = 'badge badge-ok';
+  }
+  const translations = window.i18n._translations;
+  const count = translations ? Object.keys(translations).length : 0;
+  document.getElementById('statusLine').textContent =
+    `isReady: ${window.i18n.isReady()} | loaded entries: ${count} | defaultLang: zhCN`;
+}
+updateStatus();
+
+// --- window.t() ---
+document.getElementById('btnTranslate').addEventListener('click', () => {
+  const key = document.getElementById('tKey').value;
+  let vars;
+  const varsStr = document.getElementById('tVars').value.trim();
+  if (varsStr) {
+    try { vars = JSON.parse(varsStr); } catch (e) {
+      document.getElementById('tResult').textContent = 'Invalid JSON in vars: ' + e.message;
+      return;
+    }
+  }
+  const result = window.t(key, vars);
+  document.getElementById('tResult').textContent = `t("${key}"${vars ? ', ' + varsStr : ''}) → "${result}"`;
+});
+
+// --- applyTranslations ---
+document.getElementById('btnApply').addEventListener('click', () => {
+  window.i18n.applyTranslations();
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = el.dataset.i18n;
+  });
+});
+
+// --- mergeTranslations ---
+document.getElementById('btnMerge').addEventListener('click', () => {
+  const json = document.getElementById('mergeJson').value.trim();
+  try {
+    const data = JSON.parse(json);
+    window.i18n.mergeTranslations(data);
+    const count = window.i18n._translations ? Object.keys(window.i18n._translations).length : 0;
+    document.getElementById('mergeResult').textContent = `Merged OK. Total entries: ${count}`;
+    updateStatus();
+  } catch (e) {
+    document.getElementById('mergeResult').textContent = 'Error: ' + e.message;
+  }
+});
+
+// --- addLocaleFiles + setLang ---
+document.getElementById('btnAddLocale').addEventListener('click', () => {
+  const url = document.getElementById('localeUrl').value.trim();
+  const lang = document.getElementById('localeLang').value.trim();
+  if (!url || !lang) {
+    document.getElementById('localeResult').textContent = 'Please fill in both URL and language code.';
+    return;
+  }
+  window.i18n.addLocaleFiles({ [lang]: url });
+  document.getElementById('localeResult').textContent = `Registered: ${lang} → ${url}`;
+});
+
+document.getElementById('btnSetLang').addEventListener('click', () => {
+  const lang = document.getElementById('localeLang').value.trim();
+  if (!lang) return;
+  window.i18n.setLang(lang);
+});
+</script>
+</body>
+</html>

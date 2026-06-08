@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPL AgentRouter Cross-Runtime Test</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(180deg, #eef3ff 0%, #f8fafc 40%, #eef7f2 100%);
+            color: #1f2937;
+        }
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 { margin: 0 0 10px; font-size: 28px; color: #0f172a; }
+        h2 { margin: 0 0 12px; font-size: 18px; color: #172554; }
+        .hero {
+            background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 38%), linear-gradient(135deg, #ffffff, #e8f0ff 58%, #f4fbf7);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            border-radius: 18px;
+            padding: 22px;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+            margin-bottom: 18px;
+        }
+        .hero p { max-width: 900px; color: #334155; line-height: 1.55; margin: 0; }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+            margin-bottom: 16px;
+        }
+        .status-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .pill strong { color: #0f172a; }
+        .topology {
+            background: #0f172a;
+            color: #dbeafe;
+            border-radius: 14px;
+            padding: 14px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            min-height: 160px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            margin: 2px;
+        }
+        .badge.local { background: #dcfce7; color: #166534; }
+        .badge.remote { background: #dbeafe; color: #1d4ed8; }
+        #eventLog {
+            background: #0f172a;
+            color: #cbd5e1;
+            border-radius: 14px;
+            padding: 14px;
+            font-family: Consolas, monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            min-height: 200px;
+            max-height: 400px;
+            overflow: auto;
+        }
+        #eventLog .time { color: #93c5fd; }
+        #eventLog .ok { color: #86efac; }
+        #eventLog .warn { color: #facc15; }
+        #eventLog .err { color: #fca5a5; }
+
+        /* ── Test Prompt Section ── */
+        .test-form { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 12px; }
+        .test-form select, .test-form button {
+            padding: 8px 14px; border-radius: 10px; border: 1px solid #cbd5e1;
+            font-size: 13px; background: #fff; cursor: pointer;
+        }
+        .test-form select { min-width: 140px; }
+        .test-form button {
+            background: #2563eb; color: #fff; border: none; font-weight: 600;
+        }
+        .test-form button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .test-form textarea {
+            flex: 1; min-width: 260px; min-height: 60px; padding: 8px 12px;
+            border-radius: 10px; border: 1px solid #cbd5e1; font-size: 13px;
+            font-family: inherit; resize: vertical;
+        }
+        #taskResult {
+            background: #0f172a; color: #e2e8f0; border-radius: 14px;
+            padding: 14px; font-family: Consolas, monospace; font-size: 12px;
+            line-height: 1.5; white-space: pre-wrap; min-height: 80px;
+            max-height: 300px; overflow: auto;
+        }
+        #taskResult .stream { color: #93c5fd; }
+        #taskResult .final { color: #86efac; }
+        #taskResult .err { color: #fca5a5; }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="hero">
+        <h1>NPL ↔ JS AgentRouter Cross-Runtime Lab</h1>
+        <p>
+            This page runs inside Paracraft's WebView (or standalone browser for layout preview).
+            It registers two local JS agents (<strong>jsAgent1</strong>, <strong>jsAgent2</strong>) backed by
+            real LLM calls (keepwork-flash) via <code>aiChat.createSession()</code>,
+            and communicates with the NPL-side <strong>nplAgent</strong> through AgentRouter over NPLJS.
+            All test operations are initiated from the NPL-side MCML page (AgentRouterTest).
+        </p>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <h2>Connection Status</h2>
+            <div class="status-row">
+                <span class="pill">Router ID: <strong id="routerId">-</strong></span>
+                <span class="pill">Connected: <strong id="connectedCount">0</strong></span>
+            </div>
+            <div class="status-row">
+                <span class="pill">Local Agents: <span id="localAgents"><em>None</em></span></span>
+            </div>
+            <div class="status-row">
+                <span class="pill">Remote Agents (NPL): <span id="remoteAgents"><em>Waiting...</em></span></span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Topology</h2>
+            <div id="topologyDiagram" class="topology">Initializing...</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Test: Send Prompt to Agent</h2>
+        <div class="test-form">
+            <select id="targetAgent">
+                <option value="jsAgent1">jsAgent1</option>
+                <option value="jsAgent2">jsAgent2</option>
+                <option value="nplAgent">nplAgent (NPL)</option>
+            </select>
+            <textarea id="taskPrompt" placeholder="Enter prompt to send...">What is 2+3? Reply with just the number.</textarea>
+            <button id="btnSend" onclick="sendTestTask()">Send</button>
+        </div>
+        <div id="taskResult">Result will appear here...</div>
+    </div>
+
+    <div class="card">
+        <h2>Event Log</h2>
+        <div id="eventLog">Waiting for events...</div>
+    </div>
+</div>
+
+<script src="../dist/keepworkSDK.iife.js"></script>
+<script>if (typeof KeepworkSDK === 'undefined') document.write('<script src="../keepworkSDK.iife.js"><\/script>')</script>
+<script src="../dist/keepworkSDK.AIChat.iife.js"></script>
+<script>
+/* ────────────── Globals ────────────── */
+var sdk = null;
+var router = null;
+var npljsInstance = null;
+
+/* ────────────── NPLJS Channel Names (must match AgentRouterTest.lua) ────────────── */
+var NPLJS_SEND_EVENT = '@webparacraft_agentRouterTest';   // JS → Lua
+var NPLJS_RECV_EVENT = '@keepwork_agentRouterTest';       // Lua → JS
+
+/* ────────────── Utility ────────────── */
+function escapeHtml(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function log(message, level) {
+    level = level || 'info';
+    var el = document.getElementById('eventLog');
+    if (!el) return;
+    if (el.textContent === 'Waiting for events...') el.innerHTML = '';
+    var ts = new Date().toLocaleTimeString();
+    var cls = level === 'success' ? 'ok' : (level === 'error' ? 'err' : (level === 'warn' ? 'warn' : ''));
+    el.innerHTML += '<span class="time">[' + escapeHtml(ts) + ']</span> <span class="' + cls + '">' + escapeHtml(message) + '</span>\n';
+    el.scrollTop = el.scrollHeight;
+}
+
+/* ────────────── Agent Handlers ────────────── */
+
+
+
+/* ────────────── Test: Send Prompt ────────────── */
+
+function sendTestTask() {
+    var agentName = document.getElementById('targetAgent').value;
+    var prompt = document.getElementById('taskPrompt').value.trim();
+    var resultEl = document.getElementById('taskResult');
+    var btn = document.getElementById('btnSend');
+
+    if (!prompt) { log('Prompt is empty', 'warn'); return; }
+    if (!router) { log('Router not initialized', 'error'); return; }
+
+    btn.disabled = true;
+    resultEl.innerHTML = '<span class="stream">Sending to ' + escapeHtml(agentName) + '...</span>\n';
+    log('submitTask → ' + agentName + ': ' + prompt.slice(0, 80), 'info');
+
+    router.submitTask(agentName, { prompt: prompt }, {
+        onStream: function(chunk) {
+            var text = (chunk && (chunk.content || chunk.fullResponse)) || '';
+            if (text) {
+                resultEl.innerHTML += '<span class="stream">' + escapeHtml(text) + '</span>';
+                resultEl.scrollTop = resultEl.scrollHeight;
+            }
+        }
+    }).then(function(result) {
+        resultEl.innerHTML += '\n<span class="final">── Final Result ──\n' + escapeHtml(String(result)) + '</span>\n';
+        resultEl.scrollTop = resultEl.scrollHeight;
+        log('Result from ' + agentName + ': ' + String(result).slice(0, 120), 'success');
+        btn.disabled = false;
+    }).catch(function(err) {
+        resultEl.innerHTML += '\n<span class="err">── Error ──\n' + escapeHtml(err.message || String(err)) + '</span>\n';
+        resultEl.scrollTop = resultEl.scrollHeight;
+        log('Error from ' + agentName + ': ' + (err.message || err), 'error');
+        btn.disabled = false;
+    });
+}
+
+/* ────────────── Status UI ────────────── */
+
+function refreshStatus() {
+    if (!router) return;
+
+    document.getElementById('routerId').textContent = router.instanceId ? router.instanceId.slice(0, 10) : '-';
+    document.getElementById('connectedCount').textContent = router.connectedWindows ? router.connectedWindows.size : 0;
+
+    // Local agents
+    var locals = router.localAgents ? Array.from(router.localAgents.keys()) : [];
+    var localEl = document.getElementById('localAgents');
+    localEl.innerHTML = locals.length
+        ? locals.map(function(n) { return '<span class="badge local">' + escapeHtml(n) + '</span>'; }).join('')
+        : '<em>None</em>';
+
+    // Remote agents (should include nplAgent from Lua side)
+    var remotes = router.routeTable ? Array.from(router.routeTable.keys()).sort() : [];
+    var remoteEl = document.getElementById('remoteAgents');
+    remoteEl.innerHTML = remotes.length
+        ? remotes.map(function(n) { return '<span class="badge remote">' + escapeHtml(n) + '</span>'; }).join('')
+        : '<em>Waiting...</em>';
+
+    // Topology diagram
+    var lines = [
+        'JS Side (this page)',
+        '  ├─ jsAgent1  (LLM agent, keepwork-flash)  [local]',
+        '  ├─ jsAgent2  (LLM agent, keepwork-flash)  [local]',
+        '',
+        'NPL Side (Paracraft/Lua)',
+        '  └─ nplAgent  (run_npl_code)  [' + (remotes.indexOf('nplAgent') >= 0 ? 'discovered' : 'waiting...') + ']',
+        '',
+        'Connected windows: ' + (router.connectedWindows ? router.connectedWindows.size : 0),
+        'Remote agents: ' + (remotes.join(', ') || '(none)')
+    ];
+    document.getElementById('topologyDiagram').textContent = lines.join('\n');
+
+    // Update agent selector with all known agents
+    var select = document.getElementById('targetAgent');
+    if (select) {
+        var currentVal = select.value;
+        var allAgents = locals.concat(remotes);
+        // Only update if the set changed
+        var existing = Array.from(select.options).map(function(o) { return o.value; });
+        if (allAgents.sort().join(',') !== existing.sort().join(',')) {
+            select.innerHTML = '';
+            allAgents.forEach(function(name) {
+                var opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name + (locals.indexOf(name) >= 0 ? ' (local)' : ' (remote)');
+                select.appendChild(opt);
+            });
+            if (allAgents.indexOf(currentVal) >= 0) select.value = currentVal;
+        }
+    }
+}
+
+/* ────────────── Initialization ────────────── */
+
+function initRouter() {
+    try {
+        if (typeof KeepworkSDK !== 'undefined') {
+            sdk = (window.keepwork && window.keepwork.agentRouter)
+                ? window.keepwork
+                : new KeepworkSDK({ timeout: 30000 });
+            router = sdk.agentRouter;
+        } else if (typeof window.AgentRouter === 'function') {
+            router = new window.AgentRouter();
+        } else {
+            log('KeepworkSDK or AgentRouter is not available.', 'error');
+            return;
+        }
+
+        log('AgentRouter initialized, instanceId=' + (router.instanceId || '').slice(0, 10));
+
+        // Create NPLJS instance and attach to AgentRouter for NPL↔JS bridge
+        if (typeof NPLJS === 'function') {
+            npljsInstance = new NPLJS();
+            router.attachNPLJS(npljsInstance, {
+                sendEventName: NPLJS_SEND_EVENT,
+                recvEventName: NPLJS_RECV_EVENT
+            });
+            log('NPLJS bridge attached: send=' + NPLJS_SEND_EVENT + ' recv=' + NPLJS_RECV_EVENT, 'success');
+        } else {
+            log('NPLJS class not available — running in standalone browser mode (no NPL bridge)', 'warn');
+        }
+
+        // Register local JS agents as real LLM sessions
+        var DEFAULT_MODEL = 'keepwork-flash';
+        var DEFAULT_AGENT_TOOLS = ['agent', 'execute'];
+
+        // jsAgent1: general-purpose LLM agent (math, reasoning)
+        // createSession({ name }) auto-calls router.register('jsAgent1', session1)
+        var session1 = sdk.aiChat.createSession({
+            name: 'jsAgent1',
+            model: DEFAULT_MODEL,
+            enableTools: DEFAULT_AGENT_TOOLS.slice(),
+            systemPrompt: 'You are jsAgent1, a concise AI assistant. Answer clearly and directly.',
+        });
+
+        // jsAgent2: general-purpose LLM agent (data, processing)
+        var session2 = sdk.aiChat.createSession({
+            name: 'jsAgent2',
+            model: DEFAULT_MODEL,
+            enableTools: DEFAULT_AGENT_TOOLS.slice(),
+            systemPrompt: 'You are jsAgent2, a concise AI assistant. Process and return data accurately.',
+        });
+
+        log('Registered jsAgent1 (LLM agent, model=' + DEFAULT_MODEL + ')', 'success');
+        log('Registered jsAgent2 (LLM agent, model=' + DEFAULT_MODEL + ')', 'success');
+
+        refreshStatus();
+
+        // Poll for status updates
+        setInterval(refreshStatus, 2000);
+
+    } catch (e) {
+        log('Init error: ' + e.message, 'error');
+    }
+}
+
+/* ────────────── Message listener for debug ────────────── */
+window.addEventListener('message', function(event) {
+    var msg = event.data;
+    if (!msg || msg.is_agent_router !== true) return;
+
+    var summary = 'recv type=' + msg.type;
+    if (msg.agentName) summary += ' agent=' + msg.agentName;
+    if (msg.taskId) summary += ' taskId=' + String(msg.taskId).slice(0, 12);
+    if (msg.type === 'agent_task_result' && msg.result) {
+        summary += ' result=' + String(msg.result).slice(0, 80);
+    }
+    log(summary, msg.error ? 'error' : 'info');
+    refreshStatus();
+});
+
+/* ────────────── Boot ────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+    initRouter();
+});
+</script>
+</body>
+</html>

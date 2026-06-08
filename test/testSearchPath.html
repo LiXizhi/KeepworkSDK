@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Test addSearchPath</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+    .pass { color: #4ec9b0; }
+    .fail { color: #f44747; }
+    .info { color: #569cd6; }
+    pre { white-space: pre-wrap; margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <h2>addSearchPath Test</h2>
+  <div id="output"></div>
+
+  <script type="module">
+    try { await import('../index.ts'); } catch (e) { await import('../dist/keepworkSDK.iife.js'); }
+
+    const out = document.getElementById('output');
+    function log(msg, cls = 'info') {
+      const el = document.createElement('pre');
+      el.className = cls;
+      el.textContent = msg;
+      out.appendChild(el);
+    }
+
+    const sdk = window.keepwork;
+    if (!sdk) { log('ERROR: window.keepwork not found', 'fail'); throw new Error(); }
+
+    const store = sdk.personalPageStore;
+    const ws = 'testSearchPath';
+    const scoped = store.withWorkspace(ws);
+
+    // Register search path pointing to local test files served by Vite dev server
+    // The prefix includes the workspace name as required
+    const baseUrl = new URL('../test/DigitalHumanConfig/', window.location.href).href;
+    log(`Base URL: ${baseUrl}`);
+    log(`Registering search path: prefix="${ws}/skills" → baseUrl="${baseUrl}skills/"`);
+    scoped.addSearchPath(`${ws}/skills`, `${baseUrl}skills/`);
+
+    // --- Test 1: Read file that exists via search path ---
+    log('\n--- Test 1: readFile("skills/index") ---');
+    const content = await scoped.readFile('skills/index');
+    if (content && content.includes('# skill lists')) {
+      log(`PASS: Got content: "${content.trim()}"`, 'pass');
+    } else {
+      log(`FAIL: Unexpected content: "${content}"`, 'fail');
+    }
+
+    // --- Test 2: Second read should use cache (no fetch) ---
+    log('\n--- Test 2: readFile("skills/index") again (cached) ---');
+    const content2 = await scoped.readFile('skills/index');
+    if (content2 === content) {
+      log('PASS: Cached read returned same content', 'pass');
+    } else {
+      log(`FAIL: Content mismatch on cached read`, 'fail');
+    }
+
+    // --- Test 3: Read non-existent file → empty string + not-found cache ---
+    log('\n--- Test 3: readFile("skills/nonexistent") ---');
+    const missing = await scoped.readFile('skills/nonexistent');
+    if (missing === '') {
+      log('PASS: Non-existent file returned empty string', 'pass');
+    } else {
+      log(`FAIL: Expected empty string, got: "${missing}"`, 'fail');
+    }
+
+    // --- Test 4: Repeat non-existent → should hit not-found cache ---
+    log('\n--- Test 4: readFile("skills/nonexistent") again (not-found cache) ---');
+    const missing2 = await scoped.readFile('skills/nonexistent');
+    if (missing2 === '') {
+      log('PASS: Not-found cache working, returned empty string', 'pass');
+    } else {
+      log(`FAIL: Expected empty string, got: "${missing2}"`, 'fail');
+    }
+
+    // --- Test 5: File outside search path prefix → not affected ---
+    log('\n--- Test 5: readFile("other/file") → no search path match ---');
+    const other = await scoped.readFile('other/file');
+    if (other === '') {
+      log('PASS: File outside prefix returned empty string', 'pass');
+    } else {
+      log(`FAIL: Unexpected content: "${other}"`, 'fail');
+    }
+
+    // --- Test 6: removeSearchPath ---
+    log('\n--- Test 6: removeSearchPath then readFile (no longer fetches) ---');
+    // Clear the in-memory cache first
+    const pageKey = scoped._toInternalPageKey('skills/index');
+    delete scoped.personalPageData[pageKey];
+    scoped.removeSearchPath(`${ws}/skills`);
+    const afterRemove = await scoped.readFile('skills/index');
+    if (afterRemove === '') {
+      log('PASS: After removeSearchPath, readFile returned empty', 'pass');
+    } else {
+      log(`FAIL: Expected empty, got: "${afterRemove}"`, 'fail');
+    }
+
+    // --- Test 7: getAbsUrl with search path match ---
+    log('\n--- Test 7: getAbsUrl("skills/index") with search path ---');
+    // Re-register the search path
+    scoped.addSearchPath(`${ws}/skills`, `${baseUrl}skills/`);
+    const absUrl1 = scoped.getAbsUrl('skills/index');
+    const expectedUrl1 = `${baseUrl}skills/index.md`;
+    if (absUrl1 === expectedUrl1) {
+      log(`PASS: ${absUrl1}`, 'pass');
+    } else {
+      log(`FAIL: Expected "${expectedUrl1}", got "${absUrl1}"`, 'fail');
+    }
+
+    // --- Test 8: getAbsUrl with file extension already present ---
+    log('\n--- Test 8: getAbsUrl("skills/index.md") with extension ---');
+    const absUrl2 = scoped.getAbsUrl('skills/index.md');
+    const expectedUrl2 = `${baseUrl}skills/index.md`;
+    if (absUrl2 === expectedUrl2) {
+      log(`PASS: ${absUrl2}`, 'pass');
+    } else {
+      log(`FAIL: Expected "${expectedUrl2}", got "${absUrl2}"`, 'fail');
+    }
+
+    // --- Test 9: getAbsUrl without search path match → Keepwork raw URL ---
+    log('\n--- Test 9: getAbsUrl("other/file") → Keepwork raw URL fallback ---');
+    const absUrl3 = scoped.getAbsUrl('other/file');
+    log(`Result: ${absUrl3}`);
+    if (absUrl3.includes('/api/raw/') && absUrl3.includes(`${ws}/other/file`)) {
+      log('PASS: Fallback URL contains /api/raw/ and correct path', 'pass');
+    } else if (!store.getUsername()) {
+      // Anonymous mode — just check it ends with .md
+      if (absUrl3 === `${ws}/other/file.md`) {
+        log('PASS: Anonymous fallback returned path with .md', 'pass');
+      } else {
+        log(`FAIL: Anonymous fallback unexpected: "${absUrl3}"`, 'fail');
+      }
+    } else {
+      log(`FAIL: Unexpected URL: "${absUrl3}"`, 'fail');
+    }
+
+    // --- Test 10: getAbsUrl after removeSearchPath → always fallback ---
+    log('\n--- Test 10: getAbsUrl after removeSearchPath ---');
+    scoped.removeSearchPath(`${ws}/skills`);
+    const absUrl4 = scoped.getAbsUrl('skills/index');
+    log(`Result: ${absUrl4}`);
+    if (!absUrl4.startsWith(baseUrl)) {
+      log('PASS: After remove, no longer matches search path', 'pass');
+    } else {
+      log(`FAIL: Still matched removed search path: "${absUrl4}"`, 'fail');
+    }
+
+    log('\n--- All tests complete ---');
+  </script>
+</body>
+</html>

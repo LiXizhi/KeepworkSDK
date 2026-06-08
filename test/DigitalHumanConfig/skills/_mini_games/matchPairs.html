@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>连连看</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <script>
+    // Load SDK from ?sdk= param (module=1 for ES modules), fallback to CDN IIFE
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var sdkUrl = params.get('sdk') || 'https://cdn.keepwork.com/sdk/keepworkSDK.iife.js';
+      var isModule = params.get('module') === '1';
+      var s = document.createElement('script');
+      if (isModule) s.type = 'module';
+      s.src = sdkUrl;
+      document.head.appendChild(s);
+    })();
+  </script>
+  <style>
+    .pair-btn {
+      transition: all 0.18s ease;
+      border: 3px solid transparent;
+      cursor: pointer;
+      user-select: none;
+    }
+    .pair-btn:hover { filter: brightness(1.06); transform: scale(1.02); }
+    .pair-btn:active { transform: scale(0.97); }
+    .pair-selected { border-color: #2563eb !important; box-shadow: 0 0 0 4px rgba(37,99,235,0.25); }
+    .pair-matched {
+      opacity: 0.45;
+      pointer-events: none;
+      background-color: #dcfce7 !important;
+      color: #15803d !important;
+      border-color: #86efac !important;
+    }
+    .pair-wrong { animation: shake 0.4s ease; border-color: #ef4444 !important; }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-pink-50 to-amber-50 flex justify-center items-start p-5 font-sans">
+  <div class="w-full max-w-[480px] bg-white rounded-2xl shadow-lg px-5 py-6 flex flex-col gap-5"
+       aria-label="连连看游戏"
+       data-ai-hint="连连看小游戏：AI用type_in_app向隐藏文本框写入JSON（格式：{&quot;title&quot;:&quot;可选标题&quot;,&quot;pairs&quot;:[[&quot;左项&quot;,&quot;右项&quot;],...]})，界面自动把左右两列打乱显示，用户依次点选一左一右进行配对。直接type_in_app写入下一组JSON即可自动进入下一组，无需点击'下一组'按钮，组数由type_in_app调用次数决定。AI可点击'提示'高亮一对。">
+
+    <!-- 标题 / 提示 -->
+    <div id="titleBar" class="text-center text-base text-gray-600 leading-snug min-h-[1.5rem]">等待出题...</div>
+
+    <!-- 隐藏 JSON 输入框 -->
+    <div id="inputWrapper" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">
+      <input id="pairsInput" type="text"
+           data-ai-type="textbox"
+           aria-label="配对JSON"
+           data-ai-hint="AI用type_in_app写入JSON字符串，格式：{&quot;title&quot;:&quot;本组主题（可选，例如：把家人和他/她爱做的事配上）&quot;,&quot;pairs&quot;:[[&quot;左项&quot;,&quot;右项&quot;],[&quot;左项&quot;,&quot;右项&quot;]]}。建议3-5对，每项不超过8个字。写入后界面自动把左右两列分别打乱显示。">
+    </div>
+
+    <!-- 配对区：两列网格 -->
+    <div class="grid grid-cols-2 gap-3" id="boardArea">
+      <div id="leftCol" class="flex flex-col gap-3"></div>
+      <div id="rightCol" class="flex flex-col gap-3"></div>
+    </div>
+
+    <!-- 进度 -->
+    <div id="progressBar" class="text-center text-sm text-gray-500">已配对：0 / 0</div>
+
+    <!-- 隐藏控制按钮 -->
+    <div style="opacity:0;position:absolute;pointer-events:none">
+      <button id="btnHint" aria-label="提示" data-ai-hint="AI点击此按钮高亮一对尚未配对的项作为提示">提示</button>
+      <button id="btnFinish" aria-label="结束" data-ai-hint="AI点击此按钮结束游戏，显示结果页">结束</button>
+    </div>
+
+    <!-- 结果页 -->
+    <div id="resultPage" class="hidden text-center py-6 px-2.5">
+      <div class="text-6xl mb-4">🎉</div>
+      <h2 class="text-2xl font-bold text-pink-700 mb-4">配对完成！</h2>
+      <div class="flex justify-center gap-4 mb-5">
+        <div class="bg-pink-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-pink-600" id="statTotal">0</span>
+          <span class="text-sm text-gray-500 mt-1">总配对</span>
+        </div>
+        <div class="bg-green-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-green-600" id="statCorrect">0</span>
+          <span class="text-sm text-gray-500 mt-1">一次配对</span>
+        </div>
+        <div class="bg-amber-50 rounded-xl px-5 py-4 flex flex-col items-center min-w-[100px]">
+          <span class="text-3xl font-bold text-amber-600" id="statAccuracy">0%</span>
+          <span class="text-sm text-gray-500 mt-1">正确率</span>
+        </div>
+      </div>
+      <p id="resultSummary" class="text-lg text-gray-600 leading-relaxed mb-2"></p>
+      <p class="mt-4 text-sm text-gray-400">慢慢回忆，记得真清楚～</p>
+      <button id="btnClose" aria-label="关闭" data-ai-hint="AI点击此按钮关闭游戏并发送gameFinished事件"
+              class="mt-6 w-full py-4 bg-pink-600 hover:bg-pink-700 text-white text-2xl font-bold rounded-xl shadow-md transition-colors">
+        关闭
+      </button>
+    </div>
+  </div>
+
+  <!-- 反馈浮层 -->
+  <div id="feedback" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl opacity-0 scale-50 pointer-events-none transition-all duration-400 z-50"></div>
+
+  <script>
+    function waitForSdkGlobals(timeoutMs) {
+      timeoutMs = timeoutMs || 10000;
+      var start = Date.now();
+      return new Promise(function(resolve) {
+        (function check() {
+          if (typeof window.KeepworkSDK === 'function') return resolve();
+          if (Date.now() - start >= timeoutMs) return resolve();
+          setTimeout(check, 30);
+        })();
+      });
+    }
+
+    (async function() {
+      await waitForSdkGlobals();
+      var token = new URLSearchParams(window.location.search).get('token');
+      if (token && window.KeepworkSDK) {
+        if (!window.keepwork) window.keepwork = new KeepworkSDK();
+        window.keepwork.setToken(token);
+      }
+
+      // ?dev=true 显示 AI 面板
+      if (new URLSearchParams(window.location.search).get('dev') === 'true') {
+        const w = document.getElementById('inputWrapper');
+        w.style.cssText = 'position:static;width:auto;height:auto;overflow:visible;';
+        const pi = document.getElementById('pairsInput');
+        pi.type = 'text';
+        pi.style.cssText = 'display:block;width:100%;border:2px dashed #94a3b8;border-radius:8px;padding:10px;min-height:40px;font-family:monospace;font-size:12px;background:#f8fafc;box-sizing:border-box;';
+        ['btnHint','btnFinish'].forEach(id => {
+          const b = document.getElementById(id);
+          b.parentElement.style.opacity = '1';
+          b.parentElement.style.position = 'static';
+          b.parentElement.style.pointerEvents = 'auto';
+          b.style.cssText = 'margin:4px;padding:4px 10px;background:#e2e8f0;border-radius:6px;font-size:12px;';
+        });
+      }
+
+      const $ = (id) => document.getElementById(id);
+      const titleBar    = $('titleBar');
+      const leftCol     = $('leftCol');
+      const rightCol    = $('rightCol');
+      const progressBar = $('progressBar');
+      const pairsInput  = $('pairsInput');
+      const btnHint     = $('btnHint');
+      const btnFinish   = $('btnFinish');
+      const btnClose    = $('btnClose');
+      const resultPage  = $('resultPage');
+      const feedbackEl  = $('feedback');
+
+      const state = {
+        pairs: [],          // [[left,right],...]
+        matchedSet: new Set(), // pair indices
+        selectedLeft: null,
+        selectedRight: null,
+        totalAttempts: 0,
+        firstTryCorrect: 0,
+        attemptedPairs: new Set(), // pair indices that had wrong attempt
+        finished: false,
+      };
+
+      function showFeedback(emoji) {
+        feedbackEl.textContent = emoji;
+        feedbackEl.classList.remove('opacity-0', 'scale-50');
+        feedbackEl.classList.add('opacity-100', 'scale-100');
+        setTimeout(() => {
+          feedbackEl.classList.remove('opacity-100', 'scale-100');
+          feedbackEl.classList.add('opacity-0', 'scale-50');
+        }, 700);
+      }
+
+      function shuffle(arr) {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      }
+
+      function renderBoard(data) {
+        const pairs = (data.pairs || []).filter(p => Array.isArray(p) && p.length === 2 && p[0] && p[1]);
+        if (pairs.length === 0) return;
+        state.pairs = pairs;
+        state.matchedSet = new Set();
+        state.selectedLeft = null;
+        state.selectedRight = null;
+        state.totalAttempts = 0;
+        state.firstTryCorrect = 0;
+        state.attemptedPairs = new Set();
+
+        titleBar.textContent = data.title || '把左右两边对应的项连起来吧';
+
+        const leftItems  = shuffle(pairs.map((p, i) => ({ text: p[0], pairIdx: i })));
+        const rightItems = shuffle(pairs.map((p, i) => ({ text: p[1], pairIdx: i })));
+
+        leftCol.innerHTML = '';
+        rightCol.innerHTML = '';
+
+        leftItems.forEach(item => {
+          const b = document.createElement('button');
+          b.className = 'pair-btn w-full px-3 py-4 rounded-xl bg-blue-50 text-blue-900 text-lg font-semibold shadow-sm';
+          b.textContent = item.text;
+          b.dataset.pairIdx = item.pairIdx;
+          b.dataset.side = 'left';
+          b.addEventListener('click', () => onTap(b, 'left', item.pairIdx));
+          leftCol.appendChild(b);
+        });
+
+        rightItems.forEach(item => {
+          const b = document.createElement('button');
+          b.className = 'pair-btn w-full px-3 py-4 rounded-xl bg-amber-50 text-amber-900 text-lg font-semibold shadow-sm';
+          b.textContent = item.text;
+          b.dataset.pairIdx = item.pairIdx;
+          b.dataset.side = 'right';
+          b.addEventListener('click', () => onTap(b, 'right', item.pairIdx));
+          rightCol.appendChild(b);
+        });
+
+        updateProgress();
+      }
+
+      function updateProgress() {
+        progressBar.textContent = '已配对：' + state.matchedSet.size + ' / ' + state.pairs.length;
+      }
+
+      function clearSelection() {
+        if (state.selectedLeft) state.selectedLeft.btn.classList.remove('pair-selected');
+        if (state.selectedRight) state.selectedRight.btn.classList.remove('pair-selected');
+        state.selectedLeft = null;
+        state.selectedRight = null;
+      }
+
+      function onTap(btn, side, pairIdx) {
+        if (btn.classList.contains('pair-matched')) return;
+        // toggle off
+        const slot = side === 'left' ? 'selectedLeft' : 'selectedRight';
+        if (state[slot] && state[slot].btn === btn) {
+          btn.classList.remove('pair-selected');
+          state[slot] = null;
+          return;
+        }
+        // replace same-side selection
+        if (state[slot]) state[slot].btn.classList.remove('pair-selected');
+        state[slot] = { btn, pairIdx };
+        btn.classList.add('pair-selected');
+
+        // both sides chosen → judge
+        if (state.selectedLeft && state.selectedRight) {
+          state.totalAttempts++;
+          const L = state.selectedLeft, R = state.selectedRight;
+          if (L.pairIdx === R.pairIdx) {
+            // correct
+            L.btn.classList.add('pair-matched');
+            R.btn.classList.add('pair-matched');
+            L.btn.classList.remove('pair-selected');
+            R.btn.classList.remove('pair-selected');
+            state.matchedSet.add(L.pairIdx);
+            if (!state.attemptedPairs.has(L.pairIdx)) state.firstTryCorrect++;
+            state.selectedLeft = null;
+            state.selectedRight = null;
+            showFeedback('✅');
+            updateProgress();
+            window.parent.postMessage({ type: 'pairMatched', data: { pairIdx: L.pairIdx, total: state.pairs.length, matched: state.matchedSet.size } }, '*');
+
+            // dh:context — 配对成功
+            window.parent.postMessage({
+              type: 'dh:context',
+              text: `用户成功配对了"${state.pairs[L.pairIdx][0]}"和"${state.pairs[L.pairIdx][1]}"，已配对${state.matchedSet.size}/${state.pairs.length}组`,
+              debounce: 2000
+            }, '*');
+
+            if (state.matchedSet.size === state.pairs.length) {
+              showFeedback('🎉');
+              window.parent.postMessage({ type: 'roundComplete', data: { total: state.pairs.length, firstTryCorrect: state.firstTryCorrect } }, '*');
+
+              // dh:context — 全部配对完成
+              window.parent.postMessage({
+                type: 'dh:context',
+                text: `太棒了！用户完成了全部${state.pairs.length}组配对，一次配对成功${state.firstTryCorrect}组`,
+                debounce: 2000
+              }, '*');
+            }
+          } else {
+            // wrong
+            state.attemptedPairs.add(L.pairIdx);
+            state.attemptedPairs.add(R.pairIdx);
+            L.btn.classList.add('pair-wrong');
+            R.btn.classList.add('pair-wrong');
+            showFeedback('❌');
+            // dh:context — 配对错误
+            window.parent.postMessage({
+              type: 'dh:context',
+              text: `用户配对错误，"${state.pairs[L.pairIdx][0]}"和"${state.pairs[R.pairIdx][1]}"不匹配`,
+              debounce: 2000
+            }, '*');
+            const lb = L.btn, rb = R.btn;
+            setTimeout(() => {
+              lb.classList.remove('pair-wrong', 'pair-selected');
+              rb.classList.remove('pair-wrong', 'pair-selected');
+            }, 500);
+            state.selectedLeft = null;
+            state.selectedRight = null;
+          }
+        }
+      }
+
+      // Listen for AI input
+      function handlePairsInput() {
+        const raw = (pairsInput.value || '').trim();
+        if (!raw) return;
+        try {
+          const data = JSON.parse(raw);
+          if (data && Array.isArray(data.pairs) && data.pairs.length > 0) {
+            renderBoard(data);
+          }
+        } catch (e) { /* ignore */ }
+      }
+      pairsInput.addEventListener('input', handlePairsInput);
+      const origDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      Object.defineProperty(pairsInput, 'value', {
+        get() { return origDesc.get.call(this); },
+        set(v) { origDesc.set.call(this, v); handlePairsInput(); },
+        configurable: true
+      });
+
+      // Hint: highlight one unmatched pair
+      btnHint.addEventListener('click', () => {
+        clearSelection();
+        for (let i = 0; i < state.pairs.length; i++) {
+          if (!state.matchedSet.has(i)) {
+            const lb = leftCol.querySelector('[data-pair-idx="' + i + '"]');
+            const rb = rightCol.querySelector('[data-pair-idx="' + i + '"]');
+            if (lb) {
+              lb.classList.add('pair-selected');
+              setTimeout(() => lb.classList.remove('pair-selected'), 1800);
+            }
+            if (rb) {
+              rb.classList.add('pair-selected');
+              setTimeout(() => rb.classList.remove('pair-selected'), 1800);
+            }
+            break;
+          }
+        }
+      });
+
+      // Next round is handled by type_in_app writing new JSON (auto-detected by value setter)
+
+      // Finish: show result page
+      btnFinish.addEventListener('click', () => {
+        if (state.finished) return;
+        state.finished = true;
+        const total = state.pairs.length || 0;
+        const correct = state.firstTryCorrect;
+        const accuracy = total === 0 ? 0 : Math.round((correct / total) * 100);
+        $('statTotal').textContent = total;
+        $('statCorrect').textContent = correct;
+        $('statAccuracy').textContent = accuracy + '%';
+        let comment = '';
+        if (accuracy >= 80) comment = '记得真清楚，好厉害！';
+        else if (accuracy >= 50) comment = '不错哦，多练几次会更好～';
+        else comment = '今天玩得开心就好啦～';
+        $('resultSummary').textContent = comment;
+        document.getElementById('boardArea').classList.add('hidden');
+        progressBar.classList.add('hidden');
+        titleBar.classList.add('hidden');
+        resultPage.classList.remove('hidden');
+        // store for gameFinished
+        state._result = { total, correct, accuracy, comment };
+
+        // dh:context — 游戏结束
+        window.parent.postMessage({
+          type: 'dh:context',
+          text: `连连看游戏结束，共${total}组配对，一次配对成功${correct}组，正确率${accuracy}%。${comment}`,
+          debounce: 2000
+        }, '*');
+
+        // 5秒后自动发送 gameFinished
+        _autoFinishTimer = setTimeout(sendGameFinished, 5000);
+      });
+
+      let _autoFinishTimer = null;
+      function sendGameFinished() {
+        if (_autoFinishTimer) { clearTimeout(_autoFinishTimer); _autoFinishTimer = null; }
+        const r = state._result || { total: 0, correct: 0, accuracy: 0, comment: '' };
+        window.parent.postMessage({ type: 'gameFinished', data: r }, '*');
+      }
+      btnClose.addEventListener('click', sendGameFinished);
+
+      // Notify parent
+      window.parent.postMessage({ type: 'gameLoaded' }, '*');
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>数字人之家</title>
+  <link rel="stylesheet" href="./dh-home/style.css">
+  <script>
+    // Load SDK from ?sdk= param (module=1 for ES modules), fallback to CDN IIFE
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var sdkUrl = params.get('sdk') || 'https://cdn.keepwork.com/sdk/keepworkSDK.iife.js';
+      var isModule = params.get('module') === '1';
+      var s = document.createElement('script');
+      if (isModule) s.type = 'module';
+      s.src = sdkUrl;
+      document.head.appendChild(s);
+    })();
+  </script>
+</head>
+<body
+  aria-label="数字人之家"
+  data-ai-hint="数字人之家：一个2D写实风格的横向滚动家居场景，玩家可拖动屏幕左右移动，点击墙上的照片、电脑桌、沙发、窗户等互动元素，与数字人产生对话上下文。AI可通过 type_in_app 写入 sceneCommand JSON 来控制场景（如 {action:'focus', target:'computer'} 聚焦某个物品；{action:'highlight', target:'photo1'} 高亮某个物品）。AI 也可点击 btnFinish 结束体验。">
+
+  <div id="hud"></div>
+
+  <button id="btnEdit" type="button" aria-label="编辑场景" title="编辑场景" data-ai-hint="切换编辑模式：进入后可拖动、缩放、删除现有物品，并从左侧目录添加新物品。">✏️</button>
+
+  <!-- 编辑模式：物品目录（左侧纵向，2 列网格） -->
+  <div id="catalog" aria-label="物品目录">
+    <div id="catalogHeader">
+      <span class="ctitle">物品目录</span>
+      <button id="btnCloseCatalog" type="button" aria-label="关闭目录" title="关闭目录">✕</button>
+    </div>
+    <div id="catalogList"></div>
+    <div id="catalogTrash" aria-hidden="true">🗑️</div>
+  </div>
+
+  <!-- Perspective floor: fixed to viewport so the vanishing point is always centered -->
+  <div id="floor" aria-hidden="true"></div>
+
+  <!-- 横向滚动主场景 -->
+  <div id="stage">
+    <div id="scene" data-ai-hint="家居场景容器：宽4200px的横向场景，子元素是可点击的家居物品">
+    </div>
+  </div>
+
+  <!-- AI 控制面板（视觉不可见，但对 type_in_app 工具可见） -->
+  <div id="aiPanel" style="position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);pointer-events:none;z-index:-1">
+    <div id="sceneCommand"
+         data-ai-type="textbox"
+         aria-label="场景指令"
+          data-ai-hint="AI用 type_in_app 写入 JSON 场景指令。支持动作: focus、highlight、say、shake、dim、pan、recall、openSkill、clear。基础格式: {action:'focus'|'highlight'|'say'|'shake'|'dim'|'pan'|'recall'|'openSkill'|'clear', target?:物品id, text?:string, x?:number, skillPath?:string, title?:string}。target 可选值: photo-family, photo-travel, photo-pet, computer-desk, sofa, window, plant, bookshelf, tv, kitchen-island, fridge, lamp。示例: {action:'focus',target:'computer-desk'} 让镜头平滑滚动到电脑桌；{action:'highlight',target:'photo-family',text:'看这张全家福'} 高亮并显示气泡；{action:'say',text:'这间屋子真温馨'} 显示场景旁白；{action:'openSkill',skillPath:'skills/findWords/SKILL.md',title:'找单词'} 通过 SDK 弹窗打开小游戏 Skill。"></div>
+    <button id="btnFinish" aria-label="结束" data-ai-hint="AI点击此按钮结束体验，发送 gameFinished">结束</button>
+  </div>
+
+  <!-- 反馈浮层 -->
+  <div id="feedback" style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0.5);font-size:48px;opacity:0;transition:all 360ms ease;pointer-events:none;z-index:60"></div>
+
+  <!-- 物品目录 / SVG 资源（全局 script，非 ES Module） -->
+  <script src="./digitalHumanHome.catalog.js"></script>
+
+  <!-- 主逻辑入口（ES Module） -->
+  <script type="module" src="./dh-home/main.js"></script>
+</body>
+</html>

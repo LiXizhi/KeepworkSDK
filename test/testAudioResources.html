@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音频资源测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        .voice-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .voice-item {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        .voice-item:hover {
+            border-color: #4CAF50;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
+        }
+        .voice-item.playing {
+            background: #e8f5e8;
+            border-color: #4CAF50;
+        }
+        .voice-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        .voice-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .voice-id {
+            font-size: 12px;
+            color: #666;
+        }
+        .voice-play-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            background-color: #4CAF50;
+            color: white;
+            min-width: 80px;
+        }
+        .voice-play-btn:hover {
+            background-color: #45a049;
+        }
+        .voice-play-btn.playing {
+            background-color: #ff9800;
+        }
+        .voice-play-btn.playing:hover {
+            background-color: #e68900;
+        }
+        .control-panel {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .control-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .stop-btn {
+            background-color: #f44336;
+            color: white;
+        }
+        .stop-btn:hover {
+            background-color: #da190b;
+        }
+        .info {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .current-url {
+            word-break: break-all;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            border-left: 4px solid #007bff;
+            margin-top: 10px;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .status.playing {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.stopped {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.paused {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 音频资源测试页面</h1>
+        
+        <div class="voice-grid">
+            <div class="voice-item" data-voice="0">
+                <div class="voice-info">
+                    <span class="voice-name">百度（女声）</span>
+                    <span class="voice-id">ID: 0</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('0')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="1">
+                <div class="voice-info">
+                    <span class="voice-name">百度（男声）</span>
+                    <span class="voice-id">ID: 1</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('1')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="3">
+                <div class="voice-info">
+                    <span class="voice-name">情感合成-度逍遥</span>
+                    <span class="voice-id">ID: 3</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('3')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="4">
+                <div class="voice-info">
+                    <span class="voice-name">情感合成-度丫丫</span>
+                    <span class="voice-id">ID: 4</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('4')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="5">
+                <div class="voice-info">
+                    <span class="voice-name">度小娇</span>
+                    <span class="voice-id">ID: 5</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('5')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="103">
+                <div class="voice-info">
+                    <span class="voice-name">度米朵</span>
+                    <span class="voice-id">ID: 103</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('103')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="106">
+                <div class="voice-info">
+                    <span class="voice-name">度博文</span>
+                    <span class="voice-id">ID: 106</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('106')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="110">
+                <div class="voice-info">
+                    <span class="voice-name">度小童</span>
+                    <span class="voice-id">ID: 110</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('110')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="111">
+                <div class="voice-info">
+                    <span class="voice-name">度小萌</span>
+                    <span class="voice-id">ID: 111</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('111')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="5003">
+                <div class="voice-info">
+                    <span class="voice-name">度逍遥（精品）</span>
+                    <span class="voice-id">ID: 5003</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('5003')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="5118">
+                <div class="voice-info">
+                    <span class="voice-name">度小鹿</span>
+                    <span class="voice-id">ID: 5118</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('5118')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20001">
+                <div class="voice-info">
+                    <span class="voice-name">晓晓（女）</span>
+                    <span class="voice-id">ID: 20001</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20001')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20002">
+                <div class="voice-info">
+                    <span class="voice-name">云扬（男）</span>
+                    <span class="voice-id">ID: 20002</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20002')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20003">
+                <div class="voice-info">
+                    <span class="voice-name">晓辰（女）</span>
+                    <span class="voice-id">ID: 20003</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20003')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20004">
+                <div class="voice-info">
+                    <span class="voice-name">晓涵（女）</span>
+                    <span class="voice-id">ID: 20004</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20004')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20005">
+                <div class="voice-info">
+                    <span class="voice-name">晓墨（女）</span>
+                    <span class="voice-id">ID: 20005</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20005')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20006">
+                <div class="voice-info">
+                    <span class="voice-name">晓秋（女）</span>
+                    <span class="voice-id">ID: 20006</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20006')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20007">
+                <div class="voice-info">
+                    <span class="voice-name">晓睿（女）</span>
+                    <span class="voice-id">ID: 20007</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20007')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20008">
+                <div class="voice-info">
+                    <span class="voice-name">晓双（女童）</span>
+                    <span class="voice-id">ID: 20008</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20008')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20009">
+                <div class="voice-info">
+                    <span class="voice-name">晓萱（女）</span>
+                    <span class="voice-id">ID: 20009</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20009')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20010">
+                <div class="voice-info">
+                    <span class="voice-name">晓颜（女）</span>
+                    <span class="voice-id">ID: 20010</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20010')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20011">
+                <div class="voice-info">
+                    <span class="voice-name">晓悠（女童）</span>
+                    <span class="voice-id">ID: 20011</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20011')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20012">
+                <div class="voice-info">
+                    <span class="voice-name">云希（男孩）</span>
+                    <span class="voice-id">ID: 20012</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20012')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20013">
+                <div class="voice-info">
+                    <span class="voice-name">云野（男）</span>
+                    <span class="voice-id">ID: 20013</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20013')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20014">
+                <div class="voice-info">
+                    <span class="voice-name">曉曼（女）</span>
+                    <span class="voice-id">ID: 20014</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20014')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20015">
+                <div class="voice-info">
+                    <span class="voice-name">曉佳（女）</span>
+                    <span class="voice-id">ID: 20015</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20015')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20016">
+                <div class="voice-info">
+                    <span class="voice-name">雲龍（男）</span>
+                    <span class="voice-id">ID: 20016</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20016')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20017">
+                <div class="voice-info">
+                    <span class="voice-name">曉臻</span>
+                    <span class="voice-id">ID: 20017</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20017')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20018">
+                <div class="voice-info">
+                    <span class="voice-name">曉雨</span>
+                    <span class="voice-id">ID: 20018</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20018')">▶️ 播放</button>
+            </div>
+            <div class="voice-item" data-voice="20019">
+                <div class="voice-info">
+                    <span class="voice-name">雲哲</span>
+                    <span class="voice-id">ID: 20019</span>
+                </div>
+                <button class="voice-play-btn" onclick="playVoice('20019')">▶️ 播放</button>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <button class="control-btn stop-btn" onclick="stopAllAudio()">⏹️ 停止所有播放</button>
+        </div>
+
+        <div class="info">
+            <strong>当前播放：</strong><span id="currentVoice">无</span>
+            <div class="current-url">
+                <strong>音频链接：</strong><br>
+                <span id="currentUrl">请点击任意声音进行测试</span>
+            </div>
+        </div>
+
+        <div id="status" class="status stopped">🔇 已停止</div>
+
+        <audio id="audioPlayer" preload="none">
+            您的浏览器不支持音频播放。
+        </audio>
+    </div>
+
+    <script>
+        // 音频资源映射表
+        const audioResources = {
+            '0': 'https://qiniu-audio.keepwork.com/keepwork_2accfe28516c8ce5ca0ba9b4bd6a5a8d',
+            '1': 'https://qiniu-audio.keepwork.com/keepwork_ecd330bbb8c0cab9ceae5894125aea17',
+            '3': 'https://qiniu-audio.keepwork.com/keepwork_40688a997ffd86970d635e2e1b6d193d',
+            '4': 'https://qiniu-audio.keepwork.com/keepwork_aab2d592a4ae9489f66d39011aefa2ee',
+            '5': 'https://qiniu-audio.keepwork.com/keepwork_8cda1ff0c3f6c6f18cd87c270d6b2b6b',
+            '103': 'https://qiniu-audio.keepwork.com/keepwork_afaa51fd6a85ffa9d80415938d48a5d0',
+            '106': 'https://qiniu-audio.keepwork.com/keepwork_716db0d6dfdec4f0015c2fdb77364962',
+            '110': 'https://qiniu-audio.keepwork.com/keepwork_2bae0294448971e7b1c71214845d765f',
+            '111': 'https://qiniu-audio.keepwork.com/keepwork_8f6f7991dfae28487b7525bff452c9ed',
+            '5003': 'https://qiniu-audio.keepwork.com/keepwork_7f8b25fa220d24255d355de64e0a008e',
+            '5118': 'https://qiniu-audio.keepwork.com/keepwork_d30a6f48a12ab5d83ecd6529925218a5',
+            '20001': 'https://qiniu-audio.keepwork.com/keepwork_410dd8abf2be20635fa8f6184d2b8c5d',
+            '20002': 'https://qiniu-audio.keepwork.com/keepwork_f247f138ac617911664951e588a69915',
+            '20003': 'https://qiniu-audio.keepwork.com/keepwork_a624bea59619ec45de295fc19558d505',
+            '20004': 'https://qiniu-audio.keepwork.com/keepwork_484856c3a848fd98e18418a985857324',
+            '20005': 'https://qiniu-audio.keepwork.com/keepwork_16610bad0ed7fac9639f56e8f9ddfe4a',
+            '20006': 'https://qiniu-audio.keepwork.com/keepwork_231b8d9ed48079ca34c982c0edea1db6',
+            '20007': 'https://qiniu-audio.keepwork.com/keepwork_a19bda8b7319f4d0903157a3a4b65a27',
+            '20008': 'https://qiniu-audio.keepwork.com/keepwork_62b6a06cb951e73eabcf07cc597cd59d',
+            '20009': 'https://qiniu-audio.keepwork.com/keepwork_78cb59ee034e45edb03d429e5fc85b6a',
+            '20010': 'https://qiniu-audio.keepwork.com/keepwork_049938c16feadb9a89632bb61f5e29a2',
+            '20011': 'https://qiniu-audio.keepwork.com/keepwork_770fdc4934bd2c2bdd49041b21766af9',
+            '20012': 'https://qiniu-audio.keepwork.com/keepwork_cc9c2a47d9b0f91f4ea40dc467c9fd9b',
+            '20013': 'https://qiniu-audio.keepwork.com/keepwork_30f66e19eb88f08c63f02b4d535585ce',
+            '20014': 'https://qiniu-audio.keepwork.com/keepwork_8ec95e881550dc54b30f7b12cb6e47f0', // 粤语 女 小
+            '20015': 'https://qiniu-audio.keepwork.com/keepwork_8350faaacc4fdfcc2734e52eea1f167f', // 粤语 女 大
+            '20016': 'https://qiniu-audio.keepwork.com/keepwork_428c0bccab477190a20fc9e3f829f542', // 粤语 男
+            '20017': 'https://qiniu-audio.keepwork.com/keepwork_9c8f6c7947085b3043edc005fb3255ee', // 台湾 女 小
+            '20018': 'https://qiniu-audio.keepwork.com/keepwork_05142cfd17a23e903f3937776428b628', // 台湾 女 大
+            '20019': 'https://qiniu-audio.keepwork.com/keepwork_e7995a45b07a6fabc33f71e9ee79b343'  // 小孩 男
+        };
+
+        const audioPlayer = document.getElementById('audioPlayer');
+        const currentVoice = document.getElementById('currentVoice');
+        const currentUrl = document.getElementById('currentUrl');
+        const status = document.getElementById('status');
+        let currentPlayingVoice = null;
+
+        // 播放指定声音
+        function playVoice(voiceId) {
+            const audioUrl = audioResources[voiceId];
+            if (!audioUrl) {
+                updateStatus('stopped', '❌ 未找到对应的音频资源');
+                return;
+            }
+
+            // 停止当前播放
+            stopAllAudio();
+
+            // 设置新的音频源
+            audioPlayer.src = audioUrl;
+            currentPlayingVoice = voiceId;
+
+            // 更新界面显示
+            const voiceItem = document.querySelector(`[data-voice="${voiceId}"]`);
+            const voiceName = voiceItem.querySelector('.voice-name').textContent;
+            const playBtn = voiceItem.querySelector('.voice-play-btn');
+            
+            currentVoice.textContent = voiceName;
+            currentUrl.textContent = audioUrl;
+            
+            // 更新按钮状态
+            voiceItem.classList.add('playing');
+            playBtn.classList.add('playing');
+            playBtn.textContent = '⏸️ 播放中';
+            
+            // 播放音频
+            audioPlayer.play().then(() => {
+                updateStatus('playing', `🔊 正在播放: ${voiceName}`);
+            }).catch(error => {
+                console.error('播放失败:', error);
+                updateStatus('stopped', '❌ 播放失败: ' + error.message);
+                resetVoiceButton(voiceId);
+            });
+        }
+
+        // 停止所有音频播放
+        function stopAllAudio() {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+            
+            if (currentPlayingVoice) {
+                resetVoiceButton(currentPlayingVoice);
+                currentPlayingVoice = null;
+            }
+            
+            updateStatus('stopped', '🔇 已停止');
+        }
+
+        // 重置声音按钮状态
+        function resetVoiceButton(voiceId) {
+            const voiceItem = document.querySelector(`[data-voice="${voiceId}"]`);
+            const playBtn = voiceItem.querySelector('.voice-play-btn');
+            
+            voiceItem.classList.remove('playing');
+            playBtn.classList.remove('playing');
+            playBtn.textContent = '▶️ 播放';
+        }
+
+        // 更新状态显示
+        function updateStatus(state, message) {
+            status.className = `status ${state}`;
+            status.textContent = message;
+        }
+
+        // 监听音频事件
+        audioPlayer.addEventListener('ended', () => {
+            if (currentPlayingVoice) {
+                resetVoiceButton(currentPlayingVoice);
+                currentPlayingVoice = null;
+            }
+            updateStatus('stopped', '✅ 播放完成');
+        });
+
+        audioPlayer.addEventListener('error', (e) => {
+            if (currentPlayingVoice) {
+                resetVoiceButton(currentPlayingVoice);
+                currentPlayingVoice = null;
+            }
+            updateStatus('stopped', '❌ 音频加载失败');
+            console.error('音频错误:', e);
+        });
+
+        audioPlayer.addEventListener('loadstart', () => {
+            updateStatus('stopped', '⏳ 正在加载音频...');
+        });
+
+        audioPlayer.addEventListener('canplay', () => {
+            if (audioPlayer.paused) {
+                updateStatus('stopped', '✅ 音频已准备就绪');
+            }
+        });
+
+        // 初始化显示
+        updateStatus('stopped', '🔇 请选择声音进行测试');
+    </script>
+</body>
+</html>

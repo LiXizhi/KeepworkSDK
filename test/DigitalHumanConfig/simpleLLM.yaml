@@ -1,0 +1,99 @@
+---
+llm_model: doubao-lite
+workspace: testDigitalHuman
+avatar_only: false
+historyLength: 20  
+imageConfig:
+  maxImageBytes: 32000
+  autoConvertBase64ToURL: true
+  maxImageHistoryCount: 2
+videoActions:
+  idle:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/idle_new.webp"
+  talk:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/talk.webp"
+  写字|记录|writing:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/write.webp"
+  查询|编程|用平板|coding:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/pad.webp"
+  点赞|喜欢|like:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/like.webp"
+  鼓掌|clap:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/clap.webp"
+  guide|引导:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/guide.webp"
+  listen|倾听:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/listen.webp"
+  wave|挥手:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/wave.webp"
+  阅读|reading:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/read.webp"
+tools:
+  fileOps:
+    enabled: true
+  execute:
+    enabled: true
+  app:
+    enabled: true
+bracketAction:
+  enabled: true
+  autoplay: true
+  duration: 3
+textToSpeech:
+  enabled: true
+  provider: speechRTC
+  voiceType: "zh_female_tianmeiyueyue_moon_bigtts"
+  ignoreBracketText: true
+voiceChat:
+  appId: "69883f4ae00f9e017600b901"
+  agentUserId: "ChatBot01"
+  agentConfig:
+    UserId: "ChatBot01"
+    EnableConversationStateCallback: true
+  config:
+    ASRConfig:
+      Provider: "volcano"
+      ProviderParams:
+        Mode: "bigmodel"
+        AppId: "3065448513"
+        ApiResourceId: "volc.bigasr.sauc.duration"
+      VADConfig:
+        AIVAD: true
+    TTSConfig:
+      Provider: "volcano_bidirection"
+      ProviderParams:
+        app:
+          appid: "3065448513"
+        audio:
+          voice_type: "zh_female_tianmeiyueyue_moon_bigtts"
+          speech_rate: 0
+        ResourceId: "volc.service_type.10029"
+      IgnoreBracketText: [1,2,3,4,5]
+    LLMConfig:
+      Mode: "ArkV3"
+      # ep-20260315160200-s6fg7: doubao seed mini 2.0
+      # ep-20260330142752-whgdc: doubao seed 2.0 lite
+      # ep-20260225155953-hhjsd: doubao seed 2.0 pro
+      # ep-20260120142358-jmtmb: doubao seed 1.8
+      # ep-20260317180337-xgm67: doubao flash 1.6
+      # ep-20260120113739-8hkdc: doubao 1.6 vision
+      EndPointId: "ep-20260330142752-whgdc"
+      VisionConfig:
+        Enable: true
+      ThinkingType: "disabled"
+      Prefill: true
+      Tools: []
+    SubtitleConfig:
+      SubtitleMode: 1
+    InterruptMode: 0
+character:
+  name: "TestBot"
+  description: "Simple LLM test bot"
+initial:
+  # message: "你好！我是测试助手。"
+quick_replies: ["你好","读取文件","今天天气怎么样？"]
+---
+You are a helpful test assistant. When the user asks you to read a file, use the read_file tool. 
+When the user asks about the weather, use the getWeather tool with the city name.
+偶尔可以用括号描述动作和神态，如"(微笑着看向你)"。如果括号中包含下列词语，
+角色会自动播放对应动作: ${copilot.getActionList('zh')}.

@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpeechRTC Overlap Regression Lab</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Georgia, 'Times New Roman', serif; }
+    #timeline-panel::-webkit-scrollbar,
+    #log-panel::-webkit-scrollbar,
+    #result-panel::-webkit-scrollbar { width: 6px; }
+    #timeline-panel::-webkit-scrollbar-thumb,
+    #log-panel::-webkit-scrollbar-thumb,
+    #result-panel::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.7); border-radius: 999px; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <div class="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(251,191,36,0.16),_transparent_30%),linear-gradient(135deg,_#020617,_#111827_58%,_#0f172a)]">
+    <header class="border-b border-white/10 bg-black/20 backdrop-blur">
+      <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-5">
+        <div>
+          <p class="text-xs uppercase tracking-[0.35em] text-sky-300/80">KeepworkSDK Regression Test</p>
+          <h1 class="mt-1 text-2xl font-semibold text-slate-100">SpeechRTC + AudioSource Overlap Lab</h1>
+          <p class="mt-1 text-sm text-slate-400">覆盖三个回归场景：SpeechRTC 先播但 beep 更长、AudioSource 先播后插入 SpeechRTC、以及自定义长度与手动触发。</p>
+        </div>
+        <div class="flex flex-col items-end gap-3">
+          <div class="flex flex-wrap items-center justify-end gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+            <span id="auth-user" class="max-w-[18rem] truncate text-slate-100">检查登录中...</span>
+            <button id="btn-login" class="rounded-full bg-sky-500 px-3 py-1 font-medium text-black transition hover:bg-sky-400">登录</button>
+            <button id="btn-profile" class="hidden rounded-full border border-white/15 bg-white/5 px-3 py-1 text-slate-100 transition hover:bg-white/10">资料</button>
+            <button id="btn-logout" class="hidden rounded-full border border-white/15 bg-white/5 px-3 py-1 text-slate-100 transition hover:bg-white/10">退出</button>
+          </div>
+          <div class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-300">
+            <span id="status-pill" class="font-semibold text-slate-100">idle</span>
+            <span class="mx-2 text-slate-500">/</span>
+            <span id="result-pill">not-run</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <section class="space-y-6 rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur-sm">
+        <div class="rounded-[1.75rem] border border-sky-400/20 bg-sky-400/10 p-4 text-sm leading-6 text-slate-200">
+          <p class="font-medium text-sky-100">测试场景</p>
+          <ol class="mt-2 list-decimal space-y-1 pl-5 text-slate-300">
+            <li>场景 1：SpeechRTC 先播，约 3 秒结束；AudioSource 在首段音频后 1 秒插入，持续 5 秒，观察更长 beep 的 onended 是否仍触发。</li>
+            <li>场景 2：AudioSource 先播，再延迟启动 SpeechRTC，验证反向重叠是否同样稳定。</li>
+            <li>场景 3：自定义脚本长度、beep 长度，并在页面上手动触发 SpeechRTC / AudioSource。</li>
+            <li>SpeechRTC 文本支持内联等待标记，例如 <span class="rounded bg-white/10 px-2 py-0.5">[2s]</span> 或 <span class="rounded bg-white/10 px-2 py-0.5">[500ms]</span>。</li>
+            <li>结果摘要会同时记录 SpeechRTC 生命周期、AudioSource 理论结束时间、实际 onended 时间，以及 watchdog 超时情况。</li>
+          </ol>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="grid gap-4">
+            <label class="block">
+              <span class="mb-1 block text-xs uppercase tracking-wide text-slate-400">测试场景</span>
+              <select id="scenario-select" class="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-slate-100 focus:border-sky-400 focus:outline-none">
+                <option value="speech-first-long-beep">1. SpeechRTC 先播约 3 秒，1 秒后插入 5 秒 beep</option>
+                <option value="audio-first-then-speech">2. AudioSource 先播，再启动 SpeechRTC</option>
+                <option value="custom-manual">3. 自定义长度 + 用户触发</option>
+              </select>
+            </label>
+
+            <div id="scenario-note" class="rounded-[1.5rem] border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm leading-6 text-amber-100"></div>
+
+            <label class="block">
+              <span class="mb-1 block text-xs uppercase tracking-wide text-slate-400">SpeechRTC 脚本</span>
+              <textarea id="speech-text" rows="8" class="w-full rounded-[1.5rem] border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-slate-100 placeholder:text-slate-500 focus:border-sky-400 focus:outline-none"></textarea>
+              <span class="mt-2 block text-xs leading-5 text-slate-500">支持按句分段发送，并在脚本中写入等待标记，例如：你好。[1s] 现在开始第二句。</span>
+            </label>
+          </div>
+
+          <div class="grid gap-4">
+            <label class="block">
+              <span class="mb-1 block text-xs uppercase tracking-wide text-slate-400">Voice Type</span>
+              <input id="voice-type" type="text" value="zh_female_tianmeiyueyue_moon_bigtts" class="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-slate-100 focus:border-sky-400 focus:outline-none">
+            </label>
+
+            <div class="grid grid-cols-2 gap-4">
+              <label class="block">
+                <span class="mb-1 block text-xs uppercase tracking-wide text-slate-400">AudioSource 延时 ms</span>
+                <input id="audio-delay-ms" type="number" min="0" step="100" value="1000" class="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-slate-100 focus:border-sky-400 focus:outline-none">
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs uppercase tracking-wide text-slate-400">SpeechRTC 延时 ms</span>
+                <input id="speech-delay-ms" type="number" min="0" step="100" value="1000" class="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-slate-100 focus:border-sky-400 focus:outline-none">
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <label class="block">
+                <span class="mb-1 block text-xs uppercase tracking-wide text-slate-400">AudioSource 时长 s</span>
+                <input id="tone-duration-sec" type="number" min="0.2" step="0.1" value="5" class="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-slate-100 focus:border-sky-400 focus:outline-none">
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs uppercase tracking-wide text-slate-400">Tone Hz</span>
+                <input id="tone-frequency" type="number" min="110" step="10" value="440" class="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-slate-100 focus:border-sky-400 focus:outline-none">
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <label class="block">
+                <span class="mb-1 block text-xs uppercase tracking-wide text-slate-400">Watchdog ms</span>
+                <input id="watchdog-ms" type="number" min="500" step="100" value="7000" class="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-slate-100 focus:border-sky-400 focus:outline-none">
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs uppercase tracking-wide text-slate-400">手动触发提示</span>
+                <div id="manual-hint" class="flex h-[42px] items-center rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-slate-300">当前场景自动执行</div>
+              </label>
+            </div>
+
+            <label class="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-slate-200">
+              <input id="auto-finish-stream" type="checkbox" class="accent-sky-400" checked>
+              AudioSource 出结果后自动 finish SpeechRTC（脚本已完成时会自动忽略）
+            </label>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+          <button id="btn-start" class="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-emerald-400">开始测试</button>
+          <button id="btn-trigger-speech" class="rounded-full border border-sky-400/40 bg-sky-400/10 px-5 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-400/20">手动触发 SpeechRTC</button>
+          <button id="btn-trigger-audio" class="rounded-full border border-amber-400/40 bg-amber-400/10 px-5 py-2.5 text-sm font-medium text-amber-100 transition hover:bg-amber-400/20">手动触发 AudioSource</button>
+          <button id="btn-stop" class="rounded-full bg-rose-500 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-rose-400">停止测试</button>
+          <button id="btn-clear" class="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-white/10">清空日志</button>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+            <div class="mb-2 flex items-center justify-between gap-4">
+              <h2 class="text-sm font-medium text-slate-100">时间线</h2>
+              <span id="run-meta" class="text-xs text-slate-400">run -</span>
+            </div>
+            <div id="timeline-panel" class="h-80 overflow-y-auto rounded-2xl border border-white/5 bg-slate-950/70 p-3 font-mono text-xs leading-5 text-slate-300"></div>
+          </div>
+
+          <div class="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+            <h2 class="mb-2 text-sm font-medium text-slate-100">结果摘要</h2>
+            <pre id="result-panel" class="h-80 overflow-auto rounded-2xl border border-white/5 bg-slate-950/70 p-3 font-mono text-xs leading-5 text-slate-300">No result yet.</pre>
+          </div>
+        </div>
+      </section>
+
+      <aside class="space-y-6 rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur-sm">
+        <div class="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+          <h2 class="mb-2 text-sm font-medium text-slate-100">当前状态</h2>
+          <dl class="space-y-2 text-sm text-slate-300">
+            <div class="flex items-center justify-between gap-4">
+              <dt class="text-slate-400">SpeechRTC</dt>
+              <dd id="speechrtc-state">idle</dd>
+            </div>
+            <div class="flex items-center justify-between gap-4">
+              <dt class="text-slate-400">AudioSource</dt>
+              <dd id="audiosource-state">idle</dd>
+            </div>
+            <div class="flex items-center justify-between gap-4">
+              <dt class="text-slate-400">Watchdog</dt>
+              <dd id="watchdog-state">idle</dd>
+            </div>
+            <div class="flex items-center justify-between gap-4">
+              <dt class="text-slate-400">Scenario</dt>
+              <dd id="scenario-state">speech-first-long-beep</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+          <h2 class="mb-2 text-sm font-medium text-slate-100">判定规则</h2>
+          <ul class="space-y-2 text-sm leading-6 text-slate-300">
+            <li><span class="font-medium text-emerald-300">PASS</span>：AudioSource 收到了 onended。</li>
+            <li><span class="font-medium text-rose-300">FAIL</span>：AudioSource 已开始，但 watchdog 超时仍未收到 onended。</li>
+            <li><span class="font-medium text-amber-300">INCONCLUSIVE</span>：SpeechRTC 未成功起播、AudioSource 未成功启动、或流程被手动中止。</li>
+          </ul>
+        </div>
+
+        <div class="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+          <div class="mb-2 flex items-center justify-between gap-4">
+            <h2 class="text-sm font-medium text-slate-100">事件日志</h2>
+            <span class="text-xs text-slate-500">最近在上</span>
+          </div>
+          <div id="log-panel" class="h-[28rem] overflow-y-auto rounded-2xl border border-white/5 bg-slate-950/70 p-3 font-mono text-xs leading-5 text-slate-300"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module">
+    try { await import('../index.ts'); } catch (e) { await import('https://cdn.keepwork.com/sdk/keepworkSDK.iife.js?v=20260403'); }
+
+    const DEFAULT_PROXY_URL = 'wss://speechrtc.keepwork.com/tts';
+    const DEFAULT_VOICE_TYPE = 'zh_female_tianmeiyueyue_moon_bigtts';
+    const SCENARIOS = {
+      'speech-first-long-beep': {
+        label: '1. SpeechRTC 先播约 3 秒，1 秒后插入 5 秒 beep',
+        description: 'SpeechRTC 使用带等待标记的短脚本，整体时长约 3 秒。收到首段音频后 1 秒启动 5 秒 beep，观察 SpeechRTC 先结束后 AudioSource.onended 是否仍会触发。',
+        defaults: {
+          speechText: '开始第一组测试。[2s]',
+          audioDelayMs: 1000,
+          speechDelayMs: 0,
+          toneDurationSec: 5,
+          watchdogMs: 7000,
+          toneFrequency: 440,
+        },
+        plan: {
+          autoStartSpeech: true,
+          speechAnchor: 'run',
+          autoStartAudio: true,
+          audioAnchor: 'speech-first-chunk',
+          manualOnly: false,
+        },
+      },
+      'audio-first-then-speech': {
+        label: '2. AudioSource 先播，再启动 SpeechRTC',
+        description: '先启动 AudioSource，再在指定延时后启动 SpeechRTC，验证反向叠加时 AudioSource.onended 是否仍稳定。默认 beep 立即开始，SpeechRTC 延后 1000ms。',
+        defaults: {
+          speechText: '现在开始第二组测试。请留意提示音与语音的叠加。',
+          audioDelayMs: 0,
+          speechDelayMs: 1000,
+          toneDurationSec: 5,
+          watchdogMs: 7000,
+          toneFrequency: 660,
+        },
+        plan: {
+          autoStartSpeech: true,
+          speechAnchor: 'audio-start',
+          autoStartAudio: true,
+          audioAnchor: 'run',
+          manualOnly: false,
+        },
+      },
+      'custom-manual': {
+        label: '3. 自定义长度 + 用户触发',
+        description: '点击“开始测试”后不自动启动任何一路。你可以基于当前脚本、延时、频率和时长，手动触发 SpeechRTC 或 AudioSource，自由验证顺序与时长组合。',
+        defaults: {
+          speechText: '自定义测试文本。[1s] 你可以继续追加第二句。',
+          audioDelayMs: 1000,
+          speechDelayMs: 1000,
+          toneDurationSec: 2,
+          watchdogMs: 4000,
+          toneFrequency: 440,
+        },
+        plan: {
+          autoStartSpeech: false,
+          speechAnchor: 'manual',
+          autoStartAudio: false,
+          audioAnchor: 'manual',
+          manualOnly: true,
+        },
+      },
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const urlToken = hashParams.get('token') || urlParams.get('token');
+    let sdk;
+    let speechRTC;
+
+    sdk = window.keepwork || new KeepworkSDK({ timeout: 30000, token: urlToken });
+    speechRTC = sdk.speechRTC || new SpeechRTC(sdk);
+    if (!sdk.speechRTC) {
+      sdk.speechRTC = speechRTC;
+    }
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    const $ = (id) => document.getElementById(id);
+    const el = {
+      scenarioSelect: $('scenario-select'),
+      scenarioNote: $('scenario-note'),
+      scenarioState: $('scenario-state'),
+      speechText: $('speech-text'),
+      voiceType: $('voice-type'),
+      audioDelayMs: $('audio-delay-ms'),
+      speechDelayMs: $('speech-delay-ms'),
+      toneDurationSec: $('tone-duration-sec'),
+      watchdogMs: $('watchdog-ms'),
+      toneFrequency: $('tone-frequency'),
+      manualHint: $('manual-hint'),
+      autoFinishStream: $('auto-finish-stream'),
+      authUser: $('auth-user'),
+      login: $('btn-login'),
+      profile: $('btn-profile'),
+      logout: $('btn-logout'),
+      start: $('btn-start'),
+      triggerSpeech: $('btn-trigger-speech'),
+      triggerAudio: $('btn-trigger-audio'),
+      stop: $('btn-stop'),
+      clear: $('btn-clear'),
+      statusPill: $('status-pill'),
+      resultPill: $('result-pill'),
+      runMeta: $('run-meta'),
+      speechrtcState: $('speechrtc-state'),
+      audiosourceState: $('audiosource-state'),
+      watchdogState: $('watchdog-state'),
+      timeline: $('timeline-panel'),
+      logPanel: $('log-panel'),
+      resultPanel: $('result-panel'),
+    };
+
+    let runCounter = 0;
+    let activeRun = null;
+
+    function getDisplayName(profile) {
+      return profile?.username || profile?.nickname || profile?.realname || profile?.name || '已登录';
+    }
+
+    function setAuthState({ loggedIn, name }) {
+      el.authUser.textContent = loggedIn ? name : '未登录';
+      el.login.classList.toggle('hidden', loggedIn);
+      el.profile.classList.toggle('hidden', !loggedIn);
+      el.logout.classList.toggle('hidden', !loggedIn);
+    }
+
+    async function refreshAuthUI() {
+      if (!sdk.token) {
+        setAuthState({ loggedIn: false, name: '未登录' });
+        return;
+      }
+
+      try {
+        const profile = await sdk.getUserProfile({ useCache: true });
+        setAuthState({ loggedIn: true, name: getDisplayName(profile) });
+      } catch (error) {
+        appendLog('获取用户信息失败，已回退到 token 状态显示。', 'warn', { message: String(error?.message || error) });
+        setAuthState({ loggedIn: true, name: '已登录' });
+      }
+    }
+
+    function nowIso() {
+      return new Date().toLocaleTimeString();
+    }
+
+    function safeJson(value) {
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch (_) {
+        return String(value);
+      }
+    }
+
+    function appendLog(message, type = 'info', data) {
+      const row = document.createElement('div');
+      const color = type === 'error'
+        ? 'text-rose-300'
+        : type === 'success'
+          ? 'text-emerald-300'
+          : type === 'warn'
+            ? 'text-amber-200'
+            : 'text-slate-300';
+      row.className = `${color} mb-2 border-b border-white/5 pb-2`;
+      row.textContent = `[${nowIso()}] ${message}${data !== undefined ? `\n${safeJson(data)}` : ''}`;
+      el.logPanel.prepend(row);
+    }
+
+    function appendTimeline(run, label, data) {
+      const row = document.createElement('div');
+      const elapsedMs = Date.now() - run.startedAt;
+      row.className = 'mb-2 rounded-2xl border border-white/5 bg-white/5 px-3 py-2';
+      row.textContent = `T+${elapsedMs}ms  ${label}${data !== undefined ? `\n${safeJson(data)}` : ''}`;
+      el.timeline.prepend(row);
+    }
+
+    function setStatus(status, result) {
+      el.statusPill.textContent = status;
+      el.resultPill.textContent = result;
+    }
+
+    function setSpeechRTCState(value) {
+      el.speechrtcState.textContent = value;
+    }
+
+    function setAudioSourceState(value) {
+      el.audiosourceState.textContent = value;
+    }
+
+    function setWatchdogState(value) {
+      el.watchdogState.textContent = value;
+    }
+
+    function resetPanels() {
+      el.timeline.innerHTML = '';
+      el.resultPanel.textContent = 'No result yet.';
+    }
+
+    function splitTextIntoChunks(value) {
+      return String(value || '')
+        .split(/\n+/)
+        .flatMap((line) => line.split(/(?<=[。！？!?；;])/))
+        .map((chunk) => chunk.trim())
+        .filter(Boolean);
+    }
+
+    function parseTimedScript(value) {
+      const source = String(value || '');
+      const timeline = [];
+      const markerPattern = /\[\s*(\d+(?:\.\d+)?)\s*(ms|s)?\s*\]/gi;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = markerPattern.exec(source))) {
+        const text = source.slice(lastIndex, match.index).trim();
+        if (text) {
+          for (const chunk of splitTextIntoChunks(text)) {
+            timeline.push({ type: 'text', value: chunk });
+          }
+        }
+
+        const amount = Number(match[1]);
+        const unit = (match[2] || 's').toLowerCase();
+        timeline.push({
+          type: 'wait',
+          value: unit === 'ms' ? amount : amount * 1000,
+          label: match[0],
+        });
+        lastIndex = markerPattern.lastIndex;
+      }
+
+      const tail = source.slice(lastIndex).trim();
+      if (tail) {
+        for (const chunk of splitTextIntoChunks(tail)) {
+          timeline.push({ type: 'text', value: chunk });
+        }
+      }
+
+      return timeline;
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    function getScenarioKey() {
+      return el.scenarioSelect.value in SCENARIOS ? el.scenarioSelect.value : 'speech-first-long-beep';
+    }
+
+    function getScenarioDefinition() {
+      return SCENARIOS[getScenarioKey()];
+    }
+
+    function buildScenarioPlan() {
+      const scenario = getScenarioDefinition();
+      return {
+        key: getScenarioKey(),
+        label: scenario.label,
+        description: scenario.description,
+        manualOnly: !!scenario.plan.manualOnly,
+        autoStartSpeech: !!scenario.plan.autoStartSpeech,
+        autoStartAudio: !!scenario.plan.autoStartAudio,
+        speechAnchor: scenario.plan.speechAnchor,
+        audioAnchor: scenario.plan.audioAnchor,
+        speechDelayMs: Math.max(0, Number(el.speechDelayMs.value) || 0),
+        audioDelayMs: Math.max(0, Number(el.audioDelayMs.value) || 0),
+      };
+    }
+
+    function syncScenarioUi() {
+      const scenario = getScenarioDefinition();
+      const plan = buildScenarioPlan();
+      el.scenarioNote.textContent = scenario.description;
+      el.scenarioState.textContent = plan.key;
+      el.manualHint.textContent = plan.manualOnly
+        ? '当前场景需要点击上方按钮手动触发 SpeechRTC / AudioSource'
+        : '当前场景将按预设顺序自动执行';
+      updateTriggerButtons();
+    }
+
+    function applyScenarioDefaults() {
+      const scenario = getScenarioDefinition();
+      el.speechText.value = scenario.defaults.speechText;
+      el.audioDelayMs.value = String(scenario.defaults.audioDelayMs);
+      el.speechDelayMs.value = String(scenario.defaults.speechDelayMs);
+      el.toneDurationSec.value = String(scenario.defaults.toneDurationSec);
+      el.watchdogMs.value = String(scenario.defaults.watchdogMs);
+      el.toneFrequency.value = String(scenario.defaults.toneFrequency);
+      syncScenarioUi();
+    }
+
+    function summarizeRun(run) {
+      const summary = {
+        runId: run.id,
+        scenario: {
+          key: run.plan.key,
+          label: run.plan.label,
+          manualOnly: run.plan.manualOnly,
+        },
+        verdict: run.verdict,
+        reason: run.reason,
+        speechRTC: {
+          scheduledAt: run.speechRTC.scheduledAt,
+          triggerSource: run.speechRTC.triggerSource,
+          started: !!run.speechRTC.startedAt,
+          firstAudioChunkAt: run.speechRTC.firstAudioChunkAt,
+          scriptFinishedAt: run.speechRTC.scriptFinishedAt,
+          finishRequestedAt: run.speechRTC.finishRequestedAt,
+          finishedAt: run.speechRTC.finishedAt,
+          error: run.speechRTC.error ? String(run.speechRTC.error.message || run.speechRTC.error) : null,
+        },
+        audioSource: {
+          scheduledAt: run.audioSource.scheduledAt,
+          triggerSource: run.audioSource.triggerSource,
+          startedAt: run.audioSource.startedAt,
+          expectedEndAt: run.audioSource.expectedEndAt,
+          actualEndedAt: run.audioSource.actualEndedAt,
+          onEndedReceived: !!run.audioSource.actualEndedAt,
+          watchdogTimedOutAt: run.audioSource.watchdogTimedOutAt,
+          frequencyHz: run.audioSource.frequencyHz,
+          durationSec: run.audioSource.durationSec,
+        },
+      };
+      el.resultPanel.textContent = safeJson(summary);
+      return summary;
+    }
+
+    function finalizeRun(run, verdict, reason) {
+      if (!run || run.finalized) return;
+      run.finalized = true;
+      run.reason = reason;
+      run.verdict = verdict;
+      setStatus('finished', verdict.toLowerCase());
+      summarizeRun(run);
+      appendTimeline(run, `finalized: ${verdict}`, { reason });
+      appendLog(`Run ${run.id} finalized as ${verdict}.`, verdict === 'PASS' ? 'success' : verdict === 'FAIL' ? 'error' : 'warn', { reason });
+      updateTriggerButtons();
+    }
+
+    function getSpeechConfig() {
+      return {
+        proxyUrl: DEFAULT_PROXY_URL,
+        voiceType: String(el.voiceType.value || '').trim() || DEFAULT_VOICE_TYPE,
+        audioFormat: 'pcm',
+        autoPlay: true,
+        enableSubtitle: true,
+        includeUsage: false,
+      };
+    }
+
+    async function ensureAudioContext(context) {
+      if (!context || typeof context.resume !== 'function') return;
+      if (context.state === 'suspended') {
+        await context.resume();
+      }
+    }
+
+    function buildToneBuffer(context, durationSec, frequencyHz) {
+      const seconds = Math.max(0.2, Number(durationSec) || 2);
+      const frequency = Math.max(110, Number(frequencyHz) || 440);
+      const frameCount = Math.max(1, Math.floor(context.sampleRate * seconds));
+      const buffer = context.createBuffer(1, frameCount, context.sampleRate);
+      const channel = buffer.getChannelData(0);
+      const attackFrames = Math.max(1, Math.floor(context.sampleRate * 0.02));
+      const releaseFrames = Math.max(1, Math.floor(context.sampleRate * 0.04));
+
+      for (let index = 0; index < frameCount; index++) {
+        const attackGain = index < attackFrames ? index / attackFrames : 1;
+        const releaseGain = index > frameCount - releaseFrames ? Math.max(0, (frameCount - index) / releaseFrames) : 1;
+        const gain = Math.min(attackGain, releaseGain) * 0.2;
+        channel[index] = Math.sin((2 * Math.PI * frequency * index) / context.sampleRate) * gain;
+      }
+
+      return buffer;
+    }
+
+    async function finishSpeechStream(run, reason) {
+      if (!run || !run.speechRTC.stream || run.speechRTC.finishRequested) return;
+      run.speechRTC.finishRequested = true;
+      run.speechRTC.finishRequestedAt = Date.now();
+      appendTimeline(run, 'SpeechRTC finish requested', { reason });
+      try {
+        await run.speechRTC.stream.finish({ timeout: 10000 });
+      } catch (error) {
+        appendLog(`SpeechRTC finish failed in run ${run.id}.`, 'warn', { message: String(error?.message || error), reason });
+      }
+    }
+
+    async function cleanupRun(run, options = {}) {
+      if (!run) return;
+      const shouldFinalize = options.finalize !== false && !run.finalized;
+
+      if (run.speechStartTimer) {
+        clearTimeout(run.speechStartTimer);
+        run.speechStartTimer = null;
+      }
+      if (run.audioStartTimer) {
+        clearTimeout(run.audioStartTimer);
+        run.audioStartTimer = null;
+      }
+      if (run.watchdogTimer) {
+        clearTimeout(run.watchdogTimer);
+        run.watchdogTimer = null;
+      }
+
+      if (run.audioSource.node) {
+        try { run.audioSource.node.onended = null; } catch (_) {}
+        try { run.audioSource.node.stop(); } catch (_) {}
+        try { run.audioSource.node.disconnect(); } catch (_) {}
+        run.audioSource.node = null;
+      }
+      if (run.audioSource.gainNode) {
+        try { run.audioSource.gainNode.disconnect(); } catch (_) {}
+        run.audioSource.gainNode = null;
+      }
+      if (run.audioSource.context) {
+        try { await run.audioSource.context.close(); } catch (_) {}
+        run.audioSource.context = null;
+      }
+
+      if (run.speechRTC.stream) {
+        try { await run.speechRTC.stream.interrupt({ timeout: 1000, resetAudio: false }); } catch (_) {}
+        run.speechRTC.stream = null;
+      }
+
+      if (shouldFinalize) {
+        finalizeRun(run, 'INCONCLUSIVE', options.reason || 'Run stopped before verdict.');
+      }
+
+      if (activeRun && activeRun.id === run.id) {
+        activeRun = null;
+      }
+
+      setSpeechRTCState('idle');
+      setAudioSourceState('idle');
+      setWatchdogState('idle');
+      if (!shouldFinalize) {
+        setStatus('idle', 'not-run');
+      }
+      updateTriggerButtons();
+    }
+
+    function hasPendingOrStartedSpeech(run) {
+      return !!(run.speechRTC.startedAt || run.speechRTC.stream || run.speechStartTimer);
+    }
+
+    function hasPendingOrStartedAudio(run) {
+      return !!(run.audioSource.startedAt || run.audioSource.node || run.audioStartTimer);
+    }
+
+    function updateTriggerButtons() {
+      const plan = activeRun?.plan || buildScenarioPlan();
+      const noRun = !activeRun || activeRun.finalized;
+      const speechDisabled = noRun || !plan.manualOnly || hasPendingOrStartedSpeech(activeRun);
+      const audioDisabled = noRun || !plan.manualOnly || hasPendingOrStartedAudio(activeRun);
+      el.triggerSpeech.disabled = speechDisabled;
+      el.triggerAudio.disabled = audioDisabled;
+      el.triggerSpeech.classList.toggle('opacity-50', speechDisabled);
+      el.triggerAudio.classList.toggle('opacity-50', audioDisabled);
+      el.triggerSpeech.classList.toggle('cursor-not-allowed', speechDisabled);
+      el.triggerAudio.classList.toggle('cursor-not-allowed', audioDisabled);
+    }
+
+    function scheduleSpeechStart(run, anchorLabel) {
+      if (run.finalized || run.speechStartTimer || run.speechRTC.startedAt || run.speechRTC.stream) return;
+      const delayMs = Math.max(0, Number(run.plan.speechDelayMs) || 0);
+      run.speechRTC.scheduledAt = Date.now() + delayMs;
+      appendTimeline(run, 'SpeechRTC scheduled', { anchor: anchorLabel, delayMs });
+      if (delayMs === 0) {
+        startSpeechRTC(run, 'auto').catch((error) => {
+          appendLog(`SpeechRTC start failed in run ${run.id}.`, 'error', { message: String(error?.message || error) });
+          finalizeRun(run, 'INCONCLUSIVE', `SpeechRTC start failed: ${String(error?.message || error)}`);
+        });
+        return;
+      }
+
+      run.speechStartTimer = window.setTimeout(() => {
+        run.speechStartTimer = null;
+        startSpeechRTC(run, 'auto').catch((error) => {
+          appendLog(`SpeechRTC start failed in run ${run.id}.`, 'error', { message: String(error?.message || error) });
+          finalizeRun(run, 'INCONCLUSIVE', `SpeechRTC start failed: ${String(error?.message || error)}`);
+        });
+      }, delayMs);
+    }
+
+    function scheduleAudioStart(run, anchorLabel) {
+      if (run.finalized || run.audioStartTimer || run.audioSource.startedAt || run.audioSource.node) return;
+      const delayMs = Math.max(0, Number(run.plan.audioDelayMs) || 0);
+      run.audioSource.scheduledAt = Date.now() + delayMs;
+      setAudioSourceState(delayMs ? `scheduled +${delayMs}ms` : 'scheduled');
+      appendTimeline(run, 'AudioSource scheduled', { anchor: anchorLabel, delayMs });
+      if (delayMs === 0) {
+        startAudioSource(run, 'auto').catch((error) => {
+          appendLog(`AudioSource start failed in run ${run.id}.`, 'error', { message: String(error?.message || error) });
+          finalizeRun(run, 'INCONCLUSIVE', `AudioSource start failed: ${String(error?.message || error)}`);
+        });
+        return;
+      }
+
+      run.audioStartTimer = window.setTimeout(() => {
+        run.audioStartTimer = null;
+        startAudioSource(run, 'auto').catch((error) => {
+          appendLog(`AudioSource start failed in run ${run.id}.`, 'error', { message: String(error?.message || error) });
+          finalizeRun(run, 'INCONCLUSIVE', `AudioSource start failed: ${String(error?.message || error)}`);
+        });
+      }, delayMs);
+    }
+
+    function bindSpeechEvents(run, stream) {
+      stream.on('sessionStarted', ({ sessionId, connectId }) => {
+        if (activeRun?.id !== run.id) return;
+        run.speechRTC.startedAt = Date.now();
+        setSpeechRTCState('session-started');
+        appendTimeline(run, 'SpeechRTC sessionStarted', { sessionId, connectId });
+      });
+
+      stream.on('audioChunk', ({ bytes, format }) => {
+        if (activeRun?.id !== run.id) return;
+        if (!run.speechRTC.firstAudioChunkAt) {
+          run.speechRTC.firstAudioChunkAt = Date.now();
+          setSpeechRTCState('audio-started');
+          appendTimeline(run, 'SpeechRTC first audioChunk', { bytes: bytes?.length || 0, format });
+          if (run.plan.autoStartAudio && run.plan.audioAnchor === 'speech-first-chunk') {
+            scheduleAudioStart(run, 'speech-first-chunk');
+          }
+          return;
+        }
+        appendTimeline(run, 'SpeechRTC audioChunk', { bytes: bytes?.length || 0, format });
+      });
+
+      stream.on('sentenceStart', ({ text }) => {
+        if (activeRun?.id !== run.id) return;
+        appendTimeline(run, 'SpeechRTC sentenceStart', { text: text || '' });
+      });
+
+      stream.on('sentenceEnd', ({ text }) => {
+        if (activeRun?.id !== run.id) return;
+        appendTimeline(run, 'SpeechRTC sentenceEnd', { text: text || '' });
+      });
+
+      stream.on('subtitle', ({ text }) => {
+        if (activeRun?.id !== run.id) return;
+        appendTimeline(run, 'SpeechRTC subtitle', { text: text || '' });
+      });
+
+      stream.on('sessionFinished', (result) => {
+        if (activeRun?.id !== run.id) return;
+        run.speechRTC.finishedAt = Date.now();
+        setSpeechRTCState('session-finished');
+        appendTimeline(run, 'SpeechRTC sessionFinished', result);
+        if (run.finalized) {
+          summarizeRun(run);
+        }
+        if (run.plan.autoStartAudio && run.plan.audioAnchor === 'speech-first-chunk' && !run.audioSource.startedAt && !run.audioStartTimer) {
+          finalizeRun(run, 'INCONCLUSIVE', 'SpeechRTC finished before AudioSource was able to start.');
+        }
+      });
+
+      stream.on('error', (error) => {
+        if (activeRun?.id !== run.id) return;
+        run.speechRTC.error = error;
+        setSpeechRTCState('error');
+        appendLog(`SpeechRTC error in run ${run.id}.`, 'error', { message: String(error?.message || error) });
+        finalizeRun(run, 'INCONCLUSIVE', `SpeechRTC error: ${String(error?.message || error)}`);
+      });
+    }
+
+    async function playSpeechScript(run, stream, text) {
+      const timeline = parseTimedScript(text);
+      const textSteps = timeline.filter((entry) => entry.type === 'text');
+      if (!textSteps.length) {
+        throw new Error('SpeechRTC text is empty.');
+      }
+
+      const startedAt = Date.now();
+      let dueAt = startedAt;
+      let started = false;
+
+      for (const step of timeline) {
+        if (activeRun?.id !== run.id || run.finalized) return;
+
+        if (step.type === 'wait') {
+          dueAt += step.value;
+          appendTimeline(run, 'SpeechRTC wait marker', { valueMs: step.value, label: step.label });
+          continue;
+        }
+
+        const remaining = Math.max(0, dueAt - Date.now());
+        if (remaining > 0) {
+          await sleep(remaining);
+        }
+        if (activeRun?.id !== run.id || run.finalized) return;
+
+        if (!started) {
+          await stream.beginText(step.value);
+          started = true;
+          appendTimeline(run, 'SpeechRTC beginText sent', { text: step.value, elapsedMs: Date.now() - startedAt });
+        } else {
+          await stream.appendText(step.value);
+          appendTimeline(run, 'SpeechRTC appendText sent', { text: step.value, elapsedMs: Date.now() - startedAt });
+        }
+      }
+
+      run.speechRTC.scriptFinishedAt = Date.now();
+      appendTimeline(run, 'SpeechRTC script completed', { autoFinish: true });
+      await finishSpeechStream(run, 'Script completed');
+    }
+
+    async function startSpeechRTC(run, triggerSource = 'manual') {
+      if (activeRun?.id !== run.id || run.finalized) return;
+      if (run.speechRTC.startedAt || run.speechRTC.stream) return;
+
+      const text = String(el.speechText.value || '').trim();
+      if (!text) {
+        appendLog('SpeechRTC text is empty.', 'warn');
+        throw new Error('SpeechRTC text is empty.');
+      }
+
+      run.speechRTC.triggerSource = triggerSource;
+      setSpeechRTCState('starting');
+      appendTimeline(run, 'SpeechRTC start requested', { triggerSource });
+
+      const stream = speechRTC.createTextStream(getSpeechConfig());
+      run.speechRTC.stream = stream;
+      bindSpeechEvents(run, stream);
+      updateTriggerButtons();
+
+      try {
+        await playSpeechScript(run, stream, text);
+      } catch (error) {
+        run.speechRTC.error = error;
+        appendLog(`SpeechRTC script failed in run ${run.id}.`, 'error', { message: String(error?.message || error) });
+        finalizeRun(run, 'INCONCLUSIVE', `SpeechRTC script failed: ${String(error?.message || error)}`);
+      }
+    }
+
+    async function startAudioSource(run, triggerSource = 'manual') {
+      if (activeRun?.id !== run.id || run.finalized) return;
+      if (run.audioSource.startedAt || run.audioSource.node) return;
+
+      if (!AudioContextCtor) {
+        finalizeRun(run, 'INCONCLUSIVE', 'AudioContext is not supported in this browser.');
+        return;
+      }
+
+      const durationSec = Math.max(0.2, Number(el.toneDurationSec.value) || 2);
+      const frequencyHz = Math.max(110, Number(el.toneFrequency.value) || 440);
+      const watchdogMs = Math.max(500, Number(el.watchdogMs.value) || 4000);
+      const context = new AudioContextCtor();
+      await ensureAudioContext(context);
+
+      const gainNode = context.createGain();
+      gainNode.gain.value = 1;
+      gainNode.connect(context.destination);
+
+      const buffer = buildToneBuffer(context, durationSec, frequencyHz);
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(gainNode);
+
+      run.audioSource.context = context;
+      run.audioSource.gainNode = gainNode;
+      run.audioSource.node = source;
+      run.audioSource.triggerSource = triggerSource;
+      run.audioSource.frequencyHz = frequencyHz;
+      run.audioSource.durationSec = durationSec;
+      run.audioSource.startedAt = Date.now();
+      run.audioSource.expectedEndAt = run.audioSource.startedAt + Math.round(durationSec * 1000);
+
+      setAudioSourceState('started');
+      appendTimeline(run, 'AudioSource started', {
+        triggerSource,
+        frequencyHz,
+        durationSec,
+        expectedEndAt: new Date(run.audioSource.expectedEndAt).toLocaleTimeString(),
+      });
+
+      if (run.plan.autoStartSpeech && run.plan.speechAnchor === 'audio-start') {
+        scheduleSpeechStart(run, 'audio-start');
+      }
+
+      source.onended = async () => {
+        if (!run.audioSource.actualEndedAt) {
+          run.audioSource.actualEndedAt = Date.now();
+        }
+        setAudioSourceState('onended');
+        setWatchdogState('cleared');
+        if (run.watchdogTimer) {
+          clearTimeout(run.watchdogTimer);
+          run.watchdogTimer = null;
+        }
+        appendTimeline(run, 'AudioSource onended', {
+          actualEndedAt: new Date(run.audioSource.actualEndedAt).toLocaleTimeString(),
+          deltaMs: run.audioSource.actualEndedAt - run.audioSource.expectedEndAt,
+        });
+        finalizeRun(run, 'PASS', 'AudioSource onended was received.');
+        if (el.autoFinishStream.checked && run.speechRTC.stream) {
+          await finishSpeechStream(run, 'AudioSource completed and auto-finish is enabled');
+        }
+      };
+
+      source.start();
+      setWatchdogState(`armed ${watchdogMs}ms`);
+      run.watchdogTimer = window.setTimeout(async () => {
+        run.watchdogTimer = null;
+        if (run.finalized) return;
+        run.audioSource.watchdogTimedOutAt = Date.now();
+        setWatchdogState('timed-out');
+        appendTimeline(run, 'Watchdog timeout', {
+          expectedEndAt: new Date(run.audioSource.expectedEndAt).toLocaleTimeString(),
+          timedOutAt: new Date(run.audioSource.watchdogTimedOutAt).toLocaleTimeString(),
+        });
+        finalizeRun(run, 'FAIL', 'AudioSource watchdog timed out before onended.');
+        if (el.autoFinishStream.checked && run.speechRTC.stream) {
+          await finishSpeechStream(run, 'Watchdog timeout and auto-finish is enabled');
+        }
+      }, watchdogMs);
+      updateTriggerButtons();
+    }
+
+    async function startRun() {
+      if (activeRun) {
+        await cleanupRun(activeRun, { finalize: false });
+      }
+
+      resetPanels();
+      runCounter += 1;
+      const plan = buildScenarioPlan();
+      const run = {
+        id: runCounter,
+        startedAt: Date.now(),
+        plan,
+        finalized: false,
+        verdict: 'not-run',
+        reason: '',
+        speechStartTimer: null,
+        audioStartTimer: null,
+        watchdogTimer: null,
+        speechRTC: {
+          stream: null,
+          scheduledAt: null,
+          triggerSource: null,
+          startedAt: null,
+          firstAudioChunkAt: null,
+          scriptFinishedAt: null,
+          finishRequested: false,
+          finishRequestedAt: null,
+          finishedAt: null,
+          error: null,
+        },
+        audioSource: {
+          context: null,
+          node: null,
+          gainNode: null,
+          scheduledAt: null,
+          triggerSource: null,
+          startedAt: null,
+          expectedEndAt: null,
+          actualEndedAt: null,
+          watchdogTimedOutAt: null,
+          frequencyHz: null,
+          durationSec: null,
+        },
+      };
+
+      activeRun = run;
+      el.runMeta.textContent = `run ${run.id} / ${plan.key}`;
+      setStatus('running', 'pending');
+      setSpeechRTCState(plan.manualOnly ? 'waiting-manual-trigger' : 'pending');
+      setAudioSourceState(plan.manualOnly ? 'waiting-manual-trigger' : 'pending');
+      setWatchdogState('idle');
+      el.scenarioState.textContent = plan.key;
+
+      appendLog(`Starting run ${run.id}.`, 'info', {
+        scenario: plan.key,
+        audioDelayMs: plan.audioDelayMs,
+        speechDelayMs: plan.speechDelayMs,
+        toneDurationSec: Number(el.toneDurationSec.value) || 0,
+        watchdogMs: Number(el.watchdogMs.value) || 0,
+      });
+      appendTimeline(run, 'Run initialized', {
+        scenario: plan.key,
+        manualOnly: plan.manualOnly,
+      });
+
+      if (plan.autoStartSpeech && plan.speechAnchor === 'run') {
+        scheduleSpeechStart(run, 'run');
+      }
+      if (plan.autoStartAudio && plan.audioAnchor === 'run') {
+        scheduleAudioStart(run, 'run');
+      }
+
+      updateTriggerButtons();
+    }
+
+    el.start.addEventListener('click', () => {
+      startRun().catch((error) => {
+        appendLog('Unexpected startRun failure.', 'error', { message: String(error?.message || error) });
+      });
+    });
+
+    el.triggerSpeech.addEventListener('click', () => {
+      if (!activeRun || activeRun.finalized) return;
+      startSpeechRTC(activeRun, 'manual').catch((error) => {
+        appendLog('Manual SpeechRTC trigger failed.', 'error', { message: String(error?.message || error) });
+      });
+    });
+
+    el.triggerAudio.addEventListener('click', () => {
+      if (!activeRun || activeRun.finalized) return;
+      startAudioSource(activeRun, 'manual').catch((error) => {
+        appendLog('Manual AudioSource trigger failed.', 'error', { message: String(error?.message || error) });
+      });
+    });
+
+    el.login.addEventListener('click', async () => {
+      try {
+        appendLog('Opening login window...', 'info');
+        const result = await sdk.showLoginWindow({ title: 'Keepwork 登录' });
+        appendLog('Login succeeded.', 'success', {
+          username: result?.username || null,
+          hasToken: !!result?.token,
+        });
+        await refreshAuthUI();
+      } catch (error) {
+        appendLog('Login cancelled or failed.', 'warn', { message: String(error?.message || error) });
+      }
+    });
+
+    el.profile.addEventListener('click', async () => {
+      try {
+        await sdk.showProfileWindow({ title: '用户资料' });
+      } catch (error) {
+        appendLog('Open profile failed.', 'warn', { message: String(error?.message || error) });
+      }
+    });
+
+    el.logout.addEventListener('click', async () => {
+      try {
+        await sdk.logout();
+        appendLog('Logged out.', 'success');
+      } catch (error) {
+        appendLog('Logout failed.', 'warn', { message: String(error?.message || error) });
+      } finally {
+        await refreshAuthUI();
+      }
+    });
+
+    el.stop.addEventListener('click', () => {
+      if (!activeRun) return;
+      cleanupRun(activeRun, { finalize: true, reason: 'Stopped manually by user.' }).catch((error) => {
+        appendLog('Cleanup failed after manual stop.', 'error', { message: String(error?.message || error) });
+      });
+    });
+
+    el.clear.addEventListener('click', () => {
+      const clearPanels = () => {
+        el.logPanel.innerHTML = '';
+        resetPanels();
+        setStatus('idle', 'not-run');
+        setSpeechRTCState('idle');
+        setAudioSourceState('idle');
+        setWatchdogState('idle');
+        el.runMeta.textContent = 'run -';
+        appendLog('Panels cleared.', 'info');
+      };
+
+      if (!activeRun) {
+        clearPanels();
+        return;
+      }
+
+      cleanupRun(activeRun, { finalize: false })
+        .catch((error) => {
+          appendLog('Cleanup failed while clearing panels.', 'warn', { message: String(error?.message || error) });
+        })
+        .finally(() => {
+          clearPanels();
+        });
+    });
+
+    el.scenarioSelect.addEventListener('change', () => {
+      applyScenarioDefaults();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (!activeRun) return;
+      cleanupRun(activeRun, { finalize: false }).catch(() => {});
+    });
+
+    await refreshAuthUI();
+    applyScenarioDefaults();
+    appendLog('SpeechRTC overlap regression page is ready.', 'success', {
+      proxyUrl: DEFAULT_PROXY_URL,
+      audioFormat: 'pcm',
+      note: 'Use the Start button as the user gesture before testing on mobile. The speech script supports [2s] and [500ms] markers.',
+    });
+  </script>
+</body>
+</html>

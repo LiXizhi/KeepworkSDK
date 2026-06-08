@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentRouter Nested Agent Test</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(180deg, #eef3ff 0%, #f8fafc 40%, #eef7f2 100%);
+            color: #1f2937;
+        }
+        .page {
+            max-width: 1480px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            margin: 0 0 10px;
+            font-size: 30px;
+            color: #0f172a;
+        }
+        h2 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            color: #172554;
+        }
+        h3 {
+            margin: 0 0 8px;
+            font-size: 15px;
+            color: #1e3a8a;
+        }
+        p {
+            margin: 0;
+            line-height: 1.55;
+        }
+        .hero {
+            background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 38%), linear-gradient(135deg, #ffffff, #e8f0ff 58%, #f4fbf7);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            border-radius: 18px;
+            padding: 22px;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+            margin-bottom: 18px;
+        }
+        .hero p {
+            max-width: 980px;
+            color: #334155;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1.1fr 1fr;
+            gap: 16px;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+            margin-bottom: 16px;
+        }
+        .status-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .pill strong {
+            color: #0f172a;
+        }
+        .topology {
+            background: #0f172a;
+            color: #dbeafe;
+            border-radius: 14px;
+            padding: 14px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            min-height: 240px;
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #334155;
+        }
+        input, select, textarea {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 9px 10px;
+            font-size: 13px;
+            background: #fff;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 88px;
+        }
+        button {
+            border: 0;
+            border-radius: 10px;
+            padding: 9px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            color: #fff;
+            background: #2563eb;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        button:hover { opacity: 0.94; }
+        button.green { background: #16a34a; }
+        button.orange { background: #ea580c; }
+        button.red { background: #dc2626; }
+        button.slate { background: #475569; }
+        .result {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 320px;
+            overflow: auto;
+        }
+        .success { background: #ecfdf5; border-color: #86efac; color: #166534; }
+        .error { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+        .info { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+        .agent-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 32px;
+        }
+        .badge {
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .badge.local { background: #dcfce7; color: #166534; }
+        .badge.remote { background: #dbeafe; color: #1d4ed8; }
+        .iframe-shell {
+            border: 1px solid rgba(30, 41, 59, 0.14);
+            border-radius: 16px;
+            overflow: hidden;
+            background: #fff;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+        }
+        .iframe-label {
+            padding: 9px 12px;
+            background: linear-gradient(90deg, #1d4ed8, #0f766e);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .iframe-shell iframe {
+            width: 100%;
+            height: 430px;
+            border: 0;
+            display: block;
+            background: #fff;
+        }
+        #globalLog {
+            background: #0b1120;
+            color: #cbd5e1;
+            border-radius: 14px;
+            padding: 14px;
+            font-family: Consolas, monospace;
+            font-size: 11px;
+            max-height: 360px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+        #globalLog .time { color: #93c5fd; }
+        #globalLog .success { color: #86efac; background: transparent; border: 0; padding: 0; }
+        #globalLog .warn { color: #facc15; }
+        #globalLog .error { color: #fca5a5; background: transparent; border: 0; padding: 0; }
+        @media (max-width: 1100px) {
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="hero">
+        <h1>AgentRouter 5-Agent Nested Iframe Lab</h1>
+        <p>
+            This page creates 5 fixed agents named agent1, agent2, agent3, agent4, and agent5. Each agent lives inside its own iframe,
+            and the iframes form a nested topology. The main scenario under test is: any source agent receives a prompt like
+            "使用runAsyncAgentTask这个copilot tool工具，让agentx 帮我计算123*567， 将结果返回给我。" and delegates the work to the target agent through the
+            KeepworkSDK agent tool plus AgentRouter routing.
+        </p>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <h2>Host Status</h2>
+            <div class="status-row">
+                <div class="pill">Host Router <strong id="hostInstanceId">-</strong></div>
+                <div class="pill">Connected Windows <strong id="hostConnectedCount">0</strong></div>
+                <div class="pill">Expected Agents <strong id="expectedRemoteCount">5</strong></div>
+            </div>
+            <h3>Host Local Agents</h3>
+            <div class="agent-badges" id="hostLocalAgents"><em style="color:#94a3b8;">None</em></div>
+            <h3 style="margin-top:12px;">Discovered Remote Agents</h3>
+            <div class="agent-badges" id="hostRouteTable"><em style="color:#94a3b8;">Waiting...</em></div>
+            <div style="margin-top:12px;">
+                <button class="green" onclick="connectAllPeers()">Connect Top-Level Iframes</button>
+                <button class="slate" onclick="refreshHostStatus()">Refresh Status</button>
+                <button class="red" onclick="clearLog()">Clear Log</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Nested Topology</h2>
+            <div class="topology" id="topologyDiagram">Loading topology...</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Cross-Agent Delegation</h2>
+        <div class="grid-3">
+            <div class="form-group">
+                <label for="sourceAgentSelect">Source Agent</label>
+                <select id="sourceAgentSelect"></select>
+            </div>
+            <div class="form-group">
+                <label for="targetAgentSelect">Target Agent</label>
+                <select id="targetAgentSelect"></select>
+            </div>
+            <div class="form-group">
+                <label for="mathExpressionInput">Expression</label>
+                <input id="mathExpressionInput" value="123*567">
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="delegationPrompt">Delegation Prompt</label>
+            <textarea id="delegationPrompt"></textarea>
+        </div>
+        <button class="green" onclick="submitDelegationScenario()">Run From Selected Source Agent</button>
+        <button class="orange" onclick="runDelegationSmokeMatrix()">Run Smoke Matrix</button>
+        <button class="slate" onclick="resetPromptTemplate()">Reset Prompt Template</button>
+        <div id="delegationResult" class="result info" style="margin-top:10px;">Waiting for a delegation run.</div>
+        <div id="delegationStream" class="result" style="margin-top:10px;">Streaming events will appear here.</div>
+    </div>
+
+    <div class="card">
+        <h2>Focused Tests</h2>
+        <button class="green" onclick="runAllFocusedTests()">Run All Focused Tests</button>
+        <button class="slate" onclick="runDiscoveryFocusedTest()">Discovery Test</button>
+        <button class="slate" onclick="runSingleDelegationTest('agent1', 'agent4')">agent1 -> agent4</button>
+        <button class="slate" onclick="runSingleDelegationTest('agent2', 'agent5')">agent2 -> agent5</button>
+        <button class="slate" onclick="runSingleDelegationTest('agent4', 'agent2')">agent4 -> agent2</button>
+        <div id="unitTestResult" class="result" style="margin-top:10px;">Focused tests have not run yet.</div>
+    </div>
+
+    <div class="card">
+        <h2>Agent Iframes</h2>
+        <p style="margin-bottom:12px;color:#475569;">
+            Top-level structure: host -> agent1 and host -> agent2. Nested structure: agent1 -> agent3 -> agent4, and agent2 -> agent5.
+            Each iframe creates exactly one named agent and can delegate to any other agent through runAsyncAgentTask.
+        </p>
+        <div class="grid-2">
+            <div class="iframe-shell">
+                <div class="iframe-label">Top-Level Tree A: agent1 -> agent3 -> agent4</div>
+                <iframe id="iframeAgent1Root" srcdoc=""></iframe>
+            </div>
+            <div class="iframe-shell">
+                <div class="iframe-label">Top-Level Tree B: agent2 -> agent5</div>
+                <iframe id="iframeAgent2Root" srcdoc=""></iframe>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Host Event Log</h2>
+        <div id="globalLog">Waiting for events...</div>
+    </div>
+</div>
+
+<script src="../dist/keepworkSDK.iife.js"></script>
+<script>if (typeof KeepworkSDK === 'undefined') document.write('<script src="../keepworkSDK.iife.js"><\/script>')</script>
+<script src="../dist/keepworkSDK.AIChat.iife.js"></script>
+<script>
+var sdk = null;
+var router = null;
+
+var AGENT_TREE = [
+    createPeerConfig('Agent 1', 'agent1', [
+        createPeerConfig('Agent 3', 'agent3', [
+            createPeerConfig('Agent 4', 'agent4')
+        ])
+    ]),
+    createPeerConfig('Agent 2', 'agent2', [
+        createPeerConfig('Agent 5', 'agent5')
+    ])
+];
+
+var ALL_AGENT_NAMES = flattenPeerAgentNames(AGENT_TREE);
+var DEFAULT_EXPRESSION = '123*567';
+var DEFAULT_MODEL = 'keepwork-flash';
+var DEFAULT_AGENT_TOOLS = ['agent', 'execute'];
+var DEBUG_PREFIXES = ['[AgentRouter]', '[CopilotTools]', '[ChatSession', '[ChatSession.send]'];
+
+function createPeerConfig(label, agentName, nestedPeers) {
+    return {
+        label: label,
+        agentName: agentName,
+        nestedPeers: nestedPeers || []
+    };
+}
+
+function flattenPeerAgentNames(peerConfigs) {
+    var names = [];
+    function walk(peer) {
+        names.push(peer.agentName);
+        for (var index = 0; index < (peer.nestedPeers || []).length; index++) {
+            walk(peer.nestedPeers[index]);
+        }
+    }
+    for (var i = 0; i < peerConfigs.length; i++) {
+        walk(peerConfigs[i]);
+    }
+    return names;
+}
+
+function ensureSdkRouter() {
+    if (router) return router;
+    if (typeof KeepworkSDK !== 'undefined') {
+        sdk = (window.keepwork && window.keepwork.agentRouter) ? window.keepwork : new KeepworkSDK({ timeout: 120000 });
+        router = sdk.agentRouter;
+        return router;
+    }
+    if (typeof window.AgentRouter === 'function') {
+        router = new window.AgentRouter();
+        return router;
+    }
+    throw new Error('KeepworkSDK or AgentRouter is not available.');
+}
+
+function log(message, level) {
+    level = level || 'info';
+    var el = document.getElementById('globalLog');
+    if (!el) return;
+    var ts = new Date().toLocaleTimeString();
+    var cls = level === 'success' ? 'success' : (level === 'error' ? 'error' : (level === 'warn' ? 'warn' : 'info'));
+    if (el.textContent === 'Waiting for events...') {
+        el.innerHTML = '';
+    }
+    el.innerHTML += '<span class="time">[' + escapeHtml(ts) + ']</span> <span class="' + cls + '">' + escapeHtml(message) + '</span>\n';
+    el.scrollTop = el.scrollHeight;
+}
+
+function stringifyConsoleArgs(args) {
+    return Array.prototype.map.call(args || [], function(part) {
+        if (part === null || part === undefined) return String(part);
+        if (typeof part === 'string') return part;
+        try {
+            return JSON.stringify(part);
+        } catch (error) {
+            return String(part);
+        }
+    }).join(' ');
+}
+
+function shouldMirrorDebugLog(text) {
+    for (var i = 0; i < DEBUG_PREFIXES.length; i++) {
+        if (text.indexOf(DEBUG_PREFIXES[i]) >= 0) return true;
+    }
+    return false;
+}
+
+function installHostDebugConsoleMirror() {
+    if (window.__keepworkHostDebugMirrorInstalled) return;
+    window.__keepworkHostDebugMirrorInstalled = true;
+
+    ['log', 'warn', 'error'].forEach(function(method) {
+        var original = console[method];
+        console[method] = function() {
+            var text = stringifyConsoleArgs(arguments);
+            if (shouldMirrorDebugLog(text)) {
+                log('[host:' + method + '] ' + text, method === 'log' ? 'info' : method);
+            }
+            return original.apply(console, arguments);
+        };
+    });
+}
+
+function clearLog() {
+    var el = document.getElementById('globalLog');
+    if (el) {
+        el.textContent = 'Waiting for events...';
+    }
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function showResult(id, value, cls) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'result ' + (cls || '');
+    el.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+}
+
+function stringifyStreamContent(content) {
+    if (content && typeof content === 'object') {
+        if (content.sessionAgent || content.ownerAgent || content.fromAgent) {
+            return JSON.stringify(content, null, 2);
+        }
+        if (content.function && content.function.name) {
+            return 'tool ' + content.function.name + '(' + (content.function.arguments || '') + ')';
+        }
+        return JSON.stringify(content);
+    }
+    return String(content);
+}
+
+function extractStreamOrigin(content) {
+    if (content && typeof content === 'object') {
+        if (content.sessionAgent) return content.sessionAgent;
+        if (content.ownerAgent) return content.ownerAgent;
+        if (content.fromAgent) return content.fromAgent;
+    }
+    var text = stringifyStreamContent(content);
+    var match = text.match(/^(agent\d+)\s*[: ]/i);
+    return match ? match[1] : 'session';
+}
+
+function createMergedStreamState(title) {
+    return {
+        title: title,
+        order: [],
+        linesByKey: {}
+    };
+}
+
+function updateMergedStreamView(el, state, msg) {
+    if (!el || !state || !msg) return;
+    var origin = extractStreamOrigin(msg.content);
+    var text = stringifyStreamContent(msg.content);
+    var key = msg.streamType + ':' + origin;
+    var label = '[' + msg.streamType + '] ' + origin;
+    if (state.order.indexOf(key) === -1) {
+        state.order.push(key);
+    }
+    state.linesByKey[key] = label + '\n' + text.slice(0, 600);
+    el.textContent = state.title + '\n\n' + state.order.map(function(itemKey) {
+        return state.linesByKey[itemKey];
+    }).join('\n\n');
+    el.scrollTop = el.scrollHeight;
+}
+
+function serializeForInlineScript(value) {
+    return JSON.stringify(value)
+        .replace(/</g, '\\u003C')
+        .replace(/>/g, '\\u003E')
+        .replace(/&/g, '\\u0026')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
+}
+
+function buildNestedPeerDescriptors(nestedPeers) {
+    var descriptors = [];
+    for (var i = 0; i < nestedPeers.length; i++) {
+        descriptors.push({
+            label: nestedPeers[i].label,
+            agentName: nestedPeers[i].agentName,
+            srcdoc: generatePeerSrcdoc(nestedPeers[i])
+        });
+    }
+    return descriptors;
+}
+
+function buildDelegationPrompt(targetAgent, expression) {
+    return '使用runAsyncAgentTask这个copilot tool工具，让' + targetAgent + ' 帮我计算' + expression + '， 将结果返回给我。';
+}
+
+function normalizeExpression(expression) {
+    return String(expression || DEFAULT_EXPRESSION).replace(/\s+/g, '').replace(/x/ig, '*').replace(/×/g, '*');
+}
+
+function populateAgentSelectors() {
+    var sourceSelect = document.getElementById('sourceAgentSelect');
+    var targetSelect = document.getElementById('targetAgentSelect');
+    sourceSelect.innerHTML = '';
+    targetSelect.innerHTML = '';
+    for (var i = 0; i < ALL_AGENT_NAMES.length; i++) {
+        var sourceOption = document.createElement('option');
+        sourceOption.value = ALL_AGENT_NAMES[i];
+        sourceOption.textContent = ALL_AGENT_NAMES[i];
+        sourceSelect.appendChild(sourceOption);
+
+        var targetOption = document.createElement('option');
+        targetOption.value = ALL_AGENT_NAMES[i];
+        targetOption.textContent = ALL_AGENT_NAMES[i];
+        if (ALL_AGENT_NAMES[i] === 'agent4') targetOption.selected = true;
+        targetSelect.appendChild(targetOption);
+    }
+    sourceSelect.value = 'agent1';
+    sourceSelect.addEventListener('change', syncPromptFromControls);
+    targetSelect.addEventListener('change', syncPromptFromControls);
+    document.getElementById('mathExpressionInput').addEventListener('input', syncPromptFromControls);
+    resetPromptTemplate();
+}
+
+function resetPromptTemplate() {
+    syncPromptFromControls();
+}
+
+function syncPromptFromControls() {
+    var targetAgent = document.getElementById('targetAgentSelect').value;
+    var expression = normalizeExpression(document.getElementById('mathExpressionInput').value);
+    document.getElementById('delegationPrompt').value = buildDelegationPrompt(targetAgent, expression);
+}
+
+function forEachTopLevelPeerIframe(callback) {
+    ['iframeAgent1Root', 'iframeAgent2Root'].forEach(function(id) {
+        var iframe = document.getElementById(id);
+        if (iframe) callback(iframe, id);
+    });
+}
+
+function refreshHostStatus() {
+    if (!router) return;
+    document.getElementById('hostInstanceId').textContent = router.instanceId.slice(0, 8);
+    document.getElementById('hostConnectedCount').textContent = router.connectedWindows.size;
+
+    var locals = Array.from(router.localAgents.keys());
+    var localEl = document.getElementById('hostLocalAgents');
+    localEl.innerHTML = locals.length ? locals.map(function(name) {
+        return '<span class="badge local">' + escapeHtml(name) + '</span>';
+    }).join('') : '<em style="color:#94a3b8;">None</em>';
+
+    var remotes = Array.from(router.routeTable.keys()).sort();
+    var routeEl = document.getElementById('hostRouteTable');
+    routeEl.innerHTML = remotes.length ? remotes.map(function(name) {
+        return '<span class="badge remote">' + escapeHtml(name) + '</span>';
+    }).join('') : '<em style="color:#94a3b8;">Waiting...</em>';
+}
+
+function refreshTopology() {
+    if (!router) return;
+    var lines = [
+        'Host',
+        '  |- agent1',
+        '  |   |- agent3',
+        '  |   |   |- agent4',
+        '  |- agent2',
+        '  |   |- agent5',
+        '',
+        'Connected top-level windows: ' + router.connectedWindows.size,
+        'Discovered remote agents: ' + (Array.from(router.routeTable.keys()).sort().join(', ') || '(none)'),
+        '',
+        'Delegation scenario',
+        '  Any source agent receives a prompt that explicitly asks it to use runAsyncAgentTask.',
+        '  The source agent extracts the target agent, delegates through the agent tool,',
+        '  and the target agent computes 123*567 and returns 69741.',
+        '',
+        'Expected remote agents: ' + ALL_AGENT_NAMES.join(', ')
+    ];
+    document.getElementById('topologyDiagram').textContent = lines.join('\n');
+    refreshHostStatus();
+}
+
+function connectAllPeers() {
+    forEachTopLevelPeerIframe(function(iframe, id) {
+        if (iframe.contentWindow) {
+            router.addChildWindow(iframe.contentWindow);
+            log('Connected top-level iframe ' + id, 'success');
+        }
+    });
+    refreshHostStatus();
+    refreshTopology();
+}
+
+function waitForRemoteAgents(minCount, timeoutMs) {
+    return new Promise(function(resolve) {
+        if (router.routeTable.size >= minCount) {
+            resolve(true);
+            return;
+        }
+        var start = Date.now();
+        function check() {
+            if (router.routeTable.size >= minCount) {
+                resolve(true);
+                return;
+            }
+            if (Date.now() - start > timeoutMs) {
+                resolve(false);
+                return;
+            }
+            setTimeout(check, 100);
+        }
+        setTimeout(check, 100);
+    });
+}
+
+function submitDelegationScenario() {
+    var sourceAgent = document.getElementById('sourceAgentSelect').value;
+    var targetAgent = document.getElementById('targetAgentSelect').value;
+    var prompt = document.getElementById('delegationPrompt').value.trim();
+    if (!sourceAgent || !targetAgent || !prompt) {
+        showResult('delegationResult', 'Source agent, target agent, and prompt are required.', 'error');
+        return Promise.resolve(null);
+    }
+    if (sourceAgent === targetAgent) {
+        showResult('delegationResult', 'Source and target must be different agents for this scenario.', 'error');
+        return Promise.resolve(null);
+    }
+    showResult('delegationResult', 'Submitting prompt to ' + sourceAgent + '...', 'info');
+    var streamEl = document.getElementById('delegationStream');
+    var mergedStreamState = createMergedStreamState('Merged streaming state for ' + sourceAgent + ' -> ' + targetAgent);
+    streamEl.textContent = mergedStreamState.title + '\n';
+
+    return router.submitTask(sourceAgent, {
+        task: prompt,
+        tools: DEFAULT_AGENT_TOOLS.slice(),
+        model: DEFAULT_MODEL
+    }, {
+        onStream: function(msg) {
+            updateMergedStreamView(streamEl, mergedStreamState, msg);
+        }
+    }).then(function(result) {
+        showResult('delegationResult', result, 'success');
+        log('Delegation completed: ' + sourceAgent + ' -> ' + targetAgent + ' => ' + String(result).slice(0, 80), 'success');
+        return result;
+    }).catch(function(error) {
+        showResult('delegationResult', error.message, 'error');
+        log('Delegation failed: ' + error.message, 'error');
+        throw error;
+    });
+}
+
+function runDelegationSmokeMatrix() {
+    var pairs = [
+        ['agent1', 'agent4'],
+        ['agent2', 'agent5'],
+        ['agent4', 'agent2']
+    ];
+    var streamEl = document.getElementById('delegationStream');
+    streamEl.textContent = 'Running smoke matrix...\n';
+    var results = [];
+    var chain = Promise.resolve();
+    pairs.forEach(function(pair) {
+        chain = chain.then(function() {
+            var source = pair[0];
+            var target = pair[1];
+            document.getElementById('sourceAgentSelect').value = source;
+            document.getElementById('targetAgentSelect').value = target;
+            resetPromptTemplate();
+            return submitDelegationScenario().then(function(result) {
+                results.push(source + ' -> ' + target + ': ' + result);
+            });
+        });
+    });
+    return chain.then(function() {
+        showResult('delegationResult', results.join('\n\n'), 'success');
+    }).catch(function(error) {
+        showResult('delegationResult', 'Smoke matrix failed: ' + error.message, 'error');
+    });
+}
+
+function runDiscoveryFocusedTest(silent) {
+    var el = document.getElementById('unitTestResult');
+    if (!silent) {
+        el.className = 'result';
+        el.textContent = 'Running discovery test...\n';
+    }
+    return waitForRemoteAgents(ALL_AGENT_NAMES.length, 5000).then(function(found) {
+        if (!found) {
+            if (!silent) {
+                el.className = 'result error';
+                el.textContent += 'FAIL: only found ' + router.routeTable.size + ' remote agents.\n';
+            }
+            return false;
+        }
+        var missing = ALL_AGENT_NAMES.filter(function(name) { return !router.routeTable.has(name); });
+        if (missing.length > 0) {
+            if (!silent) {
+                el.className = 'result error';
+                el.textContent += 'FAIL: missing ' + missing.join(', ') + '\n';
+            }
+            return false;
+        }
+        if (!silent) {
+            el.className = 'result success';
+            el.textContent += 'PASS: discovered all 5 remote agents: ' + ALL_AGENT_NAMES.join(', ') + '\n';
+        }
+        return true;
+    });
+}
+
+function runSingleDelegationTest(sourceAgent, targetAgent, silent) {
+    var el = document.getElementById('unitTestResult');
+    if (!silent) {
+        el.className = 'result';
+        el.textContent = 'Running delegation test ' + sourceAgent + ' -> ' + targetAgent + '...\n';
+    }
+    document.getElementById('sourceAgentSelect').value = sourceAgent;
+    document.getElementById('targetAgentSelect').value = targetAgent;
+    resetPromptTemplate();
+    return submitDelegationScenario().then(function(result) {
+        if (String(result).indexOf('69741') >= 0) {
+            if (!silent) {
+                el.className = 'result success';
+                el.textContent += 'PASS: result contains 69741\n' + result;
+            }
+            return true;
+        }
+        if (!silent) {
+            el.className = 'result error';
+            el.textContent += 'FAIL: result does not contain 69741\n' + result;
+        }
+        return false;
+    }).catch(function(error) {
+        if (!silent) {
+            el.className = 'result error';
+            el.textContent += 'FAIL: ' + error.message;
+        }
+        return false;
+    });
+}
+
+function runAllFocusedTests() {
+    var el = document.getElementById('unitTestResult');
+    el.className = 'result';
+    el.textContent = 'Running focused tests...\n\n';
+    var passCount = 0;
+    var failCount = 0;
+    function record(name, ok, detail) {
+        if (ok) {
+            passCount++;
+            el.textContent += 'PASS: ' + name + (detail ? ' -- ' + detail : '') + '\n';
+        } else {
+            failCount++;
+            el.textContent += 'FAIL: ' + name + (detail ? ' -- ' + detail : '') + '\n';
+        }
+        el.scrollTop = el.scrollHeight;
+    }
+
+    return runDiscoveryFocusedTest(true).then(function(ok) {
+        record('Discovery', ok, ok ? 'all 5 agents discovered' : 'missing remote agents');
+        return runSingleDelegationTest('agent1', 'agent4', true);
+    }).then(function(ok) {
+        record('agent1 -> agent4', ok, ok ? '69741 returned' : 'delegation failed');
+        return runSingleDelegationTest('agent2', 'agent5', true);
+    }).then(function(ok) {
+        record('agent2 -> agent5', ok, ok ? '69741 returned' : 'delegation failed');
+        return runSingleDelegationTest('agent4', 'agent2', true);
+    }).then(function(ok) {
+        record('agent4 -> agent2', ok, ok ? '69741 returned' : 'delegation failed');
+        el.textContent += '\nSummary: ' + passCount + ' passed, ' + failCount + ' failed.';
+        el.className = failCount > 0 ? 'result error' : 'result success';
+    });
+}
+
+function generatePeerSrcdoc(labelOrConfig, agentName, nestedPeers) {
+    var peerConfig = typeof labelOrConfig === 'object' ? labelOrConfig : createPeerConfig(labelOrConfig, agentName, nestedPeers);
+    var bundleUrl = String(new URL('../dist/keepworkSDK.iife.js', window.location.href));
+    var bundleAIChatUrl = String(new URL('../dist/keepworkSDK.AIChat.iife.js', window.location.href));
+    var nestedDescriptors = buildNestedPeerDescriptors(peerConfig.nestedPeers || []);
+    var nestedMarkup = nestedDescriptors.length ? '<div style="margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:10px;"><div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:6px;">Nested iframe children</div><div id="nestedPeerContainer"></div></div>' : '';
+    var src = '<!DOCTYPE html><html><head>'
+        + '<meta charset="UTF-8">'
+        + '<style>'
+        + 'body{margin:0;padding:10px;background:linear-gradient(180deg,#f8fbff,#f8fafc);font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#1f2937;}'
+        + '.card{border:1px solid #dbeafe;border-radius:12px;background:#fff;padding:10px;box-shadow:0 6px 14px rgba(15,23,42,.06);}'
+        + '.row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}'
+        + '.pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:700;}'
+        + 'label{display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:3px;}'
+        + 'select,textarea,button{width:100%;font-size:12px;border-radius:8px;}'
+        + 'select,textarea{border:1px solid #cbd5e1;padding:7px;background:#fff;}'
+        + 'textarea{min-height:72px;resize:vertical;}'
+        + 'button{border:0;padding:8px 9px;margin-top:6px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer;}'
+        + '.secondary{background:#475569;}'
+        + '.log,.result{margin-top:8px;border-radius:10px;padding:8px;font-family:Consolas,monospace;font-size:11px;white-space:pre-wrap;max-height:160px;overflow:auto;}'
+        + '.log{background:#0f172a;color:#cbd5e1;}'
+        + '.result{background:#f8fafc;border:1px solid #e2e8f0;}'
+        + '.nested-frame{width:100%;height:240px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;margin-top:6px;}'
+        + '.nested-label{font-size:11px;font-weight:700;color:#475569;margin-top:6px;}'
+        + '</style></head><body>'
+        + '<div class="card">'
+        + '<div class="row"><span class="pill">' + peerConfig.label + '</span><span class="pill">name: ' + peerConfig.agentName + '</span><span class="pill">router: <span id="routerId">-</span></span></div>'
+        + '<div class="row"><span class="pill">Local <span id="localCount">0</span></span><span class="pill">Remote <span id="remoteCount">0</span></span></div>'
+        + '<div style="margin-bottom:8px;">'
+        + '<label for="targetSelect">Target agent</label>'
+        + '<select id="targetSelect"></select>'
+        + '</div>'
+        + '<div style="margin-bottom:8px;">'
+        + '<label for="promptInput">Prompt sent by this source agent</label>'
+        + '<textarea id="promptInput"></textarea>'
+        + '</div>'
+        + '<button id="runBtn">Run Prompt From ' + peerConfig.agentName + '</button>'
+        + '<button id="refreshBtn" class="secondary">Refresh Local Status</button>'
+        + '<div id="runResult" class="result">Waiting for local run.</div>'
+        + '<div id="localLog" class="log">Booting...</div>'
+        + nestedMarkup
+        + '</div>'
+        + '<script src="' + bundleUrl + '"><\/script>'
+        + '<script src="' + bundleAIChatUrl + '"><\/script>'
+        + '<script>'
+        + 'var PEER_CONFIG = ' + serializeForInlineScript({ label: peerConfig.label, agentName: peerConfig.agentName }) + ';\n'
+        + 'var ALL_AGENT_NAMES = ' + serializeForInlineScript(ALL_AGENT_NAMES) + ';\n'
+        + 'var NESTED_PEERS = ' + serializeForInlineScript(nestedDescriptors) + ';\n'
+        + 'var DEFAULT_MODEL = ' + serializeForInlineScript(DEFAULT_MODEL) + ';\n'
+        + 'var DEFAULT_AGENT_TOOLS = ' + serializeForInlineScript(DEFAULT_AGENT_TOOLS) + ';\n'
+        + 'var sdk = (window.keepwork && window.keepwork.agentRouter) ? window.keepwork : ((typeof window.KeepworkSDK === "function") ? new window.KeepworkSDK({ timeout: 30000 }) : null);\n'
+        + 'var router = sdk ? sdk.agentRouter : null;\n'
+        + 'var aiChat = sdk ? sdk.aiChat : null;\n'
+        + 'if (aiChat) { aiChat.testEnableTools = DEFAULT_AGENT_TOOLS.slice(); }\n'
+        + 'var coordinatorSession = aiChat ? aiChat.createSession({ model: DEFAULT_MODEL, enableTools: DEFAULT_AGENT_TOOLS.slice() }) : null;\n'
+        + 'if (coordinatorSession) { coordinatorSession.name = PEER_CONFIG.agentName; }\n'
+        + 'var registeredAgent = null;\n'
+        + 'function logLocal(msg){ var el=document.getElementById("localLog"); if(el.textContent==="Booting..."){ el.textContent=""; } el.textContent += "["+new Date().toLocaleTimeString()+"] "+msg+"\\n"; el.scrollTop=el.scrollHeight; }\n'
+        + 'function stringifyConsoleArgs(args){ return Array.prototype.map.call(args || [], function(part){ if(part===null || part===undefined) return String(part); if(typeof part === "string") return part; try { return JSON.stringify(part); } catch (error) { return String(part); } }).join(" "); }\n'
+        + 'function shouldMirrorDebugLog(text){ return text.indexOf("[AgentRouter]") >= 0 || text.indexOf("[CopilotTools]") >= 0 || text.indexOf("[ChatSession") >= 0; }\n'
+        + 'function mirrorDebugToHost(level, text){ try { if(window.top && window.top !== window){ window.top.postMessage({ type: "keepworksdk_debug", level: level, source: "iframe", agentName: PEER_CONFIG.agentName, label: PEER_CONFIG.label, text: text }, "*"); } } catch (error) {} }\n'
+        + 'function installLocalDebugConsoleMirror(){ if(window.__keepworkIframeDebugMirrorInstalled) return; window.__keepworkIframeDebugMirrorInstalled = true; ["log","warn","error"].forEach(function(method){ var original = console[method]; console[method] = function(){ var text = stringifyConsoleArgs(arguments); if(shouldMirrorDebugLog(text)){ logLocal("[" + method + "] " + text); mirrorDebugToHost(method, text); } return original.apply(console, arguments); }; }); }\n'
+        + 'function updateLocalStatus(){ if(!router) return; document.getElementById("routerId").textContent = router.instanceId.slice(0,8); document.getElementById("localCount").textContent = router.localAgents.size; document.getElementById("remoteCount").textContent = router.routeTable.size; }\n'
+        + 'function setRunResult(text, cls){ var el=document.getElementById("runResult"); el.className = "result" + (cls ? " " + cls : ""); el.textContent = text; }\n'
+        + 'function populateTargetOptions(){ var select=document.getElementById("targetSelect"); select.innerHTML=""; for(var i=0;i<ALL_AGENT_NAMES.length;i++){ if(ALL_AGENT_NAMES[i]===PEER_CONFIG.agentName) continue; var option=document.createElement("option"); option.value=ALL_AGENT_NAMES[i]; option.textContent=ALL_AGENT_NAMES[i]; select.appendChild(option); } if(select.options.length){ select.value = select.options[0].value; } updatePrompt(); select.addEventListener("change", updatePrompt); }\n'
+        + 'function updatePrompt(){ var target=document.getElementById("targetSelect").value; document.getElementById("promptInput").value = "使用runAsyncAgentTask这个copilot tool工具，让" + target + " 帮我计算123*567， 将结果返回给我。"; }\n'
+        + 'function extractTargetAgent(prompt){ var match = String(prompt || "").match(/让\\s*(agent\\d+)\\s*帮我/i); return match ? match[1] : null; }\n'
+        + 'function extractExpression(prompt){ var text = String(prompt || "").replace(/×/g, "*").replace(/[xX]/g, "*"); var match = text.match(/(\\d+)\\s*\\*\\s*(\\d+)/); return match ? { left: Number(match[1]), right: Number(match[2]) } : null; }\n'
+        + 'function hasExpectedResult(text, expr){ return String(text || "").indexOf(String(expr.left * expr.right)) >= 0; }\n'
+        + 'function buildToolCallDebugPayload(ownerAgent, toolCall, extra){ var payload = { sessionAgent: ownerAgent, toolCall: toolCall }; if(extra){ for(var key in extra){ payload[key] = extra[key]; } } return payload; }\n'
+        + 'function streamToCaller(streamCb, type, content){ if(streamCb){ streamCb({ streamType: type, content: content }); } }\n'
+        + 'function consumePendingResult(agentName){ if(!coordinatorSession) return null; var all = coordinatorSession._consumePendingChildResults(); var matched = null; for(var i=0;i<all.length;i++){ if(!matched && all[i].agentName===agentName){ matched = all[i]; } } return matched; }\n'
+        + 'function waitForPendingResult(agentName, timeoutMs){ return new Promise(function(resolve, reject){ var start = Date.now(); function check(){ var matched = consumePendingResult(agentName); if(matched){ resolve(matched.result); return; } if(Date.now() - start > timeoutMs){ reject(new Error("Timed out waiting for child result from " + agentName)); return; } setTimeout(check, 80); } check(); }); }\n'
+        + 'async function performMathTask(prompt, streamCb){ var expr = extractExpression(prompt) || { left: 123, right: 567 }; streamToCaller(streamCb, "message", PEER_CONFIG.agentName + " parsing expression " + expr.left + "*" + expr.right); await new Promise(function(resolve){ setTimeout(resolve, 80); }); var result = expr.left * expr.right; streamToCaller(streamCb, "message", PEER_CONFIG.agentName + " computed " + result); streamToCaller(streamCb, "complete", String(result)); return PEER_CONFIG.agentName + " computed " + expr.left + " * " + expr.right + " = " + result; }\n'
+        + 'async function performDelegationTaskMock(prompt, streamCb){ if(!sdk || !coordinatorSession){ throw new Error("SDK session is not ready in " + PEER_CONFIG.agentName); } var targetAgent = extractTargetAgent(prompt); if(!targetAgent){ throw new Error("Could not parse target agent from prompt: " + prompt); } if(targetAgent === PEER_CONFIG.agentName){ throw new Error("Source and target agents must be different in this test page."); } var expr = extractExpression(prompt) || { left: 123, right: 567 }; coordinatorSession.onChildStream = function(event){ var text = typeof event.content === "object" ? JSON.stringify(event.content) : String(event.content); logLocal("child stream [" + event.agentName + "/" + event.type + "] " + text.slice(0, 140)); if(event.type === "toolCall"){ streamToCaller(streamCb, event.type, buildToolCallDebugPayload(event.agentName || targetAgent, event.content, { parentAgent: PEER_CONFIG.agentName, via: "childStream" })); } else { streamToCaller(streamCb, event.type, event.agentName + ": " + text); } }; var childPrompt = "请计算" + expr.left + "*" + expr.right + "，并只返回最终计算结果。"; streamToCaller(streamCb, "message", PEER_CONFIG.agentName + " delegating to " + targetAgent + " via runAsyncAgentTask"); var submitMessage = await sdk.copilotTools.execute("runAsyncAgentTask", { task: childPrompt, description: "delegate math", agentName: targetAgent, model: DEFAULT_MODEL, callbackMode: "delay" }, { _session: coordinatorSession, enableTools: DEFAULT_AGENT_TOOLS.slice() }); streamToCaller(streamCb, "message", submitMessage); var childResult = await waitForPendingResult(targetAgent, 8000); var childText = typeof childResult === "string" ? childResult : JSON.stringify(childResult); var finalResult = PEER_CONFIG.agentName + " received from " + targetAgent + ": " + childText; streamToCaller(streamCb, "complete", finalResult); return finalResult; }\n'
+        + 'async function performDelegationTask(prompt, streamCb){ var targetAgent = extractTargetAgent(prompt); if(!targetAgent){ throw new Error("Could not parse target agent from prompt: " + prompt); } if(targetAgent === PEER_CONFIG.agentName){ throw new Error("Source and target agents must be different in this test page."); } var expr = extractExpression(prompt) || { left: 123, right: 567 }; if(!coordinatorSession || typeof coordinatorSession.send !== "function"){ return performDelegationTaskMock(prompt, streamCb); } coordinatorSession.clear(); coordinatorSession.messages.push({ role: "system", content: "You are " + PEER_CONFIG.agentName + ". When the user asks another agent to help, you must call runAsyncAgentTask with the named target agent and return the delegated final result to the caller. Do not stop after task submission. Wait for the child agent result and reply with it." }); coordinatorSession.onChildStream = function(event){ var text = typeof event.content === "object" ? JSON.stringify(event.content) : String(event.content); logLocal("child stream [" + event.agentName + "/" + event.type + "] " + text.slice(0, 140)); if(event.type === "toolCall"){ streamToCaller(streamCb, event.type, buildToolCallDebugPayload(event.agentName || targetAgent, event.content, { parentAgent: PEER_CONFIG.agentName, via: "childStream" })); } else { streamToCaller(streamCb, event.type, event.agentName + ": " + text); } }; streamToCaller(streamCb, "message", PEER_CONFIG.agentName + " sending prompt through ChatSession.send with tools: " + DEFAULT_AGENT_TOOLS.join(",") + " model=" + DEFAULT_MODEL); try { var sendTimeout = new Promise(function(_, rej){ setTimeout(function(){ rej(new Error("ChatSession.send timed out (5s)")); }, 5000); }); var response = await Promise.race([coordinatorSession.send(prompt, { stream: true, model: DEFAULT_MODEL, enableTools: DEFAULT_AGENT_TOOLS.slice(), maxIterations: 6, onMessage: function(text){ streamToCaller(streamCb, "message", text); }, onToolCall: function(toolCall){ streamToCaller(streamCb, "toolCall", buildToolCallDebugPayload(PEER_CONFIG.agentName, toolCall, { phase: "source-send" })); }, onComplete: function(result){ streamToCaller(streamCb, "complete", result); }, onError: function(error){ streamToCaller(streamCb, "error", error.message || String(error)); } }), sendTimeout]); var finalText = typeof response === "string" ? response : ((response && response.result) ? response.result : ""); if(finalText && hasExpectedResult(finalText, expr)){ return finalText; } streamToCaller(streamCb, "message", PEER_CONFIG.agentName + " waiting for delegated result from " + targetAgent); var childResult = await waitForPendingResult(targetAgent, 8000); var childText = typeof childResult === "string" ? childResult : JSON.stringify(childResult); var mergedResult = PEER_CONFIG.agentName + " received from " + targetAgent + ": " + childText; streamToCaller(streamCb, "complete", mergedResult); return mergedResult; } catch(error) { logLocal("ChatSession.send failed, fallback to mock path: " + (error.message || error)); streamToCaller(streamCb, "message", "ChatSession.send fallback: " + (error.message || error)); return performDelegationTaskMock(prompt, streamCb); } }\n'
+        + 'registeredAgent = { handleTask: async function(taskId, payload, streamCb){ var prompt = (payload && (payload.task || payload.prompt)) || ""; logLocal("handleTask: " + prompt.slice(0, 120)); if(/runAsyncAgentTask/i.test(prompt) || /让\\s*agent\\d+\\s*帮我/.test(prompt)){ return performDelegationTask(prompt, streamCb); } return performMathTask(prompt, streamCb); } };\n'
+        + 'function registerSelf(){ if(!router || !registeredAgent){ logLocal("router is not ready"); return; } var ok = router.register(PEER_CONFIG.agentName, registeredAgent); logLocal(ok ? "registered adapter " + PEER_CONFIG.agentName : "register skipped for " + PEER_CONFIG.agentName + " (name already taken)"); updateLocalStatus(); }\n'
+        + 'function mountNestedPeers(){ var container = document.getElementById("nestedPeerContainer"); if(!container || !router) return; for(var i=0;i<NESTED_PEERS.length;i++){ (function(peer){ var wrapper=document.createElement("div"); var label=document.createElement("div"); var frame=document.createElement("iframe"); label.className="nested-label"; label.textContent=peer.label + " / " + peer.agentName; frame.className="nested-frame"; frame.srcdoc=peer.srcdoc; frame.addEventListener("load", function(){ if(frame.contentWindow){ router.addChildWindow(frame.contentWindow); logLocal("nested link added -> " + peer.agentName); setTimeout(updateLocalStatus, 120); } }); wrapper.appendChild(label); wrapper.appendChild(frame); container.appendChild(wrapper); })(NESTED_PEERS[i]); } }\n'
+        + 'function runLocalPrompt(){ var prompt=document.getElementById("promptInput").value.trim(); var target=document.getElementById("targetSelect").value; if(!prompt){ setRunResult("Prompt is required.", "error"); return; } setRunResult("Running local delegation from " + PEER_CONFIG.agentName + " to " + target + "...", "info"); registeredAgent.handleTask("local-" + Date.now(), { prompt: prompt }, function(msg){ var text = typeof msg.content === "object" ? JSON.stringify(msg.content) : String(msg.content); logLocal("stream [" + msg.streamType + "] " + text.slice(0, 140)); }).then(function(result){ setRunResult(result, "success"); }).catch(function(error){ setRunResult(error.message, "error"); }); }\n'
+        + 'window.addEventListener("message", function(event){ if(event.data && event.data.is_agent_router){ updateLocalStatus(); } });\n'
+        + 'window.runLocalPrompt = runLocalPrompt;\n'
+        + 'setTimeout(function(){ installLocalDebugConsoleMirror(); if(!router){ setRunResult("AgentRouter not available inside iframe.", "error"); return; } populateTargetOptions(); document.getElementById("runBtn").addEventListener("click", runLocalPrompt); document.getElementById("refreshBtn").addEventListener("click", updateLocalStatus); mountNestedPeers(); registerSelf(); updateLocalStatus(); }, 40);\n'
+        + '<\/script></body></html>';
+    return src;
+}
+
+window.addEventListener('message', function(event) {
+    var msg = event.data;
+    if (msg && msg.type === 'keepworksdk_debug') {
+        var debugPrefix = '[' + (msg.agentName || msg.label || 'unknown') + '/' + (msg.level || 'log') + '] ';
+        log(debugPrefix + msg.text, msg.level === 'log' ? 'info' : msg.level);
+        return;
+    }
+    if (!msg || msg.is_agent_router !== true) return;
+    var summary = 'Host recv type=' + msg.type + ' agent=' + (msg.agentName || '') + ' taskId=' + (msg.taskId || '').slice(0, 8);
+    if (msg.type === 'agent_task_result' && msg.result) {
+        summary += ' result=' + String(msg.result).slice(0, 60);
+    }
+    log(summary, msg.error ? 'error' : 'info');
+    if (msg.type === 'agent_register' || msg.type === 'agent_unregister' || msg.type === 'agent_register_ack') {
+        setTimeout(function() {
+            refreshHostStatus();
+            refreshTopology();
+        }, 120);
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        ensureSdkRouter();
+        installHostDebugConsoleMirror();
+    } catch (error) {
+        showResult('delegationResult', error.message, 'error');
+        return;
+    }
+
+    document.getElementById('expectedRemoteCount').textContent = ALL_AGENT_NAMES.length;
+    populateAgentSelectors();
+    document.getElementById('iframeAgent1Root').srcdoc = generatePeerSrcdoc(AGENT_TREE[0]);
+    document.getElementById('iframeAgent2Root').srcdoc = generatePeerSrcdoc(AGENT_TREE[1]);
+    refreshHostStatus();
+    refreshTopology();
+
+    setTimeout(function() {
+        connectAllPeers();
+        log('Host initialized. Waiting for all 5 agents to register.', 'success');
+        waitForRemoteAgents(ALL_AGENT_NAMES.length, 5000).then(function(found) {
+            if (found) {
+                log('All remote agents discovered: ' + ALL_AGENT_NAMES.join(', '), 'success');
+            } else {
+                log('Timed out waiting for all remote agents. Current count=' + router.routeTable.size, 'warn');
+            }
+            refreshHostStatus();
+            refreshTopology();
+        });
+    }, 500);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  // npm 包类型声明（.d.ts）生成专用配置。
+  // 继承主 tsconfig，仅覆盖输出相关选项：只发 .d.ts，不发 .js（.js 由 Vite 产出）。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "dist-npm/types"
+  },
+  "include": [
+    "src/**/*.ts",
+    "index.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-npm",
+    "scripts",
+    "deploy_tools",
+    "test",
+    "indexCore.ts",
+    "indexAIChat.ts",
+    "vite.keepworkSDK.config.ts",
+    "vite.keepworkSDK.core.config.ts",
+    "vite.keepworkSDK.AIChat.config.ts",
+    "vite.npm.config.ts"
+  ]
+}

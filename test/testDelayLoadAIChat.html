@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delay-Load AIChat Chunk Test</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <style>
+    .log-entry { animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+    pre { white-space: pre-wrap; word-break: break-all; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-200 min-h-screen p-6 font-mono text-sm">
+
+  <div class="max-w-3xl mx-auto space-y-6">
+    <div>
+      <h1 class="text-xl font-bold text-white">Delay-Load AIChat Chunk</h1>
+      <p class="text-gray-400 text-xs mt-1">
+        Loads the <strong>core</strong> keepworkSDK first, then on-demand loads the
+        <strong>AIChat chunk</strong> (<code>keepworkSDK.AIChat.iife.js</code>) via
+        <code>keepwork.loadAIChat()</code>.
+      </p>
+    </div>
+
+    <!-- Status cards -->
+    <div class="grid grid-cols-2 gap-4">
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Core SDK</div>
+        <div id="coreStatus" class="text-lg font-bold text-yellow-400">Not loaded</div>
+      </div>
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">AIChat Chunk</div>
+        <div id="aiStatus" class="text-lg font-bold text-yellow-400">Not loaded</div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="flex gap-3 flex-wrap">
+      <button id="btnLoadAI" disabled
+        class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold transition">
+        Load AIChat Chunk
+      </button>
+      <button id="btnTestAI" disabled
+        class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold transition">
+        Test AIChat
+      </button>
+      <button id="btnTestDH" disabled
+        class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold transition">
+        Check DigitalHuman
+      </button>
+    </div>
+
+    <!-- Log -->
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+      <div class="px-4 py-2 border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wide">Log</div>
+      <div id="log" class="p-4 max-h-[60vh] overflow-y-auto space-y-1"></div>
+    </div>
+  </div>
+
+  <!-- 1) Load only the CORE bundle (no AIChat) -->
+  <script src="../dist/keepworkSDK.core.iife.js?v=1"></script>
+
+  <script>
+    // ───── helpers ─────
+    const logEl = document.getElementById('log');
+    function log(msg, level = 'info') {
+      const colors = { info: 'text-gray-300', success: 'text-emerald-400', warn: 'text-yellow-400', error: 'text-red-400' };
+      const ts = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = `log-entry ${colors[level] || colors.info}`;
+      div.textContent = `[${ts}] ${msg}`;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // ───── Core SDK check ─────
+    const coreStatusEl = document.getElementById('coreStatus');
+    const aiStatusEl   = document.getElementById('aiStatus');
+    const btnLoadAI    = document.getElementById('btnLoadAI');
+    const btnTestAI    = document.getElementById('btnTestAI');
+    const btnTestDH    = document.getElementById('btnTestDH');
+
+    if (typeof KeepworkSDK === 'undefined' || !window.keepwork) {
+      coreStatusEl.textContent = 'FAILED';
+      coreStatusEl.className = 'text-lg font-bold text-red-400';
+      log('Core SDK failed to load!', 'error');
+    } else {
+      coreStatusEl.textContent = 'Loaded ✓';
+      coreStatusEl.className = 'text-lg font-bold text-emerald-400';
+      log('Core keepworkSDK.iife.js loaded.', 'success');
+      log(`  KeepworkSDK.source = ${KeepworkSDK.source || '(empty)'}`);
+      log(`  window.keepwork exists: ${!!window.keepwork}`);
+      log(`  window.AIChat: ${typeof window.AIChat}  (should be "undefined" before chunk load)`);
+      log(`  keepwork.aiChat: ${window.keepwork.aiChat}  (should be null before chunk load)`);
+      btnLoadAI.disabled = false;
+    }
+
+    // ───── Load AIChat chunk on demand ─────
+    btnLoadAI.addEventListener('click', async () => {
+      btnLoadAI.disabled = true;
+      log('Calling keepwork.loadAIChat() …', 'warn');
+      const t0 = performance.now();
+      try {
+        await window.keepwork.loadAIChat();
+        const ms = (performance.now() - t0).toFixed(1);
+        aiStatusEl.textContent = `Loaded ✓ (${ms} ms)`;
+        aiStatusEl.className = 'text-lg font-bold text-emerald-400';
+        log(`AIChat chunk loaded in ${ms} ms.`, 'success');
+        log(`  window.AIChat: ${typeof window.AIChat}`);
+        log(`  window.AIChatRTC: ${typeof window.AIChatRTC}`);
+        log(`  window.AIChatRTCLocal: ${typeof window.AIChatRTCLocal}`);
+        log(`  window.SpeechRTC: ${typeof window.SpeechRTC}`);
+        log(`  window.DigitalHuman: ${typeof window.DigitalHuman}`);
+        log(`  window.DigitalHumanFrame: ${typeof window.DigitalHumanFrame}`);
+        log(`  window.AgentConfig: ${typeof window.AgentConfig}`);
+        log(`  window.SummarizeTool: ${typeof window.SummarizeTool}`);
+        log(`  keepwork.aiChat: ${window.keepwork.aiChat ? 'OK ✓' : 'null ✗'}`, window.keepwork.aiChat ? 'success' : 'error');
+        log(`  keepwork.speechRTC: ${window.keepwork.speechRTC ? 'OK ✓' : 'null ✗'}`, window.keepwork.speechRTC ? 'success' : 'error');
+        btnTestAI.disabled = false;
+        btnTestDH.disabled = false;
+      } catch (err) {
+        aiStatusEl.textContent = 'FAILED';
+        aiStatusEl.className = 'text-lg font-bold text-red-400';
+        log(`loadAIChat() error: ${err.message}`, 'error');
+        btnLoadAI.disabled = false;
+      }
+    });
+
+    // ───── Quick AIChat smoke test ─────
+    btnTestAI.addEventListener('click', () => {
+      log('── AIChat Smoke Test ──', 'warn');
+      try {
+        const session = window.keepwork.aiChat.createSession({ name: 'test-delay' });
+        log(`  Created ChatSession: name="${session.name}"`, 'success');
+        log(`  session.messages length: ${session.messages.length}`);
+        log(`  session.sandbox: ${session.sandbox ? 'OK ✓' : 'none'}`);
+        log('  AIChat works!', 'success');
+      } catch (err) {
+        log(`  AIChat test error: ${err.message}`, 'error');
+      }
+    });
+
+    // ───── Check DigitalHuman class ─────
+    btnTestDH.addEventListener('click', () => {
+      log('── DigitalHuman Check ──', 'warn');
+      if (typeof window.DigitalHuman === 'function') {
+        log(`  DigitalHuman is a constructor ✓`, 'success');
+        log(`  DigitalHumanFrame: ${typeof window.DigitalHumanFrame === 'function' ? '✓' : '✗'}`);
+        log(`  AgentConfig: ${typeof window.AgentConfig === 'function' ? '✓' : '✗'}`);
+      } else {
+        log('  DigitalHuman not available!', 'error');
+      }
+    });
+  </script>
+</body>
+</html>

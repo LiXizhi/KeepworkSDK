@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DigitalHuman WebView (NPLJS Inner Page)</title>
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+}
+#dh-container {
+    width: 100%;
+    height: 100%;
+}
+</style>
+</head>
+<body>
+<div id="dh-container"></div>
+
+<!--
+    This page is loaded inside Paracraft's WebView via NPLJS.
+    It creates a DigitalHumanFrame instance (iframe-isolated DigitalHuman) and
+    bridges NPLJS commands from DigitalHumanWebView.lua to DHF public API calls.
+
+    Architecture:
+      Inner iframe (DigitalHuman) ←→ this page (DigitalHumanFrame) ←→ Lua (NPLJS)
+
+    Two NPLJS channels are used:
+      1. dh-frame channel: @keepwork_digitalHuman / @webparacraft_digitalHuman
+         For RPC commands (init, sendMessage, etc.) and events (message, complete, etc.)
+      2. AgentRouter channel: @keepwork_dhAgent / @webparacraft_dhAgent
+         For tool call delegation — the "paracraft" agent on the NPL side is a
+         ToolSandbox instance, discovered and driven entirely via AgentRouter
+         (same pattern as testParacraftToolSandbox.html).
+
+    Tool call flow:
+      Inner iframe AI → DigitalHumanFrame postMessage → parent AgentRouter
+      → _proxySession sandbox toolProxy → "paracraft" agent → NPLJS → Lua ToolSandbox
+
+    Tool discovery flow (AgentRouter-driven):
+      JS createParacraftSandbox() → polls AgentRouter for "paracraft" agent
+      → agent discovered → getCategories() / getToolDefinitions() via AgentRouter
+      → registers NPL tool categories with sdk.copilotTools
+      → DHF injects them into iframe for LLM visibility
+-->
+
+<script type="module">
+
+// === 1. Load SDK ===
+try {
+    await import('../index.ts');
+} catch (e) {
+    try {
+        await import('../dist/keepworkSDK.iife.js');
+    } catch (e2) {
+        console.error('[DH-WebView] Failed to load KeepworkSDK:', e2);
+    }
+}
+
+// === Constants ===
+const FRAME_MSG_PREFIX = 'dh-frame:';
+const DH_SEND_EVENT   = '@webparacraft_digitalHuman';   // JS → Lua (events/responses)
+const DH_RECV_EVENT   = '@keepwork_digitalHuman';        // Lua → JS (commands)
+const AR_SEND_EVENT   = '@webparacraft_dhAgent';         // JS → Lua (AgentRouter)
+const AR_RECV_EVENT   = '@keepwork_dhAgent';              // Lua → JS (AgentRouter)
+
+// NPL categories discovered from the "paracraft" agent via AgentRouter.
+// These are routed to Lua ToolSandbox; built-in JS categories
+// (fileOps, execute, web, mqtt, personalPage) are handled locally.
+const LUA_PROXY_CATEGORIES = [];
+let _nplToolsDiscovered = false;
+
+// === 2. Set up SDK ===
+let sdk = window.keepwork;
+if (!sdk) {
+    sdk = new KeepworkSDK();
+    window.keepwork = sdk;
+}
+
+// === 3. NPLJS Transport ===
+let npljs = null;
+
+function getNPLJS() {
+    if (npljs) return npljs;
+    if (window.NPLJSInstance) {
+        npljs = window.NPLJSInstance;
+        return npljs;
+    }
+    if (typeof NPLJS === 'function') {
+        npljs = new NPLJS();
+        window.NPLJSInstance = npljs;
+    }
+    return npljs;
+}
+
+function postToLua(msg) {
+    const js = getNPLJS();
+    if (!js) {
+        console.warn('[DH-WebView] postToLua: NPLJS not available');
+        return;
+    }
+    js.SendMsg(DH_SEND_EVENT, msg);
+}
+
+// === 4. Create DigitalHumanFrame ===
+const DHFClass = window.DigitalHumanFrame;
+if (!DHFClass) {
+    console.error('[DH-WebView] DigitalHumanFrame not available on window');
+}
+
+const dhf = new DHFClass({
+    sdk,
+    container: document.getElementById('dh-container'),
+});
+
+// === 4.5. Paracraft Tool Sandbox (AgentRouter-driven) ===
+// All NPL-side tools live in a single "paracraft" agent (ToolSandbox.lua),
+// discovered and invoked via AgentRouter — same pattern as testParacraftToolSandbox.html.
+const paracraftSandbox = sdk.createParacraftSandbox({});
+
+// Route discovered NPL categories to the "paracraft" agent via _toolProxy
+function updateLuaProxyCategories() {
+    if (!dhf._proxySession?.sandbox) return;
+    const cats = {};
+    LUA_PROXY_CATEGORIES.forEach(c => { cats[c] = { agent: 'paracraft' }; });
+    dhf._proxySession.sandbox._toolProxy = { categories: cats };
+}
+
+/**
+ * Discover and register NPL tools from the "paracraft" agent via AgentRouter.
+ * Fetches categories and per-category tool definitions, registers them with
+ * sdk.copilotTools so DHF can inject them into the inner iframe for LLM visibility.
+ */
+async function discoverNPLTools() {
+    if (_nplToolsDiscovered) return true;
+    if (!paracraftSandbox.isAvailable()) return false;
+
+    const copilotTools = sdk?.copilotTools;
+    if (!copilotTools) return false;
+
+    try {
+        const categories = await paracraftSandbox.getCategories();
+        if (!Array.isArray(categories) || categories.length === 0) return false;
+
+        for (const catName of categories) {
+            if (copilotTools._registry[catName]) continue;
+
+            // Fetch definitions for this specific category from the remote agent
+            const defs = await sdk.agentRouter.submitTask('paracraft', {
+                action: 'getToolDefinitions',
+                categories: [catName],
+            });
+
+            if (!Array.isArray(defs) || defs.length === 0) continue;
+
+            copilotTools.registerToolCategory(catName, {
+                definitions: defs,
+                executor: async (fnName, fnArgs) => {
+                    throw new Error(`NPL tool '${fnName}' should be proxied to Lua, not executed locally`);
+                },
+            });
+
+            if (!LUA_PROXY_CATEGORIES.includes(catName)) {
+                LUA_PROXY_CATEGORIES.push(catName);
+            }
+            console.log(`[DH-WebView] Discovered NPL category '${catName}' with ${defs.length} tool(s)`);
+        }
+
+        updateLuaProxyCategories();
+        _nplToolsDiscovered = true;
+        console.log('[DH-WebView] NPL tools discovered via AgentRouter:', LUA_PROXY_CATEGORIES);
+        return true;
+    } catch (e) {
+        console.warn('[DH-WebView] discoverNPLTools error:', e);
+        return false;
+    }
+}
+
+/**
+ * Inject discovered NPL categories into a config's tools map so the inner
+ * iframe's DigitalHuman._buildEnableTools picks them up for the LLM request.
+ */
+function injectDiscoveredToolsIntoConfig(config) {
+    if (LUA_PROXY_CATEGORIES.length === 0) return;
+    if (!config.tools) config.tools = {};
+    for (const cat of LUA_PROXY_CATEGORIES) {
+        if (!config.tools[cat]) config.tools[cat] = { enabled: true };
+    }
+}
+
+// Backward-compatible: register NPL tools from config if Lua still embeds them.
+// This is a fallback path — primary discovery is via AgentRouter (discoverNPLTools).
+function registerNPLToolsFromConfig(config) {
+    if (!config) return;
+    const nplDefs = config.nplToolDefinitions;
+    const nplCats = config.nplProxyCategories;
+    if (!nplDefs || typeof nplDefs !== 'object') return;
+
+    const copilotTools = sdk?.copilotTools;
+    if (!copilotTools) return;
+
+    let registered = 0;
+    for (const [catName, definitions] of Object.entries(nplDefs)) {
+        if (!Array.isArray(definitions) || definitions.length === 0) continue;
+        if (!copilotTools._registry[catName]) {
+            copilotTools.registerToolCategory(catName, {
+                definitions,
+                executor: async (fnName, fnArgs) => {
+                    throw new Error(`NPL tool '${fnName}' should be proxied to Lua, not executed locally`);
+                },
+            });
+            registered++;
+        }
+        if (!LUA_PROXY_CATEGORIES.includes(catName)) LUA_PROXY_CATEGORIES.push(catName);
+    }
+    if (nplCats && Array.isArray(nplCats)) {
+        for (const cat of nplCats) {
+            if (!LUA_PROXY_CATEGORIES.includes(cat)) LUA_PROXY_CATEGORIES.push(cat);
+        }
+    }
+    if (registered > 0) updateLuaProxyCategories();
+    delete config.nplToolDefinitions;
+    delete config.nplProxyCategories;
+    injectDiscoveredToolsIntoConfig(config);
+}
+
+// === 5. AgentRouter NPLJS Bridge (for tool proxy to Lua) ===
+function setupAgentRouterBridge() {
+    const js = getNPLJS();
+    if (!js || !sdk.agentRouter) {
+        console.warn('[DH-WebView] setupAgentRouterBridge: NPLJS or AgentRouter not available');
+        return;
+    }
+
+    sdk.agentRouter.attachNPLJS(js, {
+        sendEventName: AR_SEND_EVENT,
+        recvEventName: AR_RECV_EVENT,
+    });
+
+    console.log('[DH-WebView] AgentRouter NPLJS bridge attached:', AR_SEND_EVENT, '/', AR_RECV_EVENT);
+}
+
+setupAgentRouterBridge();
+
+// Register a lightweight local agent to trigger the AgentRouter discovery handshake.
+// Without this, the Lua side never backfills its agents because JS has no agents to announce.
+// (Same pattern as testParacraftToolSandbox.html)
+if (sdk.agentRouter) {
+    sdk.agentRouter.register('_dh_discovery', {
+        handleTask: (taskId, payload, streamCb) => 'pong'
+    });
+}
+
+// Poll for "paracraft" agent discovery and auto-register NPL tools
+let _discoveryInterval = setInterval(async () => {
+    if (paracraftSandbox.isAvailable()) {
+        clearInterval(_discoveryInterval);
+        console.log('[DH-WebView] Agent "paracraft" discovered via AgentRouter');
+        await discoverNPLTools();
+    }
+}, 1000);
+setTimeout(() => clearInterval(_discoveryInterval), 60000);
+
+// === 6. Forward DHF events to Lua ===
+const DH_EVENTS = [
+    'message', 'complete', 'error', 'reasoning', 'toolCall', 'toolResult', 'bracketAction',
+    'avatarReady', 'voiceChatStarted', 'voiceChatStopped', 'voiceChatState',
+    'subtitle', 'welcome', 'audioLevel', 'autoplayFailed', 'summarized', 'comfortMessage',
+];
+
+for (const evt of DH_EVENTS) {
+    dhf.on(evt, (data) => {
+        let safeData;
+        try { safeData = data != null ? JSON.parse(JSON.stringify(data)) : data; } catch { safeData = null; }
+        postToLua({ type: FRAME_MSG_PREFIX + 'event', event: evt, data: safeData });
+    });
+}
+
+// === 7. Incoming command bridge (Lua → DHF method calls) ===
+function setupIncomingBridge() {
+    const js = getNPLJS();
+    if (!js) {
+        console.warn('[DH-WebView] setupIncomingBridge: NPLJS not available');
+        return;
+    }
+
+    js.OnMsg(DH_RECV_EVENT, async (msg) => {
+        if (!msg || typeof msg !== 'object') return;
+        const { type, callId } = msg;
+        if (!type || !type.startsWith(FRAME_MSG_PREFIX)) return;
+
+        try {
+            let result;
+
+            switch (type) {
+                case FRAME_MSG_PREFIX + 'init-avatar': {
+                    await dhf.initAvatar(msg.videoActions, msg.options || {});
+                    result = { ok: true };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'init-from-config': {
+                    const cfg = msg.config || {};
+                    // Discover NPL tools via AgentRouter (primary), then config fallback
+                    await discoverNPLTools();
+                    registerNPLToolsFromConfig(cfg);
+                    injectDiscoveredToolsIntoConfig(cfg);
+                    const info = await dhf.initFromConfig(cfg);
+                    result = {
+                        ok: true, config: info.config || cfg,
+                        character: info.character,
+                        initial_message: info.initial_message,
+                        quick_replies: info.quick_replies,
+                        objective: info.objective,
+                        completion_messages: info.completion_messages,
+                        voiceChat: info.voiceChat,
+                    };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'create-session': {
+                    const cfg = msg.config || {};
+                    // Discover NPL tools via AgentRouter (primary), then config fallback
+                    await discoverNPLTools();
+                    registerNPLToolsFromConfig(cfg);
+                    injectDiscoveredToolsIntoConfig(cfg);
+                    await dhf.createSession(cfg);
+                    result = { ok: true };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'send': {
+                    const sendRes = await dhf.send(msg.userMessage, msg.options);
+                    result = { ok: true, data: sendRes };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'send-message': {
+                    const res = await dhf.sendMessage(msg.userMessage, msg.options);
+                    result = { ok: true, data: res };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'play-action':
+                    dhf.playAction(msg.actionKey, msg.duration);
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'switch-video':
+                    dhf.switchVideo(msg.videoType);
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'switch-to-idle':
+                    dhf.switchToIdle();
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'switch-to-talking':
+                    dhf.switchToTalking();
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'set-mouth-open':
+                    dhf.setMouthOpen(msg.value);
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'play-motion':
+                    dhf.playMotion(msg.preferredGroups, msg.priority);
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'get-actions': {
+                    const actions = await dhf.getActions();
+                    result = { ok: true, actions };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'get-avatar-status': {
+                    const status = await dhf.getAvatarStatus();
+                    result = { ok: true, status };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'get-session': {
+                    const session = await dhf.getSessionData();
+                    result = { ok: true, session };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'start-voice-chat': {
+                    await dhf.startVoiceChat(msg.preset || {});
+                    result = { ok: true };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'stop-voice-chat':
+                    await dhf.stopVoiceChat();
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'send-voice-text':
+                    dhf.sendVoiceText(msg.text);
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'mute-microphone':
+                    dhf.muteMicrophone(msg.muted);
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'update-voice-chat': {
+                    const ucRes = await dhf.updateVoiceChat(msg.command, msg.options || {});
+                    result = { ok: true, data: ucRes };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'send-boot-message': {
+                    const bootRes = await dhf.sendBootMessage(msg.bootMessage, msg.options || {});
+                    result = { ok: true, data: bootRes };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'send-context':
+                    dhf.sendContext(msg.text);
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'load-summarize-agent-config': {
+                    const lsRes = await dhf.loadSummarizeAgentConfig(msg.config || {});
+                    result = { ok: true, data: lsRes };
+                    break;
+                }
+                case FRAME_MSG_PREFIX + 'summarize':
+                    dhf.summarize(msg.options || {});
+                    result = { ok: true };
+                    break;
+                case FRAME_MSG_PREFIX + 'destroy':
+                    await dhf.destroy();
+                    result = { ok: true };
+                    break;
+                default:
+                    result = { ok: false, error: `Unknown command: ${type}` };
+            }
+
+            if (callId) {
+                postToLua({ type: FRAME_MSG_PREFIX + 'response', callId, result });
+            }
+        } catch (err) {
+            console.error('[DH-WebView] Command error:', type, err);
+            if (callId) {
+                postToLua({
+                    type: FRAME_MSG_PREFIX + 'response',
+                    callId,
+                    result: { ok: false, error: err.message || String(err) },
+                });
+            }
+        }
+    });
+
+    console.log('[DH-WebView] Incoming bridge set up on', DH_RECV_EVENT);
+}
+
+setupIncomingBridge();
+
+console.log('[DH-WebView] DigitalHumanFrame created and NPLJS bridge enabled');
+
+// === 8. Signal readiness to Lua ===
+function sendReady() {
+    postToLua({ type: FRAME_MSG_PREFIX + 'ready' });
+    console.log('[DH-WebView] READY signal sent to Lua');
+}
+
+const js = getNPLJS();
+if (js && js.IsLoaded()) {
+    sendReady();
+} else if (js) {
+    js.OnLoad(() => sendReady());
+} else {
+    sendReady();
+}
+
+</script>
+</body>
+</html>

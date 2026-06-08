@@ -1,0 +1,74 @@
+---
+llm_model: keepwork-flash
+workspace: testDigitalHuman
+avatar_only: false
+videoActions:
+  idle:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/idle_new.webp"
+  talk:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/talk.webp"
+  写字|记录|writing:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/write.webp"
+  查询|编程|用平板|coding:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/pad.webp"
+  点赞|喜欢|like:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/like.webp"
+  鼓掌|clap:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/clap.webp"
+  guide|引导:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/guide.webp"
+  listen|倾听:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/listen.webp"
+  wave|挥手:
+    url: "https://cdn.keepwork.com/digitalhuman/v1/female/femalewaiter-new/wave.webp"
+tools:
+  fileOps:
+    enabled: true
+  execute:
+    enabled: true
+  app:
+    enabled: true
+bracketAction:
+  enabled: true
+  autoplay: true
+  duration: 3
+voiceChat:
+  appId: "69883f4ae00f9e017600b901"
+  agentUserId: "ChatBot03"
+  agentConfig:
+    UserId: "ChatBot03"
+    EnableConversationStateCallback: true
+  config:
+    LLMConfig:
+      Mode: "ArkV3"
+      EndPointId: "ep-20260315160200-s6fg7"
+      VisionConfig:
+        Enable: false
+      ThinkingType: "disabled"
+      HistoryLength: 20
+      Tools: []
+    S2SConfig:
+      Provider: "volcano"
+      OutputMode: 1
+      ProviderParams:
+        app:
+          appid: "3065448513"
+        dialog:
+          extra:
+            model: "1.2.1.0"
+          bot_name: "TestBot"
+          system_role: "You are a helpful test assistant."
+          speaking_style: "请使用轻松、亲切的口吻。"
+      HistoryLength: 10
+    SubtitleConfig:
+      SubtitleMode: 1
+    InterruptMode: 0
+character:
+  name: "TestBot"
+  description: "Simple S2S test bot"
+initial:
+  message: "你好！我是测试助手，可以语音聊天。"
+quick_replies: ["你好","读取文件","今天天气怎么样？"]
+---
+You are a helpful test assistant. When the user asks you to read a file, use the read_file tool. When the user asks about the weather, use the getWeather tool with the city name.
+偶尔可以用括号描述动作和神态，如"(微笑着看向你)"。如果括号中包含下列词语，角色会自动播放对应动作: ${copilot.getActionList('zh')}.

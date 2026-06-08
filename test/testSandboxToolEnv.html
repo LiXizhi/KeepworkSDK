@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SandboxToolEnv - processTemplate Test</title>
+  <script src="https://cdn.keepwork.com/keepwork/cdn/tailwindcss@3.4.16.js"></script>
+  <script type="module">
+    import '../index.ts';
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+    #log-panel::-webkit-scrollbar { width: 6px; }
+    #log-panel::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    #chat-messages::-webkit-scrollbar { width: 6px; }
+    #chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    @keyframes thinking {
+      0%, 80%, 100% { opacity: 0.3; }
+      40% { opacity: 1; }
+    }
+    .thinking-dot { animation: thinking 1.4s infinite; }
+    .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    .diff-added { background: rgba(34, 197, 94, 0.15); }
+    .diff-removed { background: rgba(239, 68, 68, 0.15); text-decoration: line-through; }
+  </style>
+</head>
+<body class="bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
+
+  <!-- Header -->
+  <header class="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center text-xl">🧪</div>
+      <div>
+        <h1 class="text-lg font-bold leading-tight">SandboxToolEnv Test</h1>
+        <p class="text-xs text-gray-400">processTemplate in AIChat Session</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="usernameDisplay" class="text-sm text-gray-300 cursor-pointer hover:text-blue-400 hidden"></span>
+      <button id="signInBtn" class="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors hidden">登录</button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Left: Config Panel -->
+    <aside class="w-96 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0 overflow-y-auto">
+      <div class="p-4 space-y-4">
+
+        <!-- Workspace -->
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">Sandbox Config</h3>
+          <label class="block">
+            <span class="text-xs text-gray-400">Workspace</span>
+            <input id="cfg-workspace" type="text" value="testSandbox"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Model</span>
+            <input id="cfg-model" type="text" value="keepwork-flash"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+        </div>
+
+        <!-- System Prompt Template -->
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">System Prompt Template</h3>
+          <p class="text-xs text-gray-500">Use <code class="text-purple-400">\${...}</code> for template expressions. Supports <code class="text-purple-400">await copilot.read_file(...)</code> etc.</p>
+          <label class="block">
+            <textarea id="cfg-system-prompt" rows="12"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500 resize-y font-mono leading-relaxed">你是一个友好的AI助手。
+
+当前时间：\${new Date().toLocaleString("zh-CN")}
+
+---
+用户的笔记内容：
+\${await copilot.read_file("notes.md", 1, 50)}
+---
+用户的计划：
+\${await copilot.read_file("plan.md", 1, 50)}
+---
+
+请根据以上信息回答用户的问题。</textarea>
+          </label>
+        </div>
+
+        <!-- Template Presets -->
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">Presets</h3>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="loadPreset('simple')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors">Simple</button>
+            <button onclick="loadPreset('fileRead')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors">File Read</button>
+            <button onclick="loadPreset('companion')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors">Companion AI</button>
+            <button onclick="loadPreset('multiExpr')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors">Multi-Expr</button>
+            <button onclick="loadPreset('nested')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors">Nested Braces</button>
+            <button onclick="loadPreset('error')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors">Error Handling</button>
+          </div>
+        </div>
+
+        <!-- Workspace Files -->
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">📁 Workspace Files</h3>
+          <p class="text-xs text-gray-500">Write files that <code class="text-purple-400">copilot.read_file()</code> can read during template expansion.</p>
+          <div class="flex gap-2">
+            <select id="file-name" class="flex-1 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+              <option value="notes.md">notes.md</option>
+              <option value="plan.md">plan.md</option>
+              <option value="todo.md">todo.md</option>
+              <option value="recent.md">recent.md</option>
+              <option value="memory.md">memory.md</option>
+            </select>
+            <input id="file-name-custom" type="text" placeholder="or custom name"
+              class="flex-1 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </div>
+          <textarea id="file-content" rows="5" placeholder="Enter file content here..."
+            class="w-full px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500 resize-y font-mono"></textarea>
+          <div class="flex gap-2">
+            <button onclick="saveFile()" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 rounded text-xs font-medium transition-colors">💾 Save File</button>
+            <button onclick="readFile()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors">📖 Read File</button>
+            <button onclick="listFiles()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors">📂 List Files</button>
+          </div>
+          <div id="file-status" class="text-xs text-gray-500 hidden"></div>
+        </div>
+
+        <!-- Tool Proxy Test -->
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">🔀 Tool Proxy</h3>
+          <p class="text-xs text-gray-500">Delegate tool calls to an agent ChatSession via AgentRouter. Register the agent first, then run tests.</p>
+
+          <label class="block">
+            <span class="text-xs text-gray-400">Mock Agent Name</span>
+            <input id="proxy-agent-name" type="text" value="mockFileAgent"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">Proxy Config (JSON)</span>
+            <textarea id="proxy-config" rows="8"
+              class="w-full mt-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500 resize-y font-mono">{
+  "functions": {
+    "read_file": { "agent": "mockFileAgent" },
+    "list_dir":  { "agent": "mockFileAgent" }
+  },
+  "categories": {
+    "execute": { "agent": "mockFileAgent" }
+  }
+}</textarea>
+          </label>
+
+          <div class="flex flex-wrap gap-2">
+            <button onclick="setupMockAgent()" class="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 rounded text-xs font-medium transition-colors">🤖 Register Agent</button>
+            <button onclick="runProxyTests()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded text-xs font-medium transition-colors">▶️ Run Proxy Tests</button>
+            <button onclick="teardownMockAgent()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors">🗑️ Unregister</button>
+          </div>
+          <div id="proxy-status" class="text-xs text-gray-500 hidden"></div>
+        </div>
+
+        <!-- Actions -->
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">Actions</h3>
+          <div class="flex flex-wrap gap-2">
+            <button id="btn-expand" onclick="expandTemplate()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium transition-colors">
+              🔄 Expand Template
+            </button>
+            <button onclick="runCodeSample()" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded-lg text-sm font-medium transition-colors">
+              ⚡ Run Code Sample
+            </button>
+            <button id="btn-chat" onclick="startChat()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors">
+              💬 Chat with Expanded Prompt
+            </button>
+            <button onclick="clearChat()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors">
+              🗑️ Clear Chat
+            </button>
+          </div>
+        </div>
+
+        <!-- Expanded Result -->
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-gray-300">Expanded System Prompt</h3>
+          <div id="expanded-result" class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm font-mono whitespace-pre-wrap max-h-64 overflow-y-auto text-gray-300">
+            (click "Expand Template" to see result)
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- Center: Chat -->
+    <main class="flex-1 flex flex-col">
+      <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
+        <div id="chat-placeholder" class="text-center text-gray-500 text-sm py-8">
+          Configure a system prompt template on the left, then click <strong>Expand Template</strong> to test <code>processTemplate()</code>,
+          or <strong>Chat with Expanded Prompt</strong> to use it in an AIChat session.
+        </div>
+      </div>
+
+      <!-- Text Input -->
+      <div class="border-t border-gray-700 bg-gray-800 px-4 py-3 flex gap-2 shrink-0">
+        <input id="text-input" type="text" placeholder="Type a message to chat with the AI..."
+          class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+        <button id="btn-send" onclick="sendMessage()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors">
+          Send
+        </button>
+      </div>
+    </main>
+
+    <!-- Right: Log Panel -->
+    <aside class="w-72 bg-gray-800 border-l border-gray-700 flex flex-col shrink-0">
+      <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+        <span class="text-sm font-semibold text-gray-300">Log</span>
+        <button onclick="document.getElementById('log-panel').innerHTML=''" class="text-xs text-gray-500 hover:text-gray-300">Clear</button>
+      </div>
+      <div id="log-panel" class="flex-1 overflow-y-auto p-3 space-y-1 text-xs font-mono"></div>
+    </aside>
+
+  </div>
+
+<script type="module">
+// ============================================================================
+// Globals
+// ============================================================================
+
+const hashParams = new URLSearchParams(window.location.hash.slice(1));
+const queryParams = new URLSearchParams(window.location.search);
+const urlToken = hashParams.get('token') || queryParams.get('token');
+
+const sdk = new KeepworkSDK({ timeout: 30000, token: urlToken });
+
+const ENABLED_TOOL_CATEGORIES = ['fileOps', 'execute', 'agent'];
+const DEFAULT_WORKSPACE_NAME = 'testSandbox';
+
+let sandbox = null;   // SandboxToolEnv instance
+let session = null;   // AIChat ChatSession
+let expandedPrompt = null; // Last expanded system prompt
+
+// ============================================================================
+// Presets
+// ============================================================================
+
+const PRESETS = {
+  simple: `你是一个友好的AI助手。
+当前时间：\${new Date().toLocaleString("zh-CN")}
+今天是星期\${["日","一","二","三","四","五","六"][new Date().getDay()]}。
+请用简洁的语言回答用户的问题。`,
+
+  fileRead: `你是用户的个人助手。
+
+---
+用户的笔记：
+\${await copilot.read_file("notes.md", 1, 100)}
+---
+用户的待办事项：
+\${await copilot.read_file("todo.md", 1, 50)}
+---
+文件列表：
+\${await copilot.list_dir("")}
+---
+
+根据用户的笔记和待办事项，帮助用户管理日常工作。`,
+
+  companion: `你是卡卡，一位陪伴型AI助手。
+
+## 当前会话数据
+
+---
+read_file("recent.md") 的结果：
+\${await copilot.read_file("recent.md", 1, 200)}
+---
+read_file("plan.md") 的结果：
+\${await copilot.read_file("plan.md", 1, 200)}
+---
+read_file("memory.md") 的结果：
+\${await copilot.read_file("memory.md", 1, 200)}
+---
+
+对话开始的时间为：\${new Date().toLocaleString("zh-CN")}
+根据以上信息发起温暖的问候。`,
+
+  multiExpr: `系统信息：
+- 时间: \${new Date().toLocaleString("zh-CN")}
+- 日期: \${new Date().toLocaleDateString("zh-CN")}
+- 年份: \${new Date().getFullYear()}
+- 月份: \${new Date().getMonth() + 1}
+- 随机ID: \${Math.random().toString(36).substring(2, 10)}
+- 平台: \${"Web Browser"}
+
+你是一个技术助手，请回答编程相关的问题。`,
+
+  nested: `测试嵌套大括号解析：
+
+表达式1: \${ JSON.stringify({ name: "test", value: 42 }) }
+表达式2: \${ (() => { const obj = {a: 1, b: {c: 2}}; return JSON.stringify(obj); })() }
+纯文本中的大括号 { 不应被解析 }
+
+这段应该正常工作。`,
+
+  error: `测试错误处理：
+
+正常表达式: \${1 + 1}
+错误表达式（变量不存在）: \${undefinedVariable.property}
+正常表达式: \${"hello".toUpperCase()}
+文件不存在: \${await copilot.read_file("nonexistent_file_xyz.md", 1, 10)}
+
+模板应该优雅地处理错误，保留失败的表达式原文。`,
+};
+
+// ============================================================================
+// Sign-in
+// ============================================================================
+
+async function updateSignInUI() {
+  const signInBtn = document.getElementById('signInBtn');
+  const usernameDisplay = document.getElementById('usernameDisplay');
+  if (sdk.token) {
+    signInBtn.classList.add('hidden');
+    let username = sdk.user?.username;
+    if (!username) {
+      try {
+        const profile = await sdk.getUserProfile();
+        username = profile?.username || profile?.nickname;
+      } catch (e) { /* ignore */ }
+    }
+    if (username) {
+      usernameDisplay.textContent = username;
+      usernameDisplay.classList.remove('hidden');
+    }
+  } else {
+    signInBtn.classList.remove('hidden');
+    usernameDisplay.classList.add('hidden');
+  }
+}
+
+async function handleSignIn() {
+  try {
+    await sdk.showLoginWindow({ title: '请先登录' });
+    updateSignInUI();
+  } catch (e) {
+    // User cancelled login
+  }
+}
+
+document.getElementById('signInBtn').addEventListener('click', handleSignIn);
+document.getElementById('usernameDisplay').addEventListener('click', handleSignIn);
+
+// ============================================================================
+// Logging
+// ============================================================================
+
+function log(msg, level = 'info') {
+  const panel = document.getElementById('log-panel');
+  const colors = { info: 'text-gray-300', warn: 'text-yellow-400', error: 'text-red-400', success: 'text-green-400' };
+  const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const div = document.createElement('div');
+  div.className = colors[level] || colors.info;
+  div.textContent = `[${ts}] ${msg}`;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+  console.log(`[SandboxTest][${level}] ${msg}`);
+}
+
+// ============================================================================
+// Chat UI
+// ============================================================================
+
+function addChatMessage(text, isUser, id) {
+  const container = document.getElementById('chat-messages');
+  const placeholder = document.getElementById('chat-placeholder');
+  if (placeholder) placeholder.remove();
+
+  const wrapper = document.createElement('div');
+  wrapper.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+  if (id) wrapper.dataset.msgId = id;
+
+  const bubble = document.createElement('div');
+  bubble.className = isUser
+    ? 'max-w-lg px-4 py-2.5 rounded-2xl rounded-br-sm bg-blue-600 text-white text-sm leading-relaxed'
+    : 'max-w-lg px-4 py-2.5 rounded-2xl rounded-bl-sm bg-gray-700 text-gray-100 text-sm leading-relaxed whitespace-pre-wrap';
+  bubble.textContent = text;
+
+  wrapper.appendChild(bubble);
+  container.appendChild(wrapper);
+  container.scrollTop = container.scrollHeight;
+  return wrapper;
+}
+
+function updateChatMessage(id, text) {
+  const container = document.getElementById('chat-messages');
+  const el = container.querySelector(`[data-msg-id="${id}"]`);
+  if (el) {
+    const bubble = el.querySelector('div');
+    if (bubble) bubble.textContent = text;
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function addSystemMessage(text) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'text-center text-xs text-gray-500 py-1';
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addThinkingIndicator() {
+  const container = document.getElementById('chat-messages');
+  const wrapper = document.createElement('div');
+  wrapper.className = 'flex justify-start';
+  wrapper.id = 'thinking-indicator';
+  wrapper.innerHTML = `
+    <div class="px-4 py-3 rounded-2xl rounded-bl-sm bg-gray-700 flex items-center gap-1">
+      <div class="w-2 h-2 bg-gray-400 rounded-full thinking-dot"></div>
+      <div class="w-2 h-2 bg-gray-400 rounded-full thinking-dot"></div>
+      <div class="w-2 h-2 bg-gray-400 rounded-full thinking-dot"></div>
+    </div>`;
+  container.appendChild(wrapper);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeThinkingIndicator() {
+  const el = document.getElementById('thinking-indicator');
+  if (el) el.remove();
+}
+
+// ============================================================================
+// SandboxToolEnv & ChatSession Helpers
+// ============================================================================
+
+function getWorkspace() {
+  return document.getElementById('cfg-workspace').value.trim() || DEFAULT_WORKSPACE_NAME;
+}
+
+function ensureSandbox() {
+  const workspace = getWorkspace();
+  if (!sandbox || sandbox.workspace !== workspace) {
+    sandbox = new SandboxToolEnv(sdk, { workspace, enabledCategories: ENABLED_TOOL_CATEGORIES });
+    log(`SandboxToolEnv created (workspace="${workspace}")`, 'success');
+  }
+  return sandbox;
+}
+
+function ensureSession() {
+  if (!session) {
+    const model = document.getElementById('cfg-model').value.trim();
+    const workspace = getWorkspace();
+    session = sdk.aiChat.createSession({
+      model,
+      workspace,
+      stream: true,
+      enableTools: ENABLED_TOOL_CATEGORIES,
+    });
+    log(`ChatSession created (model="${model}", workspace="${workspace}", tools=${ENABLED_TOOL_CATEGORIES.join(',')})`, 'success');
+  }
+  return session;
+}
+
+/** Ensure both sandbox and session exist and share the same workspace. */
+function ensureEnv() {
+  const sb = ensureSandbox();
+  const sess = ensureSession();
+  return { sandbox: sb, session: sess };
+}
+
+// ============================================================================
+// Core Actions
+// ============================================================================
+
+async function expandTemplate() {
+  const templateText = document.getElementById('cfg-system-prompt').value;
+  const resultEl = document.getElementById('expanded-result');
+
+  if (!templateText.trim()) {
+    log('System prompt is empty', 'warn');
+    return;
+  }
+
+  log('Expanding template...');
+  resultEl.textContent = '⏳ Expanding...';
+  resultEl.className = 'w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm font-mono whitespace-pre-wrap max-h-64 overflow-y-auto text-yellow-300';
+
+  const sb = ensureSandbox();
+  const startTime = performance.now();
+
+  try {
+    expandedPrompt = await sb.processTemplate(templateText);
+    const elapsed = (performance.now() - startTime).toFixed(0);
+    log(`Template expanded in ${elapsed}ms (${expandedPrompt.length} chars)`, 'success');
+
+    resultEl.textContent = expandedPrompt;
+    resultEl.className = 'w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm font-mono whitespace-pre-wrap max-h-64 overflow-y-auto text-green-300';
+
+    // Check for unresolved expressions
+    const unresolvedCount = (expandedPrompt.match(/\$\{/g) || []).length;
+    if (unresolvedCount > 0) {
+      log(`⚠️ ${unresolvedCount} unresolved \${...} expression(s) in result`, 'warn');
+    }
+
+    addSystemMessage(`✅ Template expanded (${elapsed}ms, ${expandedPrompt.length} chars${unresolvedCount ? `, ${unresolvedCount} unresolved` : ''})`);
+  } catch (err) {
+    log(`Template expansion failed: ${err.message}`, 'error');
+    resultEl.textContent = `❌ Error: ${err.message}`;
+    resultEl.className = 'w-full px-3 py-2 bg-gray-900 border border-red-600 rounded text-sm font-mono whitespace-pre-wrap max-h-64 overflow-y-auto text-red-400';
+  }
+}
+
+async function startChat() {
+  // First expand template if not done yet
+  if (!expandedPrompt) {
+    await expandTemplate();
+  }
+  if (!expandedPrompt) {
+    log('Cannot start chat — template expansion failed', 'error');
+    return;
+  }
+
+  // Reset session so it picks up the new system prompt
+  session = null;
+  const { session: sess } = ensureEnv();
+
+  // Add system message to session
+  sess.messages = [{ role: 'system', content: expandedPrompt }];
+  log(`Chat session initialized with expanded system prompt (${expandedPrompt.length} chars)`, 'success');
+  addSystemMessage('💬 Chat session started with expanded system prompt');
+}
+
+async function runCodeSample() {
+  const resultEl = document.getElementById('expanded-result');
+  const sb = ensureSandbox();
+
+  log('Running SandboxToolEnv.runCode sample...');
+  resultEl.textContent = '⏳ Running code...';
+  resultEl.className = 'w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm font-mono whitespace-pre-wrap max-h-64 overflow-y-auto text-yellow-300';
+
+  try {
+    const result = await sb.runCode(`
+const files = await copilot.list_dir('');
+return 'User: ' + user.name + '\nFiles:\n' + files;
+`, {
+      user: { name: 'Sandbox Tester' }
+    });
+
+    expandedPrompt = String(result ?? '');
+    resultEl.textContent = expandedPrompt;
+    resultEl.className = 'w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm font-mono whitespace-pre-wrap max-h-64 overflow-y-auto text-green-300';
+    log(`runCode completed (${expandedPrompt.length} chars)`, 'success');
+    addSystemMessage('⚡ runCode sample completed');
+  } catch (err) {
+    log(`runCode failed: ${err.message}`, 'error');
+    resultEl.textContent = `❌ Error: ${err.message}`;
+    resultEl.className = 'w-full px-3 py-2 bg-gray-900 border border-red-600 rounded text-sm font-mono whitespace-pre-wrap max-h-64 overflow-y-auto text-red-400';
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('text-input');
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+
+  // Auto-start chat if not started
+  if (!session) {
+    await startChat();
+    if (!session) return;
+  }
+  ensureSandbox(); // ensure sandbox is available for tool execution
+
+  addChatMessage(message, true);
+  log(`User: ${message}`);
+
+  const msgId = 'ai-' + Date.now();
+  addThinkingIndicator();
+
+  try {
+    const model = document.getElementById('cfg-model').value.trim();
+    const response = await session.send(message, {
+      model,
+      stream: true,
+      onMessage: (result) => {
+        removeThinkingIndicator();
+        const existing = document.querySelector(`[data-msg-id="${msgId}"]`);
+        if (existing) {
+          updateChatMessage(msgId, result);
+        } else {
+          addChatMessage(result, false, msgId);
+        }
+      },
+      onToolCall: (toolCall) => {
+        log(`Tool call: ${toolCall.function?.name}(${toolCall.function?.arguments?.substring(0, 80)}...)`, 'warn');
+        addSystemMessage(`🔧 Tool: ${toolCall.function?.name}`);
+      },
+      onComplete: (result) => {
+        removeThinkingIndicator();
+        log(`AI response complete (${(typeof result === 'string' ? result : '').length} chars)`, 'success');
+      },
+      onError: (err) => {
+        removeThinkingIndicator();
+        log(`Chat error: ${err.message}`, 'error');
+        addSystemMessage(`❌ Error: ${err.message}`);
+      }
+    });
+  } catch (err) {
+    removeThinkingIndicator();
+    log(`Send failed: ${err.message}`, 'error');
+    addSystemMessage(`❌ ${err.message}`);
+  }
+}
+
+function clearChat() {
+  document.getElementById('chat-messages').innerHTML = `
+    <div id="chat-placeholder" class="text-center text-gray-500 text-sm py-8">
+      Configure a system prompt template on the left, then click <strong>Expand Template</strong> to test <code>processTemplate()</code>,
+      or <strong>Chat with Expanded Prompt</strong> to use it in an AIChat session.
+    </div>`;
+  session = null;
+  expandedPrompt = null;
+  log('Chat cleared', 'info');
+}
+
+function loadPreset(name) {
+  const preset = PRESETS[name];
+  if (!preset) return;
+  document.getElementById('cfg-system-prompt').value = preset;
+  expandedPrompt = null;
+  log(`Loaded preset: ${name}`, 'success');
+}
+
+// ============================================================================
+// Workspace File Operations
+// ============================================================================
+
+function getFileName() {
+  const custom = document.getElementById('file-name-custom').value.trim();
+  return custom || document.getElementById('file-name').value;
+}
+
+function showFileStatus(msg, isError) {
+  const el = document.getElementById('file-status');
+  el.textContent = msg;
+  el.className = `text-xs ${isError ? 'text-red-400' : 'text-green-400'}`;
+  el.classList.remove('hidden');
+}
+
+async function saveFile() {
+  const fileName = getFileName();
+  const content = document.getElementById('file-content').value;
+  if (!fileName) { showFileStatus('File name is required', true); return; }
+
+  const sb = ensureSandbox();
+  log(`Saving file: ${fileName} (${content.length} chars)...`);
+  try {
+    await sb.execute('create_file', { filePath: fileName, content });
+    showFileStatus(`✅ Saved ${fileName}`);
+    log(`File saved: ${fileName}`, 'success');
+  } catch (err) {
+    // If file exists, try replace_string_in_file with full content replacement
+    try {
+      const existing = await sb.execute('read_file', { filePath: fileName, startLine: 1, endLine: 99999 });
+      await sb.execute('replace_string_in_file', { filePath: fileName, oldString: existing, newString: content });
+      showFileStatus(`✅ Updated ${fileName}`);
+      log(`File updated: ${fileName}`, 'success');
+    } catch (err2) {
+      showFileStatus(`❌ ${err2.message}`, true);
+      log(`Save failed: ${err2.message}`, 'error');
+    }
+  }
+}
+
+async function readFile() {
+  const fileName = getFileName();
+  if (!fileName) { showFileStatus('File name is required', true); return; }
+
+  const sb = ensureSandbox();
+  log(`Reading file: ${fileName}...`);
+  try {
+    const content = await sb.execute('read_file', { filePath: fileName, startLine: 1, endLine: 99999 });
+    document.getElementById('file-content').value = content || '';
+    showFileStatus(`📖 Loaded ${fileName} (${(content || '').length} chars)`);
+    log(`File read: ${fileName}`, 'success');
+  } catch (err) {
+    showFileStatus(`❌ ${err.message}`, true);
+    log(`Read failed: ${err.message}`, 'error');
+  }
+}
+
+async function listFiles() {
+  const sb = ensureSandbox();
+  log('Listing workspace files...');
+  try {
+    const result = await sb.execute('list_dir', { path: '' });
+    showFileStatus(`📂 ${result || '(empty)'}`);
+    log(`Files: ${result || '(empty)'}`, 'success');
+  } catch (err) {
+    showFileStatus(`❌ ${err.message}`, true);
+    log(`List failed: ${err.message}`, 'error');
+  }
+}
+
+// ============================================================================
+// Tool Proxy Tests
+// ============================================================================
+
+let mockAgentIframe = null;
+
+function showProxyStatus(msg, isError) {
+  const el = document.getElementById('proxy-status');
+  el.textContent = msg;
+  el.className = `text-xs ${isError ? 'text-red-400' : 'text-green-400'}`;
+  el.classList.remove('hidden');
+}
+
+function setupMockAgent() {
+  const agentName = document.getElementById('proxy-agent-name').value.trim();
+  if (!agentName) { log('Agent name is required', 'warn'); return; }
+
+  if (mockAgentIframe) teardownMockAgent();
+
+  const router = sdk.agentRouter;
+  if (!router) { log('AgentRouter not available', 'error'); return; }
+
+  const workspace = getWorkspace();
+  const token = sdk.token || '';
+  const enabledCategories = JSON.stringify(ENABLED_TOOL_CATEGORIES);
+
+  // Build an iframe that imports the SDK, creates a ChatSession with a name,
+  // and auto-registers as an agent via AgentRouter cross-iframe routing.
+  const iframe = document.createElement('iframe');
+  iframe.id = 'mock-agent-iframe';
+  iframe.style.display = 'none';
+
+  // The iframe loads the same SDK bundle. The ChatSession constructor
+  // auto-registers itself with the window-global AgentRouter singleton,
+  // and the parent discovers it through the postMessage-based agent_register protocol.
+  const iframeSrc = `
+<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>
+<script type="module">
+import '../index.ts';
+
+const sdk = new KeepworkSDK({ token: ${JSON.stringify(token)} });
+const session = sdk.aiChat.createSession({
+  name: ${JSON.stringify(agentName)},
+  workspace: ${JSON.stringify(workspace)},
+  enabledCategories: ${enabledCategories},
+});
+console.log('[MockAgent] Session created, registered=' + session._registeredAsAgent);
+<\/script>
+</bo` + `dy></ht` + `ml>`;
+
+  iframe.srcdoc = iframeSrc;
+  document.body.appendChild(iframe);
+  mockAgentIframe = iframe;
+
+  iframe.addEventListener('load', () => {
+    // Connect the iframe window to the parent AgentRouter so agent
+    // registration messages propagate across the iframe boundary.
+    router.addChildWindow(iframe.contentWindow);
+
+    // Allow registration messages to propagate
+    setTimeout(() => {
+      if (router.hasAgent(agentName)) {
+        log(`Agent '${agentName}' registered in iframe (workspace="${workspace}")`, 'success');
+        showProxyStatus(`✅ Agent '${agentName}' ready`);
+      } else {
+        log(`Agent '${agentName}' — route not yet established, try again shortly`, 'warn');
+        showProxyStatus('⚠️ Agent registering...', true);
+      }
+    }, 500);
+  });
+
+  log(`Creating agent '${agentName}' in iframe...`);
+}
+
+function teardownMockAgent() {
+  if (mockAgentIframe) {
+    const agentName = document.getElementById('proxy-agent-name').value.trim();
+    const router = sdk.agentRouter;
+    if (router && mockAgentIframe.contentWindow) {
+      router.removeChildWindow(mockAgentIframe.contentWindow);
+    }
+    mockAgentIframe.remove();
+    mockAgentIframe = null;
+    log(`Agent '${agentName}' iframe removed`, 'info');
+    showProxyStatus('🗑️ Agent removed');
+  }
+}
+
+function proxyAssert(condition, message) {
+  if (!condition) throw new Error(`Assertion failed: ${message}`);
+}
+
+async function runProxyTests() {
+  const agentName = document.getElementById('proxy-agent-name').value.trim();
+  const configText = document.getElementById('proxy-config').value.trim();
+
+  if (!agentName) { log('Agent name is required', 'warn'); return; }
+
+  let proxyConfig;
+  try {
+    proxyConfig = JSON.parse(configText);
+  } catch (e) {
+    log(`Invalid proxy config JSON: ${e.message}`, 'error');
+    return;
+  }
+
+  const router = sdk.agentRouter;
+  if (!router || !router.hasAgent(agentName)) {
+    log(`Agent '${agentName}' not found — click "Setup Mock Agent" first`, 'error');
+    return;
+  }
+
+  const workspace = getWorkspace();
+  let passed = 0, failed = 0;
+
+  log('─── Tool Proxy Tests Start ───', 'info');
+
+  // --- Test 1: function-level proxy resolution ---
+  log('[Test 1] Proxy resolution — function-level');
+  try {
+    const sb = new SandboxToolEnv(sdk, { workspace, toolProxy: proxyConfig });
+    const route = sb._resolveToolProxy('read_file');
+    if (proxyConfig.functions?.read_file) {
+      proxyAssert(route && route.agent === proxyConfig.functions.read_file.agent,
+        `Expected agent '${proxyConfig.functions.read_file.agent}', got: ${JSON.stringify(route)}`);
+      log('  ✓ read_file → function-level proxy', 'success'); passed++;
+    } else {
+      log('  ⓘ read_file not in function proxy config — skip', 'info');
+    }
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  // --- Test 2: category-level proxy resolution ---
+  log('[Test 2] Proxy resolution — category-level');
+  try {
+    const sb = new SandboxToolEnv(sdk, { workspace, toolProxy: proxyConfig });
+    const route = sb._resolveToolProxy('run_app_cmd');
+    if (proxyConfig.categories?.execute) {
+      proxyAssert(route && route.agent === proxyConfig.categories.execute.agent,
+        `Expected agent '${proxyConfig.categories.execute.agent}', got: ${JSON.stringify(route)}`);
+      log('  ✓ run_app_cmd → category-level proxy (execute)', 'success'); passed++;
+    } else {
+      log('  ⓘ execute not in category proxy config — skip', 'info');
+    }
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  // --- Test 3: function proxy priority over category ---
+  log('[Test 3] Function proxy takes priority over category proxy');
+  try {
+    const sb = new SandboxToolEnv(sdk, {
+      workspace,
+      toolProxy: {
+        functions:  { read_file: { agent: 'fnAgent' } },
+        categories: { fileOps:   { agent: 'catAgent' } },
+      },
+    });
+    const route = sb._resolveToolProxy('read_file');
+    proxyAssert(route && route.agent === 'fnAgent',
+      `Expected 'fnAgent', got: ${JSON.stringify(route)}`);
+    log('  ✓ Function-level wins over category-level', 'success'); passed++;
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  // --- Test 4: no proxy for unconfigured tools ---
+  log('[Test 4] No proxy for unconfigured tools');
+  try {
+    const sb = new SandboxToolEnv(sdk, { workspace, toolProxy: proxyConfig });
+    const route = sb._resolveToolProxy('some_unknown_tool_xyz');
+    proxyAssert(route === null, `Expected null, got: ${JSON.stringify(route)}`);
+    log('  ✓ Unconfigured tool → null', 'success'); passed++;
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  // --- Test 5: custom API overrides proxy ---
+  log('[Test 5] Custom API takes priority over proxy');
+  try {
+    const sb = new SandboxToolEnv(sdk, { workspace, toolProxy: proxyConfig });
+    sb.registerAPI('read_file', async () => 'custom-api-result');
+    const result = await sb.execute('read_file', { filePath: 'test.md' });
+    proxyAssert(result === 'custom-api-result',
+      `Expected 'custom-api-result', got: ${result}`);
+    log('  ✓ Custom API wins over proxy', 'success'); passed++;
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  // --- Test 6: no toolProxy → null resolution ---
+  log('[Test 6] No toolProxy config → null resolution');
+  try {
+    const sb = new SandboxToolEnv(sdk, { workspace });
+    const route = sb._resolveToolProxy('read_file');
+    proxyAssert(route === null, `Expected null, got: ${JSON.stringify(route)}`);
+    log('  ✓ No toolProxy → null', 'success'); passed++;
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  // --- Test 7: E2E proxy via execute() ---
+  log('[Test 7] E2E: execute() → AgentRouter → agent ChatSession');
+  try {
+    const sb = new SandboxToolEnv(sdk, { workspace, toolProxy: proxyConfig });
+    if (proxyConfig.functions?.list_dir) {
+      log(`  Calling execute('list_dir', { path: '' }) → agent '${proxyConfig.functions.list_dir.agent}'...`);
+      const result = await sb.execute('list_dir', { path: '' });
+      log(`  Result: ${String(result).substring(0, 200)}`, 'info');
+      proxyAssert(result != null, 'Expected non-null result');
+      log('  ✓ E2E execute() proxy round-trip succeeded', 'success'); passed++;
+    } else {
+      log('  ⓘ list_dir not in function proxies — skip', 'info');
+    }
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  // --- Test 8: E2E proxy via copilot proxy ---
+  log('[Test 8] E2E: copilot.list_dir() → proxy → agent ChatSession');
+  try {
+    if (proxyConfig.functions?.list_dir) {
+      const sb = new SandboxToolEnv(sdk, { workspace, toolProxy: proxyConfig });
+      log('  Calling copilot.list_dir("")...');
+      const result = await sb.copilot.list_dir('');
+      log(`  Result: ${result.substring(0, 200)}`, 'info');
+      log('  ✓ copilot.list_dir() proxy succeeded', 'success'); passed++;
+    } else {
+      log('  ⓘ list_dir not proxied — skip', 'info');
+    }
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  // --- Test 9: processTemplate with proxied tool ---
+  log('[Test 9] processTemplate with proxied list_dir');
+  try {
+    if (proxyConfig.functions?.list_dir) {
+      const sb = new SandboxToolEnv(sdk, { workspace, toolProxy: proxyConfig });
+      const template = 'Files: ${await copilot.list_dir("")}';
+      const expanded = await sb.processTemplate(template);
+      log(`  Expanded: ${expanded.substring(0, 200)}`, 'info');
+      proxyAssert(!expanded.includes('${'), 'Template should be fully expanded');
+      log('  ✓ Template expansion via proxy succeeded', 'success'); passed++;
+    } else {
+      log('  ⓘ list_dir not proxied — skip', 'info');
+    }
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  // --- Test 10: E2E proxy via copilot.read_file ---
+  log('[Test 10] E2E: copilot.read_file() → proxy → agent ChatSession');
+  try {
+    if (proxyConfig.functions?.read_file) {
+      const sb = new SandboxToolEnv(sdk, { workspace, toolProxy: proxyConfig });
+      log('  Calling copilot.read_file("notes.md")...');
+      const result = await sb.copilot.read_file('notes.md');
+      log(`  Result: ${(result || '(empty)').substring(0, 200)}`, 'info');
+      log('  ✓ copilot.read_file() proxy round-trip completed', 'success'); passed++;
+    } else {
+      log('  ⓘ read_file not proxied — skip', 'info');
+    }
+  } catch (e) { log(`  ✗ ${e.message}`, 'error'); failed++; }
+
+  log(`─── Tests Complete: ${passed} passed, ${failed} failed ───`, failed === 0 ? 'success' : 'error');
+  showProxyStatus(`${passed} passed, ${failed} failed`, failed > 0);
+}
+
+// ============================================================================
+// Input Handling
+// ============================================================================
+
+document.getElementById('text-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// ============================================================================
+// Bootstrap
+// ============================================================================
+
+updateSignInUI();
+log('Test page ready. Edit the system prompt template and click Expand Template.', 'success');
+log(`SandboxToolEnv available: ${typeof SandboxToolEnv !== 'undefined'}`, typeof SandboxToolEnv !== 'undefined' ? 'success' : 'error');
+
+// Expose functions to inline onclick handlers
+window.expandTemplate = expandTemplate;
+window.startChat = startChat;
+window.sendMessage = sendMessage;
+window.clearChat = clearChat;
+window.loadPreset = loadPreset;
+window.handleSignIn = handleSignIn;
+window.saveFile = saveFile;
+window.readFile = readFile;
+window.listFiles = listFiles;
+window.setupMockAgent = setupMockAgent;
+window.runProxyTests = runProxyTests;
+window.teardownMockAgent = teardownMockAgent;
+</script>
+</body>
+</html>

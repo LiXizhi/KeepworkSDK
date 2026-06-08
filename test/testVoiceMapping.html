@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音年龄性别映射测试</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-group {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        .test-group h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            font-weight: bold;
+            color: #666;
+        }
+        input, select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .voice-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>语音年龄性别映射测试</h1>
+        
+        <div class="test-group">
+            <h3>自定义年龄性别测试</h3>
+            <div class="controls">
+                <div class="input-group">
+                    <label for="customText">测试文本:</label>
+                    <input type="text" id="customText" value="你好，这是语音测试" placeholder="输入要测试的文本">
+                </div>
+                <div class="input-group">
+                    <label for="ageInput">年龄:</label>
+                    <input type="number" id="ageInput" value="25" min="1" max="100">
+                </div>
+                <div class="input-group">
+                    <label for="genderSelect">性别:</label>
+                    <select id="genderSelect">
+                        <option value="female">女性</option>
+                        <option value="male">男性</option>
+                    </select>
+                </div>
+                <button onclick="testCustomVoice()">播放测试</button>
+            </div>
+            <div id="customStatus" class="status" style="display: none;"></div>
+            <div id="customVoiceInfo" class="voice-info"></div>
+        </div>
+
+        <div class="test-group">
+            <h3>预设年龄组测试</h3>
+            <div class="controls">
+                <div class="input-group">
+                    <label for="presetText">测试文本:</label>
+                    <input type="text" id="presetText" value="大家好，我是语音助手" placeholder="输入要测试的文本">
+                </div>
+                <button onclick="testPresetVoices()">测试所有年龄组</button>
+            </div>
+            <div id="presetStatus" class="status" style="display: none;"></div>
+            <div id="presetResults"></div>
+        </div>
+    </div>
+
+    <!-- 引入md5库 -->
+    <script src="https://cdn.jsdelivr.net/npm/blueimp-md5@2.19.0/js/md5.min.js"></script>
+    <script src="../dist/keepworkSDK.iife.js"></script>
+    <script >
+        // 导入Speech类
+        // Initialize SDK
+        const sdk = new KeepworkSDK({
+            // baseURL: 'https://api.keepwork.com/core/v0',
+            timeout: 30000
+        });
+        
+        let speech;
+        
+        // 初始化Speech实例
+        try {
+            speech = sdk.speech
+            console.log('Speech实例初始化成功');
+            // 将speech实例挂载到window对象，供其他函数使用
+            window.speech = speech;
+        } catch (error) {
+            console.error('Speech实例初始化失败:', error);
+            showStatus('customStatus', 'Speech实例初始化失败: ' + error.message, 'error');
+        }
+
+        // 将函数挂载到window对象
+        window.showStatus = showStatus;
+        window.showVoiceInfo = showVoiceInfo;
+        window.testCustomVoice = testCustomVoice;
+        window.testPresetVoices = testPresetVoices;
+        window.playTestCase = playTestCase;
+
+        function showStatus(elementId, message, type = 'info') {
+            const statusEl = document.getElementById(elementId);
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+        }
+
+        function showVoiceInfo(age, gender, voiceId) {
+            const infoEl = document.getElementById('customVoiceInfo');
+            infoEl.innerHTML = `<strong>映射结果:</strong> 年龄${age}岁, 性别${gender === 'male' ? '男性' : '女性'} → 发音人ID: ${voiceId}`;
+        }
+
+        async function testCustomVoice() {
+            const speechInstance = window.speech;
+            if (!speechInstance) {
+                showStatus('customStatus', 'Speech实例未初始化', 'error');
+                return;
+            }
+
+            const text = document.getElementById('customText').value.trim();
+            const age = parseInt(document.getElementById('ageInput').value);
+            const gender = document.getElementById('genderSelect').value;
+
+            if (!text) {
+                showStatus('customStatus', '请输入测试文本', 'error');
+                return;
+            }
+
+            try {
+                showStatus('customStatus', '正在播放语音...', 'info');
+                
+                // 获取映射的发音人ID
+                const voiceId = speechInstance.getVoiceIdByAgeGender(age, gender);
+                showVoiceInfo(age, gender, voiceId);
+                
+                // 播放语音
+                await speechInstance.playKeepworkAudio(text, { age, gender });
+                showStatus('customStatus', '语音播放成功', 'success');
+            } catch (error) {
+                console.error('播放失败:', error);
+                showStatus('customStatus', '播放失败: ' + error.message, 'error');
+            }
+        }
+
+        async function testPresetVoices() {
+            const speechInstance = window.speech;
+            if (!speechInstance) {
+                showStatus('presetStatus', 'Speech实例未初始化', 'error');
+                return;
+            }
+
+            const text = document.getElementById('presetText').value.trim();
+            if (!text) {
+                showStatus('presetStatus', '请输入测试文本', 'error');
+                return;
+            }
+
+            const testCases = [
+                { age: 6, gender: 'male', desc: '4-8岁男童' },
+                { age: 6, gender: 'female', desc: '4-8岁女童' },
+                { age: 15, gender: 'male', desc: '9-20岁男性' },
+                { age: 15, gender: 'female', desc: '9-20岁女性' },
+                { age: 30, gender: 'male', desc: '20-45岁男性' },
+                { age: 30, gender: 'female', desc: '20-45岁女性' },
+                { age: 50, gender: 'male', desc: '45+岁男性' },
+                { age: 50, gender: 'female', desc: '45+岁女性' }
+            ];
+
+            const resultsEl = document.getElementById('presetResults');
+            resultsEl.innerHTML = '';
+
+            showStatus('presetStatus', '正在测试所有年龄组...', 'info');
+
+            for (let i = 0; i < testCases.length; i++) {
+                const testCase = testCases[i];
+                const voiceId = speechInstance.getVoiceIdByAgeGender(testCase.age, testCase.gender);
+                
+                const resultDiv = document.createElement('div');
+                resultDiv.style.cssText = 'margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;';
+                resultDiv.innerHTML = `
+                    <strong>${testCase.desc}</strong> (年龄${testCase.age}, ${testCase.gender}) → 发音人ID: ${voiceId}
+                    <button onclick="playTestCase(${testCase.age}, '${testCase.gender}', '${text}')" style="margin-left: 10px; padding: 5px 10px; font-size: 12px;">播放</button>
+                `;
+                resultsEl.appendChild(resultDiv);
+            }
+
+            showStatus('presetStatus', '年龄组映射测试完成，点击播放按钮测试语音', 'success');
+        }
+
+        async function playTestCase(age, gender, text) {
+            const speechInstance = window.speech;
+            if (!speechInstance) {
+                console.error('Speech实例未初始化');
+                return;
+            }
+            
+            try {
+                await speechInstance.playKeepworkAudio(text, { age, gender });
+                console.log(`播放成功: 年龄${age}, 性别${gender}`);
+            } catch (error) {
+                console.error(`播放失败: 年龄${age}, 性别${gender}`, error);
+            }
+        }
+    </script>
+</body>
+</html>
