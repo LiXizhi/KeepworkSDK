@@ -9,6 +9,10 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      UPSTREAM_URL: https://code.kp-para.cn/paracraft/keepworksdk.git
+      UPSTREAM_USERNAME: ${{ secrets.KP_PARA_GIT_USERNAME }}
+      UPSTREAM_PASSWORD: ${{ secrets.KP_PARA_GIT_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,17 +25,34 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Add upstream remote
+      - name: Configure upstream remote
         run: |
-          git remote add upstream http://code.kp-para.cn/paracraft/keepworksdk.git || true
+          git remote remove upstream 2>/dev/null || true
+          REMOTE_URL="${UPSTREAM_URL}"
+          if [ -n "${UPSTREAM_USERNAME}" ] && [ -n "${UPSTREAM_PASSWORD}" ]; then
+            REMOTE_URL="$(python3 -c 'import os; from urllib.parse import quote; base = os.environ["UPSTREAM_URL"]; username = quote(os.environ["UPSTREAM_USERNAME"], safe=""); password = quote(os.environ["UPSTREAM_PASSWORD"], safe=""); scheme, rest = base.split("://", 1); print(f"{scheme}://{username}:{password}@{rest}")')"
+            echo "::add-mask::${REMOTE_URL}"
+          fi
+          git remote add upstream "${REMOTE_URL}"
 
       - name: Fetch upstream
+        id: fetch_upstream
         run: |
-          git fetch upstream --no-tags
+          if git fetch upstream --no-tags; then
+            echo "sync_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sync_available=false" >> "$GITHUB_OUTPUT"
+            echo "Unable to fetch upstream. If the upstream requires authentication, configure KP_PARA_GIT_USERNAME and KP_PARA_GIT_PASSWORD secrets."
+          fi
 
       - name: Merge upstream into current branch
+        if: steps.fetch_upstream.outputs.sync_available == 'true'
         run: |
           BRANCH="${{ github.ref_name }}"
+          if ! git rev-parse --verify "refs/remotes/upstream/${BRANCH}" >/dev/null 2>&1; then
+            echo "Upstream branch ${BRANCH} not found — skipping merge."
+            exit 0
+          fi
           git merge upstream/${BRANCH} --no-edit --allow-unrelated-histories || {
             echo "Merge conflict detected — aborting merge and skipping push."
             git merge --abort
@@ -39,5 +60,6 @@ jobs:
           }
 
       - name: Push changes
+        if: steps.fetch_upstream.outputs.sync_available == 'true'
         run: |
           git push origin ${{ github.ref_name }}
