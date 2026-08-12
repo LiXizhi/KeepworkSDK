@@ -1,0 +1,43 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream http://code.kp-para.cn/paracraft/keepworksdk.git || true
+
+      - name: Fetch upstream
+        run: |
+          git fetch upstream --no-tags
+
+      - name: Merge upstream into current branch
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          git merge upstream/${BRANCH} --no-edit --allow-unrelated-histories || {
+            echo "Merge conflict detected — aborting merge and skipping push."
+            git merge --abort
+            exit 0
+          }
+
+      - name: Push changes
+        run: |
+          git push origin ${{ github.ref_name }}
