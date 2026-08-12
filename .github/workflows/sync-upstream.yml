@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       UPSTREAM_URL: https://code.kp-para.cn/paracraft/keepworksdk.git
+      UPSTREAM_TOKEN: ${{ secrets.KP_PARA_GIT_TOKEN }}
       UPSTREAM_USERNAME: ${{ secrets.KP_PARA_GIT_USERNAME }}
       UPSTREAM_PASSWORD: ${{ secrets.KP_PARA_GIT_PASSWORD }}
     steps:
@@ -29,7 +30,11 @@ jobs:
         run: |
           git remote remove upstream 2>/dev/null || true
           REMOTE_URL="${UPSTREAM_URL}"
-          if [ -n "${UPSTREAM_USERNAME}" ] && [ -n "${UPSTREAM_PASSWORD}" ]; then
+          if [ -n "${UPSTREAM_TOKEN}" ]; then
+            REMOTE_URL="$(python3 -c 'import os; from urllib.parse import quote; base = os.environ["UPSTREAM_URL"]; username = quote(os.environ.get("UPSTREAM_USERNAME") or "gitlab-ci-token", safe=""); password = quote(os.environ["UPSTREAM_TOKEN"], safe=""); scheme, rest = base.split("://", 1); print(f"{scheme}://{username}:{password}@{rest}")')"
+            echo "::add-mask::${UPSTREAM_TOKEN}"
+            echo "::add-mask::${REMOTE_URL}"
+          elif [ -n "${UPSTREAM_USERNAME}" ] && [ -n "${UPSTREAM_PASSWORD}" ]; then
             REMOTE_URL="$(python3 -c 'import os; from urllib.parse import quote; base = os.environ["UPSTREAM_URL"]; username = quote(os.environ["UPSTREAM_USERNAME"], safe=""); password = quote(os.environ["UPSTREAM_PASSWORD"], safe=""); scheme, rest = base.split("://", 1); print(f"{scheme}://{username}:{password}@{rest}")')"
             echo "::add-mask::${REMOTE_URL}"
           fi
@@ -42,7 +47,7 @@ jobs:
             echo "sync_available=true" >> "$GITHUB_OUTPUT"
           else
             echo "sync_available=false" >> "$GITHUB_OUTPUT"
-            echo "Unable to fetch upstream. If the upstream requires authentication, configure KP_PARA_GIT_USERNAME and KP_PARA_GIT_PASSWORD secrets."
+            echo "Unable to fetch upstream. If the upstream requires authentication, configure the KP_PARA_GIT_TOKEN secret (preferred) or the KP_PARA_GIT_USERNAME and KP_PARA_GIT_PASSWORD secrets."
           fi
 
       - name: Merge upstream into current branch
